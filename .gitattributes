@@ -1,0 +1,24 @@
+# Normalización de finales de línea.
+#
+# Git for Windows viene con core.autocrlf=true, que convierte LF a CRLF al
+# sacar los archivos y al revés al guardarlos. Cuando dos personas trabajan
+# desde sistemas distintos -- o cuando una misma persona toca los archivos
+# desde Windows y desde WSL, como es el caso acá -- eso genera "cambios"
+# fantasma donde el archivo entero aparece modificado sin que nadie lo haya
+# tocado, y ensucia todos los diffs.
+#
+# Esta línea fuerza LF adentro del repositorio para todo lo que sea texto,
+# sin importar cómo esté configurada la máquina de cada uno. Al estar en el
+# repo, aplica automáticamente a los dos: no hay que configurar nada.
+* text=auto eol=lf
+
+# Los CSV del osciloscopio son texto, pero conviene declararlos explícito
+*.CSV text
+*.csv text
+
+# Binarios: que Git no intente hacer diff ni convertir nada
+*.png  binary
+*.pdf  binary
+*.jpg  binary
+*.h5   binary
+*.bin  binary

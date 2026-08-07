@@ -1,0 +1,60 @@
+# ---------------------------------------------------------------------------
+# Entornos virtuales de Python  --  NUNCA van al repo
+# Son cientos de MB y se reconstruyen con: pip install -r requirements.txt
+# ---------------------------------------------------------------------------
+venv*/
+.venv/
+env/
+ENV/
+
+# ---------------------------------------------------------------------------
+# Cachés y temporales de Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# ---------------------------------------------------------------------------
+# Compilación de Arduino / ESP-IDF
+# ---------------------------------------------------------------------------
+build/
+.pio/
+.vscode/ipch/
+*.elf
+*.bin
+*.hex
+*.map
+*.d
+*.o
+
+# ---------------------------------------------------------------------------
+# Salidas generadas por los scripts de análisis
+# Se regeneran corriendo el script sobre los CSV de datos/, así que no tiene
+# sentido versionarlas: solo generan ruido en los diffs.
+# Si alguna figura es "la buena" para la tesis, sacala de acá con:
+#     git add -f analisis/v2/espectro_distancia.png
+# ---------------------------------------------------------------------------
+*.png
+*.pdf
+*.svg
+
+# ---------------------------------------------------------------------------
+# Simulaciones electromagnéticas: son decenas de GB, no entran en GitHub
+# ---------------------------------------------------------------------------
+*.h5
+*.out
+Diseño*IQ/
+Antenas/
+Qucs/
+
+# ---------------------------------------------------------------------------
+# Sistema operativo y editores
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+*.swp
+.claude/

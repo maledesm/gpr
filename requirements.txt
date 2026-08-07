@@ -1,0 +1,26 @@
+# Dependencias del análisis (carpeta analisis/)
+# Instalación:
+#     python -m venv venv_gpr
+#     source venv_gpr/bin/activate      (Linux/WSL)
+#     venv_gpr\Scripts\activate         (Windows)
+#     pip install -r requirements.txt
+#
+# Versiones tomadas del entorno con el que se procesaron las mediciones
+# de datos/ (2026-04).
+
+numpy==2.4.4
+pandas==3.0.2
+scipy==1.17.1
+matplotlib==3.10.9
+
+# Opcionales: solo para trabajar con notebooks
+jupyter==1.1.1
+notebook==7.5.5
+ipython==9.13.0
+
+# ---------------------------------------------------------------------------
+# NO instalable por pip: simulacion/lpda_meep.py necesita MEEP, que se instala
+# con conda porque arrastra dependencias compiladas (MPI, HDF5):
+#     conda create -n meep -c conda-forge pymeep
+# Por eso el script de simulación corre en un entorno aparte del análisis.
+# ---------------------------------------------------------------------------
