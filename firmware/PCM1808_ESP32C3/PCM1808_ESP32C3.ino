@@ -934,12 +934,13 @@ static void emitirPlot(float l, float r) {
       default:   Serial.printf("L:%.*f,R:%.*f\r\n", d, a, d, b); break;
     }
   } else {
-    // Sin etiquetas: maxima compatibilidad (plotter viejo del IDE 1.8,
-    // Serial Studio, scripts propios).
+    // Sin etiquetas, separado por coma: CSV puro. Es lo que esperan
+    // Telemetry Viewer, Serial Studio, el plotter viejo del IDE 1.8 y
+    // cualquier script propio. El plotter del IDE 2.x tambien acepta coma.
     switch (g_ch) {
       case CH_L: Serial.printf("%.*f\r\n", d, a); break;
       case CH_R: Serial.printf("%.*f\r\n", d, b); break;
-      default:   Serial.printf("%.*f\t%.*f\r\n", d, a, d, b); break;
+      default:   Serial.printf("%.*f,%.*f\r\n", d, a, d, b); break;
     }
   }
 }
