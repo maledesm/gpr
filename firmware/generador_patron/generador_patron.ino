@@ -2,17 +2,19 @@
  * Generador de patrón de prueba — Arduino Uno
  * Valida la cadena ESP32-C3 + PCM1808 sin necesitar el circuito de RF.
  *
- * Salida en D9. Cuadro de 10 ms que se repite a 100 Hz:
+ * Salida en D9: cuadrada simétrica de 100 Hz (5 ms alto, 5 ms bajo).
  *
- *     ALTO 1 ms → BAJO 2 ms → ALTO 3 ms → BAJO 4 ms
+ * ── POR QUÉ 100 Hz ─────────────────────────────────────────────────────────
+ * Por abajo lo limita el pasa-altos del PCM1808 (τ ≈ 308 ms a fs = 8 kHz):
+ * a 100 Hz el techo cae solo 1.6 %, o sea que se ve plano. A 10 Hz caería
+ * un 15 % y las mesetas saldrían inclinadas.
  *
- * Asimétrico y creciente a propósito: si en el plotter lo ves 1-2-3-4, la
- * cadena respeta amplitud y orden temporal. Si lo vieras 4-3-2-1 o simétrico,
- * algo está mal.
+ * Por arriba lo limitan los armónicos: una cuadrada son armónicos impares, y
+ * con fs_eff = 2 kHz entran hasta el 9° a 100 Hz. A 200 Hz solo entrarían
+ * hasta el 5° y se vería redondeada.
  *
- * Los tiempos van en MILISEGUNDOS, no en cientos de ms: el PCM1808 está
- * acoplado en alterna con tau entre 60 y 175 ms, así que escalones largos se
- * verían como picos que decaen en vez de mesetas planas.
+ * De paso, 100 Hz da 20 puntos por período a fs_eff = 2 kHz, y sale exacta
+ * con delay(5) sin fracciones de milisegundo.
  *
  * ── DIVISOR OBLIGATORIO ────────────────────────────────────────────────────
  * El Uno saca 5 Vpp y el fondo de escala del PCM1808 son 3.0 Vpp. Conectarlo
@@ -25,11 +27,15 @@
  *     GND ──────────┴──── GND del ESP32 y del módulo   ← masa común, sí o sí
  *
  * ── QUÉ ESPERAR EN 'stats' DEL ESP32 ───────────────────────────────────────
- *     Vpp ≈ 1500 mV · DC ≈ 0 · meseta alta +900 mV · meseta baja −600 mV
- * Las mesetas son asimétricas porque el ciclo de trabajo es 40 % y la entrada
- * acoplada en alterna se autocentra en su valor medio.
+ *     Vpp ≈ 1400 mV · DC ≈ 0 · mesetas simétricas en ±700 mV · f = 100.0 Hz
  *
- * Para verlo:  n 50  →  win 10  →  plot
+ * Las mesetas son simétricas porque el ciclo de trabajo es 50 %. (Con la
+ * escalera asimétrica anterior no lo eran: la entrada acoplada en alterna se
+ * autocentra en el valor medio, y con 40 % de duty eso corría los niveles.)
+ *
+ * El ATmega328P del Uno usa un RESONADOR CERÁMICO, no un cristal: ±0.5 % de
+ * tolerancia. Sirve para verificar que la cadena funciona, pero no lo tomes
+ * como patrón de frecuencia.
  */
 
 void setup() {
@@ -37,8 +43,6 @@ void setup() {
 }
 
 void loop() {
-  digitalWrite(9, HIGH); delay(1);
-  digitalWrite(9, LOW);  delay(2);
-  digitalWrite(9, HIGH); delay(3);
-  digitalWrite(9, LOW);  delay(4);
+  digitalWrite(9, HIGH); delay(5);
+  digitalWrite(9, LOW);  delay(5);
 }
