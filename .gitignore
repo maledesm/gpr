@@ -58,3 +58,7 @@ desktop.ini
 *~
 *.swp
 .claude/
+
+# El WAV generado por simulacion/beat_simulado.py: son megas y se regenera
+beat_gpr.wav
+*.wav
