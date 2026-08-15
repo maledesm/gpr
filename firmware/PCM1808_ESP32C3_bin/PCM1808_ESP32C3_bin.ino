@@ -325,6 +325,13 @@ static uint32_t anaN = 0;
 static uint64_t framesTotal = 0;   // frames leidos desde el ultimo reset de cuentas
 static uint32_t clipCount   = 0;
 static uint32_t clipLast_ms = 0;   // ultimo instante con saturacion, para el LED
+
+// Overflow del ring del DMA, contado por el propio driver.
+// Antes lo inferiamos del porcentaje de captura, que es indirecto y solo
+// detecta perdidas grandes. El callback del IDF lo reporta exacto: cada vez que
+// el DMA pisa un descriptor que el firmware todavia no leyo, incrementa esto.
+// Es volatile e IRAM porque el callback corre en contexto de interrupcion.
+static volatile uint32_t dmaOverflow = 0;
 static uint32_t t0_ms       = 0;
 static uint64_t sampleIndex = 0;   // indice de muestra diezmada, para el modo raw
 
@@ -382,6 +389,19 @@ static bool i2sStart(uint32_t fs) {
     Serial.println("[ERROR] i2s_channel_init_std_mode fallo");
     return false;
   }
+
+  // Deteccion exacta de desborde del ring del DMA. El callback corre en
+  // contexto de interrupcion: solo incrementa un contador, nada mas.
+  i2s_event_callbacks_t cbs = {};
+  cbs.on_recv_q_ovf = [](i2s_chan_handle_t, i2s_event_data_t *, void *) -> bool {
+    // Lectura + escritura explicitas: en C++20 el ++ sobre volatile esta
+    // deprecado. Solo escribe la ISR y solo lee el lazo principal, asi que
+    // no hace falta atomicidad.
+    dmaOverflow = dmaOverflow + 1;
+    return false;
+  };
+  i2s_channel_register_event_callback(rx_chan, &cbs, nullptr);
+  dmaOverflow = 0;
   if (i2s_channel_enable(rx_chan) != ESP_OK) {
     Serial.println("[ERROR] i2s_channel_enable fallo");
     return false;
@@ -774,6 +794,8 @@ static void mostrarAyuda() {
   Serial.println("  fmt plain    solo el numero (IDE 1.8, Serial Studio, scripts)");
   Serial.println(" Otros:");
   Serial.println("  diag         diagnostico de conexion");
+  Serial.println("  fsmed [ms]   mide la fs REAL contando frames contra el");
+  Serial.println("               reloj del sistema (por defecto 2000 ms)");
   Serial.println("  info         estado actual");
   Serial.println("  reset        vuelve a los valores de fabrica y reinicia");
   Serial.println("  help         esta ayuda");
@@ -968,6 +990,14 @@ static void procesarComando(String s) {
                              Serial.println("[OK] salida detenida"); }
   else if (cmd == "diag")  { Mode prev = g_mode; g_mode = MODE_OFF;
                              diagnostico(); g_mode = prev; }
+  else if (cmd == "fsmed") {
+    long ms = arg.toInt();
+    if (ms < 200 || ms > 20000) ms = 2000;
+    Mode prev = g_mode; g_mode = MODE_OFF;
+    medirFs((uint32_t)ms);
+    g_mode = prev;
+    return;
+  }
   else if (cmd == "info")  { mostrarInfo(); return; }
   else if (cmd == "help" || cmd == "?") { mostrarAyuda(); return; }
   else if (cmd == "reset") {
@@ -1102,6 +1132,61 @@ static void binReiniciar() {
   rafRestan = g_rafOn;
 }
 
+// ---------------------------------------------------------------------------
+//  Medicion de la fs real
+// ---------------------------------------------------------------------------
+//
+//  El ESP32-C3 no tiene APLL: el I2S cuelga del PLL de 160 MHz con un divisor
+//  fraccionario (N + b/a), asi que la fs conseguida no siempre es la pedida.
+//  La API publica no expone el divisor que quedo programado, pero la relacion
+//  SI se puede medir: contar frames durante un rato y dividir por el tiempo.
+//
+//  Funciona bien porque el I2S y esp_timer cuelgan del mismo cristal, o sea
+//  que esto mide la RELACION DE DIVISION con mucha exactitud. El error del
+//  cristal (~20 ppm) es despreciable frente al del divisor (~500 ppm).
+//
+//  Detalle que arruina la medicion si se omite: al terminar hay que drenar el
+//  DMA. Si no, las muestras que quedaron en el ring no se cuentan y la fs sale
+//  subestimada en, tipicamente, un 1.5 %.
+//
+static void medirFs(uint32_t ms) {
+  Serial.printf("Midiendo fs real durante %.1f s...\n", ms / 1000.0f);
+
+  vaciarDMA();
+  uint64_t frames = 0;
+  int64_t  t0 = esp_timer_get_time();
+
+  while ((esp_timer_get_time() - t0) < (int64_t)ms * 1000) {
+    size_t bytes = 0;
+    if (i2s_channel_read(rx_chan, rawBuf, sizeof(rawBuf), &bytes, 1000) != ESP_OK) break;
+    frames += bytes / (2 * sizeof(int32_t));
+  }
+
+  // Drenar lo que quedo en el ring: sin esto la cuenta sale corta
+  for (int i = 0; i < 64; i++) {
+    size_t bytes = 0;
+    if (i2s_channel_read(rx_chan, rawBuf, sizeof(rawBuf), &bytes, 0) != ESP_OK) break;
+    if (bytes == 0) break;
+    frames += bytes / (2 * sizeof(int32_t));
+  }
+  int64_t t1 = esp_timer_get_time();
+
+  double dt   = (double)(t1 - t0) / 1e6;
+  double real = (double)frames / dt;
+  double err  = 100.0 * (real - (double)g_fs) / (double)g_fs;
+
+  Serial.printf("  fs nominal : %lu Hz\n", (unsigned long)g_fs);
+  Serial.printf("  fs medida  : %.3f Hz\n", real);
+  Serial.printf("  error      : %+.4f %%  (%.1f ppm)\n", err, err * 1e4);
+  Serial.printf("  frames     : %llu en %.4f s\n", (unsigned long long)frames, dt);
+  Serial.println();
+  Serial.println("  Usa este valor en el analisis si el error supera ~0.05 %.");
+  Serial.println("  Ojo: si medis T_sweep contando muestras, la fs se cancela");
+  Serial.println("  en la ecuacion de distancia y este error deja de importar.");
+
+  reiniciarVentana();
+}
+
 // Tira lo que haya quedado en el ring del DMA, para que el proximo barrido
 // arranque con muestras frescas y contiguas entre si.
 static void vaciarDMA() {
@@ -1140,6 +1225,7 @@ static void emitirStats() {
                 (float)anaN / eff, (unsigned long)g_fs, (unsigned long)g_dec,
                 eff, captura);
   if (clipCount) Serial.printf("  |  CLIP! %lu", (unsigned long)clipCount);
+  if (dmaOverflow) Serial.printf("  |  DMA OVF %lu", (unsigned long)dmaOverflow);
   Serial.println();
   Serial.println("      DC(mV)    Vpp(mV)   Vrms(mV)   dBFS     f(Hz)   ciclos");
   Serial.printf("  L  %9.3f  %9.3f  %9.3f  %7.1f  %8.3f   %lu\n",
