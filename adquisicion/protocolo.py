@@ -253,6 +253,14 @@ def autoprueba():
         if not ok:
             fallos += 1
 
+    # 0. Valor conocido de la norma.
+    #    Es el unico test que ancla el algoritmo a algo externo. Los demas
+    #    generan las tramas con este mismo crc16 y despues las verifican con
+    #    el, asi que validan el decodificador contra si mismo y NO podrian
+    #    detectar que el firmware calcula otra cosa. Este si.
+    chequear("CRC de la norma (CCITT-FALSE)", crc16(b"123456789") == 0x29B1,
+             f"crc16('123456789') = {crc16(b'123456789'):#06x}, norma = 0x29b1")
+
     # 1. Ida y vuelta simple
     d = Decodificador()
     origen = np.arange(256, dtype="<f4") * 0.001

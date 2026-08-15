@@ -157,6 +157,18 @@ public:
     return -1;
   }
 
+  // El buffer de transmision del CDC son 256 bytes por defecto (HWCDC.cpp:422).
+  // Para el modo binario eso es fatal: un paquete son 1035 bytes, no entra, y
+  // write() devuelve una cuenta corta descartando el resto. Se amplia para que
+  // un paquete entero quepa de una vez.
+  void ampliarBufferTx(size_t n) {
+#if CONSOLA_DUAL
+    UsbCdc.setTxBufferSize(n);   // el CDC es el que transporta el binario
+#else
+    Serial.setTxBufferSize(n);   // aca Serial ES el CDC
+#endif
+  }
+
   // true cuando hay una PC del otro lado del USB
   bool usbConectado() {
 #if CONSOLA_DUAL
@@ -293,6 +305,7 @@ static uint16_t binN       = 0;     // muestras acumuladas en el paquete
 static uint64_t binIdx     = 0;     // indice absoluto de muestra
 static uint32_t binIdxPkt  = 0;     // indice de la primera muestra del paquete
 static uint8_t  binFlags   = 0;
+static uint32_t binTruncados = 0;   // tramas soltadas porque el host no leia
 
 static uint32_t g_rafOn  = 0;       // muestras a capturar (0 = continuo)
 static uint32_t g_rafOff = 0;       // muestras a pausar
@@ -1111,7 +1124,23 @@ static void binEnviarPaquete() {
   uint16_t c     = crc16(&binBuf[2], largo - 2);
   memcpy(&binBuf[largo], &c, 2);
 
-  Serial.write(binBuf, largo + 2);
+  // Serial.write() puede escribir MENOS de lo pedido: el buffer del CDC es
+  // finito y ante contrapresion del host devuelve una cuenta corta. Ignorar
+  // ese retorno mutilaba cada trama (salian 256 de 1035 bytes). Se reintenta
+  // hasta completar, con un tope por si la PC dejo de leer del todo.
+  size_t   total    = largo + 2;
+  size_t   enviados = 0;
+  uint32_t t0       = millis();
+  while (enviados < total) {
+    size_t w = Serial.write(binBuf + enviados, total - enviados);
+    enviados += w;
+    if (enviados >= total) break;
+    if (millis() - t0 > 250) {          // el host no lee: soltamos la trama
+      binTruncados++;
+      break;
+    }
+    if (w == 0) delay(1);               // dejar que la ISR drene el anillo
+  }
 
   binN     = 0;
   binFlags = 0;
@@ -1226,6 +1255,7 @@ static void emitirStats() {
                 eff, captura);
   if (clipCount) Serial.printf("  |  CLIP! %lu", (unsigned long)clipCount);
   if (dmaOverflow) Serial.printf("  |  DMA OVF %lu", (unsigned long)dmaOverflow);
+  if (binTruncados) Serial.printf("  |  TRAMAS SOLTADAS %lu", (unsigned long)binTruncados);
   Serial.println();
   Serial.println("      DC(mV)    Vpp(mV)   Vrms(mV)   dBFS     f(Hz)   ciclos");
   Serial.printf("  L  %9.3f  %9.3f  %9.3f  %7.1f  %8.3f   %lu\n",
@@ -1259,6 +1289,9 @@ static void banner() {
 
 void setup() {
   Serial.begin(115200);
+  // Un paquete binario son 1035 bytes y el buffer por defecto del CDC son 256.
+  // Sin esto, cada trama sale truncada al 25 % y ninguna pasa el CRC.
+  Serial.ampliarBufferTx(4096);
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, HIGH);   // activo en bajo -> HIGH = apagado
 
