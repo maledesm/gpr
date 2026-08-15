@@ -62,3 +62,10 @@ desktop.ini
 # El WAV generado por simulacion/beat_simulado.py: son megas y se regenera
 beat_gpr.wav
 *.wav
+
+# Capturas: se generan en cada medicion. Conservá las importantes con:
+#     git add -f datos/2026-08-15_143000.csv
+datos/*.csv
+
+# Configuracion local del grabador (es por maquina)
+adquisicion/config.json
