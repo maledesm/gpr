@@ -1,5 +1,5 @@
 """
-Protocolo binario del firmware PCM1808_ESP32C3_bin.
+Protocolo binario del firmware PCM1808_ESP32C3.
 
 Trama:
     [0xA5 0x5A] [idx:uint32] [n:uint16] [flags:uint8] [n x float32] [crc16]

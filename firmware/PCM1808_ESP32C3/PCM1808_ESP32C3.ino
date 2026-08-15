@@ -1,12 +1,28 @@
 /*
  * ============================================================================
- *  PCM1808 + ESP32-C3 SuperMini  --  Banco de prueba de digitalizacion
+ *  PCM1808 + ESP32-C3 SuperMini  --  digitalizador para el GPR FMCW
  * ============================================================================
  *
- *  Objetivo de esta version: verificar que el PCM1808 mide bien.
- *  Se inyecta una senoidal con un generador de funciones y se comprueba
- *  amplitud, frecuencia, offset y piso de ruido. La salida es compatible
- *  con el Serial Plotter del Arduino IDE.
+ *  ESTE ES EL FIRMWARE ACTUAL. Es el unico que hay que cargar en la placa.
+ *  Lo que hay en firmware/historico/ son etapas anteriores del proyecto que ya
+ *  no se usan (y que ni siquiera compilan para el ESP32-C3).
+ *
+ *  Dos formas de sacar los datos:
+ *
+ *    - TEXTO ('stats', 'plot', 'stream', 'raw'): legible, compatible con el
+ *      Serial Plotter del Arduino IDE y con Telemetry Viewer. Es la red de
+ *      seguridad: cuando algo no anda, poder abrir un monitor serie y ver
+ *      numeros vale oro.
+ *    - BINARIO ('bin'): tramas con indice absoluto y CRC, 2.5x mas eficiente,
+ *      y permite detectar muestras perdidas. Es el que consume el software de
+ *      Python en adquisicion/.
+ *
+ *  Ademas 'raf' permite capturar por rafagas (capturar N muestras, pausar M),
+ *  con la captura continua como caso particular (M = 0).
+ *
+ *  Para validar la cadena sin el radar se inyecta una senoidal con un
+ *  generador de funciones y se comprueban amplitud, frecuencia, offset y piso
+ *  de ruido. El procedimiento completo esta en docs/validacion_banco.md.
  *
  *  Arquitectura:
  *    - El ESP32-C3 es MAESTRO de I2S: genera SCKI (MCLK), BCK y LRCK.
@@ -146,6 +162,18 @@ public:
     return -1;
   }
 
+  // El buffer de transmision del CDC son 256 bytes por defecto (HWCDC.cpp:422).
+  // Para el modo binario eso es fatal: un paquete son 1035 bytes, no entra, y
+  // write() devuelve una cuenta corta descartando el resto. Se amplia para que
+  // un paquete entero quepa de una vez.
+  void ampliarBufferTx(size_t n) {
+#if CONSOLA_DUAL
+    UsbCdc.setTxBufferSize(n);   // el CDC es el que transporta el binario
+#else
+    Serial.setTxBufferSize(n);   // aca Serial ES el CDC
+#endif
+  }
+
   // true cuando hay una PC del otro lado del USB
   bool usbConectado() {
 #if CONSOLA_DUAL
@@ -211,7 +239,7 @@ static const float LSB_V     = FS_PEAK_V / 8388608.0f;  // 179 nV con VCC=5V
 // ---------------------------------------------------------------------------
 // Estado global
 // ---------------------------------------------------------------------------
-enum Mode { MODE_OFF, MODE_PLOT, MODE_STREAM, MODE_STATS, MODE_RAW };
+enum Mode { MODE_OFF, MODE_PLOT, MODE_STREAM, MODE_STATS, MODE_RAW, MODE_BIN };
 enum Chan { CH_L = 0, CH_R = 1, CH_BOTH = 2 };
 enum Fmt  { FMT_LABEL, FMT_PLAIN };
 
@@ -249,6 +277,46 @@ static bool     plotCapturando = true;
 static uint32_t plotIdx     = 0;
 static uint32_t plotLast_us = 0;
 
+// ===========================================================================
+//  Modo binario (MODE_BIN) y captura por rafagas
+// ===========================================================================
+//
+//  Trama:
+//     [0xA5 0x5A] [idx:uint32] [n:uint16] [flags:uint8] [n x float32] [crc16]
+//         2           4           2          1            4*n           2
+//
+//  idx   = indice ABSOLUTO de la primera muestra del paquete, contado desde
+//          que arranco la captura. No es un contador de paquetes: avanza con
+//          el tiempo real, tambien durante las pausas de rafaga. Gracias a eso
+//          los huecos son explicitos y medibles, y la PC puede distinguir una
+//          pausa esperada de una perdida del DMA.
+//  flags = bit0: primer paquete de una rafaga.
+//  crc16 = CCITT-FALSE (poly 0x1021, init 0xFFFF) sobre idx..datos.
+//
+//  Rafagas: se capturan g_rafOn muestras, se pausan g_rafOff, y se repite.
+//  Con g_rafOff = 0 la captura es continua (es el mismo camino de codigo, la
+//  continuidad es el caso degenerado). Durante la pausa se sigue vaciando el
+//  DMA para que no desborde, y el indice sigue avanzando: representa tiempo
+//  real, no cantidad de muestras enviadas.
+//
+#define BIN_MAGIC0     0xA5
+#define BIN_MAGIC1     0x5A
+#define BIN_MUESTRAS   256          // muestras por paquete
+#define BIN_CAB        9            // magic(2) + idx(4) + n(2) + flags(1)
+#define BIN_MAX        (BIN_CAB + BIN_MUESTRAS * 4 + 2)
+
+static uint8_t  binBuf[BIN_MAX];
+static uint16_t binN       = 0;     // muestras acumuladas en el paquete
+static uint64_t binIdx     = 0;     // indice absoluto de muestra
+static uint32_t binIdxPkt  = 0;     // indice de la primera muestra del paquete
+static uint8_t  binFlags   = 0;
+static uint32_t binTruncados = 0;   // tramas soltadas porque el host no leia
+
+static uint32_t g_rafOn  = 0;       // muestras a capturar (0 = continuo)
+static uint32_t g_rafOff = 0;       // muestras a pausar
+static bool     rafCapturando = true;
+static uint32_t rafRestan     = 0;
+
 // Configuracion persistente en NVS.
 //
 // Hace falta porque la ventana del Serial Plotter del IDE 2.x NO tiene campo
@@ -275,6 +343,13 @@ static uint32_t anaN = 0;
 static uint64_t framesTotal = 0;   // frames leidos desde el ultimo reset de cuentas
 static uint32_t clipCount   = 0;
 static uint32_t clipLast_ms = 0;   // ultimo instante con saturacion, para el LED
+
+// Overflow del ring del DMA, contado por el propio driver.
+// Antes lo inferiamos del porcentaje de captura, que es indirecto y solo
+// detecta perdidas grandes. El callback del IDF lo reporta exacto: cada vez que
+// el DMA pisa un descriptor que el firmware todavia no leyo, incrementa esto.
+// Es volatile e IRAM porque el callback corre en contexto de interrupcion.
+static volatile uint32_t dmaOverflow = 0;
 static uint32_t t0_ms       = 0;
 static uint64_t sampleIndex = 0;   // indice de muestra diezmada, para el modo raw
 
@@ -332,6 +407,19 @@ static bool i2sStart(uint32_t fs) {
     Serial.println("[ERROR] i2s_channel_init_std_mode fallo");
     return false;
   }
+
+  // Deteccion exacta de desborde del ring del DMA. El callback corre en
+  // contexto de interrupcion: solo incrementa un contador, nada mas.
+  i2s_event_callbacks_t cbs = {};
+  cbs.on_recv_q_ovf = [](i2s_chan_handle_t, i2s_event_data_t *, void *) -> bool {
+    // Lectura + escritura explicitas: en C++20 el ++ sobre volatile esta
+    // deprecado. Solo escribe la ISR y solo lee el lazo principal, asi que
+    // no hace falta atomicidad.
+    dmaOverflow = dmaOverflow + 1;
+    return false;
+  };
+  i2s_channel_register_event_callback(rx_chan, &cbs, nullptr);
+  dmaOverflow = 0;
   if (i2s_channel_enable(rx_chan) != ESP_OK) {
     Serial.println("[ERROR] i2s_channel_enable fallo");
     return false;
@@ -576,6 +664,7 @@ static const char* nombreModo(Mode m) {
   switch (m) {
     case MODE_PLOT:   return "plot (osciloscopio)";
     case MODE_STREAM: return "stream (tiempo real)";
+    case MODE_BIN:    return "bin (binario para Python)";
     case MODE_STATS:  return "stats";
     case MODE_RAW:    return "raw";
     default:          return "off";
@@ -594,6 +683,8 @@ static void guardarConfig() {
   prefs.putBool ("mV",    g_mV);
   prefs.putUInt ("plotN", g_plotN);
   prefs.putUInt ("rate",  g_plotRate);
+  prefs.putUInt ("rafOn",  g_rafOn);
+  prefs.putUInt ("rafOff", g_rafOff);
   prefs.end();
 }
 
@@ -607,12 +698,17 @@ static void cargarConfig() {
   g_mV       = prefs.getBool ("mV",    true);
   g_plotN    = prefs.getUInt ("plotN", 400);
   g_plotRate = prefs.getUInt ("rate",  200);
+  g_rafOn    = prefs.getUInt ("rafOn",  0);
+  g_rafOff   = prefs.getUInt ("rafOff", 0);
   prefs.end();
 
   // Sanidad: si la NVS tiene basura de una version anterior, no arrancamos roto
   if (g_fs < FS_MIN || g_fs > FS_MAX)          g_fs   = DEF_FS;
   if (g_dec < 1 || g_dec > DEC_MAX)            g_dec  = DEF_DEC;
-  if (g_mode > MODE_RAW)                       g_mode = MODE_STATS;
+  if (g_mode > MODE_BIN)                       g_mode = MODE_STATS;
+  // Si la rafaga quedo mal guardada, volvemos a continuo: con rafOn = 0 y
+  // rafOff > 0 el contador se desbordaria en el primer decremento.
+  if (g_rafOff > 0 && g_rafOn == 0)            g_rafOff = 0;
   if (g_ch > CH_BOTH)                          g_ch   = CH_L;
   if (g_fmt > FMT_PLAIN)                       g_fmt  = FMT_LABEL;
   if (g_plotN < 16 || g_plotN > ANA_N)         g_plotN = 400;
@@ -646,6 +742,15 @@ static void mostrarInfo() {
   Serial.printf("  Canal            : %s\n", nombreCanal(g_ch));
   Serial.printf("  Unidad / formato : %s / %s\n",
                 g_mV ? "mV" : "V", g_fmt == FMT_LABEL ? "L:valor" : "solo numero");
+  if (g_rafOff == 0) {
+    Serial.println("  Captura          : continua");
+  } else {
+    Serial.printf("  Captura          : rafaga %lu on / %lu off  (%.1f %% util)\n",
+                  (unsigned long)g_rafOn, (unsigned long)g_rafOff,
+                  100.0f * g_rafOn / (g_rafOn + g_rafOff));
+  }
+  Serial.printf("  Caudal binario   : %.1f kB/s\n", eff * 4.0f / 1000.0f *
+                (g_rafOff == 0 ? 1.0f : (float)g_rafOn / (g_rafOn + g_rafOff)));
   Serial.printf("  Fondo de escala  : %.2f Vpp (+-%.3f V), VCC=%.1f V\n",
                 2.0f * FS_PEAK_V, FS_PEAK_V, PCM_VCC);
   Serial.printf("  1 LSB            : %.1f nV\n", LSB_V * 1e9f);
@@ -690,6 +795,11 @@ static void mostrarAyuda() {
   Serial.println("               una senoidal en el Serial Plotter del IDE.");
   Serial.println("  stream       tiempo real, una linea por muestra. Solo si");
   Serial.println("               fs_eff < ~200 Hz o si lees con otro programa.");
+  Serial.println("  bin          BINARIO para el software de Python: tramas");
+  Serial.println("               con indice absoluto y CRC. 2.5x mas eficiente");
+  Serial.println("               que el texto y detecta muestras perdidas.");
+  Serial.println("  raf <on> <off>  captura <on> muestras y pausa <off>.");
+  Serial.println("               Con off = 0 la captura es continua.");
   Serial.println("  stats        medicion (Vpp, Vrms, DC, dBFS, frecuencia)");
   Serial.println("  raw          volcado CSV con timestamp");
   Serial.println("  off          detiene la salida");
@@ -702,6 +812,8 @@ static void mostrarAyuda() {
   Serial.println("  fmt plain    solo el numero (IDE 1.8, Serial Studio, scripts)");
   Serial.println(" Otros:");
   Serial.println("  diag         diagnostico de conexion");
+  Serial.println("  fsmed [ms]   mide la fs REAL contando frames contra el");
+  Serial.println("               reloj del sistema (por defecto 2000 ms)");
   Serial.println("  info         estado actual");
   Serial.println("  reset        vuelve a los valores de fabrica y reinicia");
   Serial.println("  help         esta ayuda");
@@ -859,6 +971,35 @@ static void procesarComando(String s) {
                              plotCapturando = true; plotIdx = 0;
                              g_mode = MODE_PLOT; }
   else if (cmd == "stream"){ reiniciarVentana(); g_mode = MODE_STREAM; }
+  else if (cmd == "bin")   { reiniciarVentana(); vaciarDMA();
+                             binReiniciar(); g_mode = MODE_BIN; }
+  else if (cmd == "raf") {
+    // raf <on> <off>, en muestras diezmadas. off = 0 -> captura continua.
+    int esp2 = arg.indexOf(' ');
+    long on  = (esp2 < 0) ? arg.toInt() : arg.substring(0, esp2).toInt();
+    long off = (esp2 < 0) ? 0           : arg.substring(esp2 + 1).toInt();
+    if (on < 0 || off < 0 || on > 1000000L || off > 1000000L) {
+      ack("[ERROR] usa: raf <muestras_on> <muestras_off>  (0..1000000)\n");
+      return;
+    }
+    if (off > 0 && on == 0) {
+      ack("[ERROR] con pausa > 0, las muestras a capturar no pueden ser 0.\n");
+      return;
+    }
+    g_rafOn  = (uint32_t)on;
+    g_rafOff = (uint32_t)off;
+    binReiniciar();
+    if (g_rafOff == 0) {
+      ack("[OK] Captura continua (sin pausas)\n");
+    } else {
+      float eff = (float)g_fs / g_dec;
+      ack("[OK] Rafaga: %lu muestras (%.2f ms) + pausa %lu (%.2f ms)\n",
+          (unsigned long)g_rafOn,  1000.0f * g_rafOn  / eff,
+          (unsigned long)g_rafOff, 1000.0f * g_rafOff / eff);
+      ack("     Ciclo util: %.1f %% de las muestras llegan a la PC\n",
+          100.0f * g_rafOn / (g_rafOn + g_rafOff));
+    }
+  }
   else if (cmd == "stats") { g_mode = MODE_STATS; reiniciarVentana();
                              Serial.println("[OK] modo stats"); }
   else if (cmd == "raw")   { g_mode = MODE_RAW;   reiniciarVentana();
@@ -867,6 +1008,14 @@ static void procesarComando(String s) {
                              Serial.println("[OK] salida detenida"); }
   else if (cmd == "diag")  { Mode prev = g_mode; g_mode = MODE_OFF;
                              diagnostico(); g_mode = prev; }
+  else if (cmd == "fsmed") {
+    long ms = arg.toInt();
+    if (ms < 200 || ms > 20000) ms = 2000;
+    Mode prev = g_mode; g_mode = MODE_OFF;
+    medirFs((uint32_t)ms);
+    g_mode = prev;
+    return;
+  }
   else if (cmd == "info")  { mostrarInfo(); return; }
   else if (cmd == "help" || cmd == "?") { mostrarAyuda(); return; }
   else if (cmd == "reset") {
@@ -904,8 +1053,11 @@ static void leerConsola() {
 
 // En modo grafico no puede salir NADA que no sea un dato: cualquier linea de
 // texto suelta le desordena las series al plotter.
+// En modo grafico no puede salir NADA que no sea un dato. En texto una linea
+// suelta le desordena las series al plotter; en binario es peor, porque le
+// mete bytes al medio de una trama y le rompe el sincronismo a la PC.
 static inline bool modoGrafico() {
-  return g_mode == MODE_PLOT || g_mode == MODE_STREAM;
+  return g_mode == MODE_PLOT || g_mode == MODE_STREAM || g_mode == MODE_BIN;
 }
 
 // Acuse de recibo de un comando, silenciado mientras se esta graficando.
@@ -943,6 +1095,130 @@ static void emitirPlot(float l, float r) {
       default:   Serial.printf("%.*f,%.*f\r\n", d, a, d, b); break;
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+//  Modo binario
+// ---------------------------------------------------------------------------
+
+// CRC-16/CCITT-FALSE. Version bit a bit: son ~64 operaciones por byte, o sea
+// menos del 2% de CPU al caudal maximo. No justifica una tabla de 512 bytes.
+static uint16_t crc16(const uint8_t *d, size_t n) {
+  uint16_t crc = 0xFFFF;
+  for (size_t i = 0; i < n; i++) {
+    crc ^= (uint16_t)d[i] << 8;
+    for (uint8_t b = 0; b < 8; b++) {
+      crc = (crc & 0x8000) ? (uint16_t)((crc << 1) ^ 0x1021) : (uint16_t)(crc << 1);
+    }
+  }
+  return crc;
+}
+
+static void binEnviarPaquete() {
+  if (binN == 0) return;
+
+  binBuf[0] = BIN_MAGIC0;
+  binBuf[1] = BIN_MAGIC1;
+  memcpy(&binBuf[2], &binIdxPkt, 4);
+  memcpy(&binBuf[6], &binN,      2);
+  binBuf[8] = binFlags;
+
+  // El CRC cubre desde idx hasta el ultimo dato: todo menos el preambulo,
+  // que es solo marca de sincronismo y no lleva informacion.
+  size_t   largo = BIN_CAB + (size_t)binN * 4;
+  uint16_t c     = crc16(&binBuf[2], largo - 2);
+  memcpy(&binBuf[largo], &c, 2);
+
+  // Serial.write() puede escribir MENOS de lo pedido: el buffer del CDC es
+  // finito y ante contrapresion del host devuelve una cuenta corta. Ignorar
+  // ese retorno mutilaba cada trama (salian 256 de 1035 bytes). Se reintenta
+  // hasta completar, con un tope por si la PC dejo de leer del todo.
+  size_t   total    = largo + 2;
+  size_t   enviados = 0;
+  uint32_t t0       = millis();
+  while (enviados < total) {
+    size_t w = Serial.write(binBuf + enviados, total - enviados);
+    enviados += w;
+    if (enviados >= total) break;
+    if (millis() - t0 > 250) {          // el host no lee: soltamos la trama
+      binTruncados++;
+      break;
+    }
+    if (w == 0) delay(1);               // dejar que la ISR drene el anillo
+  }
+
+  binN     = 0;
+  binFlags = 0;
+}
+
+// Agrega una muestra al paquete en curso; lo despacha cuando se llena.
+static inline void binAgregar(float v) {
+  if (binN == 0) binIdxPkt = (uint32_t)binIdx;
+  memcpy(&binBuf[BIN_CAB + (size_t)binN * 4], &v, 4);
+  if (++binN >= BIN_MUESTRAS) binEnviarPaquete();
+}
+
+static void binReiniciar() {
+  binN      = 0;
+  binIdx    = 0;
+  binFlags  = 0x01;              // el primer paquete abre rafaga
+  rafCapturando = true;
+  rafRestan = g_rafOn;
+}
+
+// ---------------------------------------------------------------------------
+//  Medicion de la fs real
+// ---------------------------------------------------------------------------
+//
+//  El ESP32-C3 no tiene APLL: el I2S cuelga del PLL de 160 MHz con un divisor
+//  fraccionario (N + b/a), asi que la fs conseguida no siempre es la pedida.
+//  La API publica no expone el divisor que quedo programado, pero la relacion
+//  SI se puede medir: contar frames durante un rato y dividir por el tiempo.
+//
+//  Funciona bien porque el I2S y esp_timer cuelgan del mismo cristal, o sea
+//  que esto mide la RELACION DE DIVISION con mucha exactitud. El error del
+//  cristal (~20 ppm) es despreciable frente al del divisor (~500 ppm).
+//
+//  Detalle que arruina la medicion si se omite: al terminar hay que drenar el
+//  DMA. Si no, las muestras que quedaron en el ring no se cuentan y la fs sale
+//  subestimada en, tipicamente, un 1.5 %.
+//
+static void medirFs(uint32_t ms) {
+  Serial.printf("Midiendo fs real durante %.1f s...\n", ms / 1000.0f);
+
+  vaciarDMA();
+  uint64_t frames = 0;
+  int64_t  t0 = esp_timer_get_time();
+
+  while ((esp_timer_get_time() - t0) < (int64_t)ms * 1000) {
+    size_t bytes = 0;
+    if (i2s_channel_read(rx_chan, rawBuf, sizeof(rawBuf), &bytes, 1000) != ESP_OK) break;
+    frames += bytes / (2 * sizeof(int32_t));
+  }
+
+  // Drenar lo que quedo en el ring: sin esto la cuenta sale corta
+  for (int i = 0; i < 64; i++) {
+    size_t bytes = 0;
+    if (i2s_channel_read(rx_chan, rawBuf, sizeof(rawBuf), &bytes, 0) != ESP_OK) break;
+    if (bytes == 0) break;
+    frames += bytes / (2 * sizeof(int32_t));
+  }
+  int64_t t1 = esp_timer_get_time();
+
+  double dt   = (double)(t1 - t0) / 1e6;
+  double real = (double)frames / dt;
+  double err  = 100.0 * (real - (double)g_fs) / (double)g_fs;
+
+  Serial.printf("  fs nominal : %lu Hz\n", (unsigned long)g_fs);
+  Serial.printf("  fs medida  : %.3f Hz\n", real);
+  Serial.printf("  error      : %+.4f %%  (%.1f ppm)\n", err, err * 1e4);
+  Serial.printf("  frames     : %llu en %.4f s\n", (unsigned long long)frames, dt);
+  Serial.println();
+  Serial.println("  Usa este valor en el analisis si el error supera ~0.05 %.");
+  Serial.println("  Ojo: si medis T_sweep contando muestras, la fs se cancela");
+  Serial.println("  en la ecuacion de distancia y este error deja de importar.");
+
+  reiniciarVentana();
 }
 
 // Tira lo que haya quedado en el ring del DMA, para que el proximo barrido
@@ -983,6 +1259,8 @@ static void emitirStats() {
                 (float)anaN / eff, (unsigned long)g_fs, (unsigned long)g_dec,
                 eff, captura);
   if (clipCount) Serial.printf("  |  CLIP! %lu", (unsigned long)clipCount);
+  if (dmaOverflow) Serial.printf("  |  DMA OVF %lu", (unsigned long)dmaOverflow);
+  if (binTruncados) Serial.printf("  |  TRAMAS SOLTADAS %lu", (unsigned long)binTruncados);
   Serial.println();
   Serial.println("      DC(mV)    Vpp(mV)   Vrms(mV)   dBFS     f(Hz)   ciclos");
   Serial.printf("  L  %9.3f  %9.3f  %9.3f  %7.1f  %8.3f   %lu\n",
@@ -1016,6 +1294,9 @@ static void banner() {
 
 void setup() {
   Serial.begin(115200);
+  // Un paquete binario son 1035 bytes y el buffer por defecto del CDC son 256.
+  // Sin esto, cada trama sale truncada al 25 % y ninguna pasa el CRC.
+  Serial.ampliarBufferTx(4096);
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, HIGH);   // activo en bajo -> HIGH = apagado
 
@@ -1135,6 +1416,29 @@ void loop() {
     switch (g_mode) {
       case MODE_STREAM:
         emitirPlot(l, r);
+        break;
+
+      case MODE_BIN:
+        if (g_rafOff == 0) {
+          binAgregar(l);                  // continuo
+        } else if (rafCapturando) {
+          binAgregar(l);
+          if (--rafRestan == 0) {
+            binEnviarPaquete();           // despachar el paquete a medio llenar
+            rafCapturando = false;
+            rafRestan     = g_rafOff;
+          }
+        } else {
+          if (--rafRestan == 0) {         // fin de la pausa
+            rafCapturando = true;
+            rafRestan     = g_rafOn;
+            binFlags     |= 0x01;         // el proximo paquete abre rafaga
+          }
+        }
+        // El indice avanza SIEMPRE, tambien durante la pausa: representa
+        // tiempo real, no cantidad de muestras enviadas. Es lo que le permite
+        // a la PC reconstruir el eje temporal con los huecos incluidos.
+        binIdx++;
         break;
 
       case MODE_RAW:

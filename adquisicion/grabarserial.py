@@ -169,7 +169,7 @@ def main():
     info = configurar(ser, cfg["fs"], cfg["dec"], raf_on, raf_off, "l")
     if "fs (reloj ADC)" not in info:
         print("  [AVISO] El firmware no contesto 'info' como se esperaba.")
-        print("          Verificá que tenga cargado PCM1808_ESP32C3_bin.")
+        print("          Verificá que tenga cargado PCM1808_ESP32C3.")
 
     os.makedirs(DATOS, exist_ok=True)
     inicio = datetime.now()
@@ -179,7 +179,7 @@ def main():
         # --- Encabezado: todo lo que hace falta para interpretar el archivo
         #     dentro de dos meses sin acordarse de nada.
         f.write(f"# fecha            = {inicio.isoformat(timespec='seconds')}\n")
-        f.write(f"# firmware         = PCM1808_ESP32C3_bin\n")
+        f.write(f"# firmware         = PCM1808_ESP32C3\n")
         f.write(f"# f_start_ghz      = {cfg['f_start_ghz']}\n")
         f.write(f"# f_stop_ghz       = {cfg['f_stop_ghz']}\n")
         f.write(f"# bw_mhz           = {bw_mhz:.1f}\n")

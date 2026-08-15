@@ -1,7 +1,7 @@
 # Adquisición
 
 Software de captura y visualización en tiempo real contra el firmware
-[`PCM1808_ESP32C3_bin`](../firmware/PCM1808_ESP32C3_bin/).
+[`PCM1808_ESP32C3`](../firmware/PCM1808_ESP32C3/).
 
 > **Estado: en construcción.** El firmware con protocolo binario ya está listo;
 > el cliente Python todavía no.
@@ -129,7 +129,7 @@ sigue leyendo la consola mientras transmite binario.
 ## Compilar el firmware sin abrir el IDE
 
 ```powershell
-& "C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe" compile --fqbn "esp32:esp32:nologo_esp32c3_super_mini:CDCOnBoot=cdc" ".\firmware\PCM1808_ESP32C3_bin"
+& "C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe" compile --fqbn "esp32:esp32:nologo_esp32c3_super_mini:CDCOnBoot=cdc" ".\firmware\PCM1808_ESP32C3"
 ```
 
 Core `esp32` 3.3.10.

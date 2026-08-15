@@ -31,7 +31,7 @@ y recortar todo. Y un ΔΣ sobrecargado no recorta prolijamente: se desestabiliz
 - ESP32-C3 + PCM1808 cableados según [`conexionado.md`](conexionado.md)
 - Generador que llegue a **0,1 Hz** por abajo (para el paso 6)
 - Osciloscopio, para verificar el nivel en paralelo
-- Firmware [`PCM1808_ESP32C3_bin`](../firmware/PCM1808_ESP32C3_bin/)
+- Firmware [`PCM1808_ESP32C3`](../firmware/PCM1808_ESP32C3/)
 - Python en **Windows** — ver [`../adquisicion/README.md`](../adquisicion/README.md)
 
 > La adquisición corre en Windows: el ESP32 es un puerto COM y **WSL 2 no lo ve**
