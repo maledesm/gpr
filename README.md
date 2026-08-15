@@ -11,16 +11,26 @@ Firmware de adquisición sobre ESP32-C3 + PCM1808, y procesamiento en Python.
 
 | Quiero… | Voy a |
 |---|---|
-| **Medir ahora** | `adquisicion/medir.py` → graba a CSV y abre el gráfico en vivo |
+| **Medir ahora** | doble click en **`medir.bat`** → graba a CSV y abre el gráfico en vivo |
+| **Ver una captura vieja** | doble click en **`graficar.bat`** (o arrastrarle un `.csv` encima) |
+| **Ver si el software está sano** | doble click en **`pruebas.bat`** — corre sin hardware |
 | **Cargar el firmware** | `firmware/PCM1808_ESP32C3/` ← **el único vigente** |
 | **Cablear la placa** | [`docs/conexionado.md`](docs/conexionado.md) |
 | **Caracterizar el sampler** | [`docs/validacion_banco.md`](docs/validacion_banco.md) |
 | **Entender el circuito** | [`docs/PCM1808_hardware.md`](docs/PCM1808_hardware.md) |
 | **Usar los comandos del firmware** | [`docs/PCM1808_uso.md`](docs/PCM1808_uso.md) |
 
+Los `.bat` no llevan rutas fijas: se ubican solos con `%~dp0`, así que el repo
+se puede mover, renombrar o clonar en otra máquina y siguen andando.
+
+Si preferís la consola, es lo mismo:
+
 ```powershell
-& "C:\Users\tinch\venvs\gpr-win\Scripts\python.exe" .\adquisicion\medir.py
+& "$env:USERPROFILE\venvs\gpr-win\Scripts\python.exe" .\adquisicion\medir.py
 ```
+
+> **Antes de medir**: el ESP32 enchufado y el **Monitor Serie del Arduino IDE
+> cerrado**. Un solo programa puede tener el puerto abierto.
 
 ---
 
