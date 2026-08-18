@@ -1,0 +1,53 @@
+Freq,Vpp IN,Vpp OUT,Notas
+1,"3,120","0,420",Sin distorision
+2,"3,120","0,760",Sin distorision
+3,"3,120","1,120",Sin distorision
+4,"3,140","1,440",Sin distorision
+5,"3,120","1,780",Sin distorision
+6,"3,120","2,100",Sin distorision
+7,"3,120","2,380",Sin distorision
+8,"3,120","2,660",Sin distorision
+9,"3,120","2,900",Sin distorision
+10,"3,120","3,140",Sin distorision
+15,"3,120","4,200",Sin distorision
+20,"3,120","4,840",Sin distorision
+25,"3,120","5,320",Sin distorision
+30,"3,200","5,640",Sin distorision
+35,"3,200","5,880",Sin distorision
+40,"3,200","6,050",Sin distorision
+45,"3,200","6,200",Sin distorision
+50,"3,200","6,280",Sin distorision
+55,"3,2","6,4",Sin distorision
+60,"3,2","6,4",Sin distorision
+80,"3,12","6,4",Sin distorision
+100,"3,04","6,38",Sin distorision
+150,"3,12","6,44",Sin distorision
+200,"3,08","6,56",Sin distorision
+250,"3,12","6,56",Sin distorision
+300,"3,08","6,56",Sin distorision
+400,"3,08","6,6",Sin distorision
+500,"3,12","6,6",Sin distorision
+600,"3,12","6,6",Sin distorision
+800,"3,12","6,6",Sin distorision
+1000,"3,08","6,64",Sin distorision
+1250,"3,12","6,6",Sin distorision
+1500,"3,12","6,6",Sin distorision
+1750,"3,12","6,6",Sin distorision
+2000,"3,12","6,6",Poca distorsion
+2500,"3,12","6,56",Poca distorsion
+3000,"3,12","6,56",Hay distorsion
+4000,"3,08","6,44",Mucha distorsion
+4500,"3,08","6,44",Mucha distorsion
+5000,"3,12","6,4",Mucha distorsion
+8000,"3,08","6,4",Mucha distorsion
+10000,"3,12","6,36",Demasiada distorsion
+12500,"3,12","6,1",Demasiada distorsion
+15000,"3,12","5,48",Demasiada distorsion
+17500,"3,04","4,56",Demasiada distorsion
+20000,"3,04","3,56",Demasiada distorsion
+22500,"3,04","2,48",Demasiada distorsion
+25000,"3,04","1,6",Demasiada distorsion
+27500,"3,04","1,2",Demasiada distorsion
+30000,"3,04","0,72",Ruido
+35000,"3,04","0,3",Ruido
+40000,"3,08","0,16",Ruido

@@ -185,11 +185,29 @@ class Ventana(QtWidgets.QMainWindow):
         self.s_prom = spin(1, 256, 8)
         form.addRow("Promediar", self.s_prom)
 
-        self.c_ejex = combo(["Frecuencia (Hz)", "Distancia (m)"], 1)
+        # Por defecto en frecuencia: es la magnitud que se mide directamente.
+        # La distancia sale de convertirla con BW y T_sweep, asi que depende de
+        # que esos dos esten bien cargados en el encabezado del CSV.
+        self.c_ejex = combo(["Frecuencia (Hz)", "Distancia (m)"], 0)
         form.addRow("Eje X", self.c_ejex)
+
+        # El maximo arranca en Nyquist de fs_eff, que es todo lo que hay para
+        # mostrar: por encima de eso el espectro no existe.
+        self.s_fmax = spin(10, 96000, int(self.fs / 2), 100)
+        form.addRow("Frecuencia max (Hz)", self.s_fmax)
 
         self.s_dmax = spin(1, 200, 10)
         form.addRow("Distancia max (m)", self.s_dmax)
+
+        self.k_auto_y = QtWidgets.QCheckBox("Escala Y automatica")
+        self.k_auto_y.setChecked(True)
+        form.addRow(self.k_auto_y)
+
+        self.s_dbmax = spin(-200, 60, 10)
+        form.addRow("  dB max", self.s_dbmax)
+
+        self.s_dbmin = spin(-200, 60, -120)
+        form.addRow("  dB min", self.s_dbmin)
 
         form.addRow(QtWidgets.QLabel("<b>Filtros</b>"))
         self.k_hpf = QtWidgets.QCheckBox("Pasa-altos (acople directo)")
@@ -335,7 +353,18 @@ class Ventana(QtWidgets.QMainWindow):
         else:
             eje = frec
             self.p_esp.setLabel("bottom", "Frecuencia", units="Hz")
-            self.p_esp.setXRange(0, self.fs / 2, padding=0)
+            self.p_esp.setXRange(0, self.s_fmax.value(), padding=0)
+
+        # Escala vertical: automatica, o los limites que se pidan. Con limites
+        # fijos dos capturas distintas se pueden comparar de un vistazo, que
+        # con autoescala es imposible porque el eje se mueve solo.
+        if self.k_auto_y.isChecked():
+            self.p_esp.enableAutoRange(axis="y")
+        else:
+            lo, hi = self.s_dbmin.value(), self.s_dbmax.value()
+            if lo >= hi:                      # si se cruzan, no rompas el grafico
+                lo, hi = hi - 1, hi
+            self.p_esp.setYRange(lo, hi, padding=0)
 
         if self.k_dif.isChecked() and self.referencia is not None \
                 and len(self.referencia[1]) == len(db):
