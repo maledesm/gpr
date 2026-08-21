@@ -48,6 +48,7 @@
  *      max <cod>  codigo maximo, 0..4095  (3723 = 3.00 V con VCC de 3.3 V)
  *      clk <hz>   velocidad del bus I2C (100000 / 400000 / 1000000)
  *      dc <cod>   salida fija en ese codigo, para medir con el tester
+ *      pre on|off  linealizar la frecuencia (predistorsion) o la tension
  *      run        vuelve a la triangular
  *      info       estado y medicion de tiempos
  * ============================================================================
@@ -55,6 +56,7 @@
 
 #include <Arduino.h>
 #include <Wire.h>
+#include "tabla_vco.h"      // generada por VCO/analisis_vco.py
 
 // ---------------------------------------------------------------------------
 //  Consola dual: escribe por los DOS puertos serie posibles
@@ -132,6 +134,7 @@ static uint16_t g_pasos   = 200;       // escalones por rampa
 static uint16_t g_max     = 3723;      // codigo maximo (3723 = 3.00 V @ 3.3 V)
 static uint32_t g_clk     = 400000;    // velocidad del bus
 static bool     g_corriendo = true;
+static bool     g_predist = true;      // linealizar la FRECUENCIA, no la tension
 
 static uint32_t paso_us   = 100;       // periodo de escalon, derivado
 static uint32_t proximo   = 0;
@@ -166,6 +169,28 @@ static inline bool escribirDAC(uint16_t valor) {
   Wire.write((uint8_t)(valor >> 8));
   Wire.write((uint8_t)(valor & 0xFF));
   return Wire.endTransmission() == 0;
+}
+
+
+// ---------------------------------------------------------------------------
+//  Codigo del DAC para el escalon k
+// ---------------------------------------------------------------------------
+//
+//  Con predistorsion se indexa la tabla generada a partir de la curva medida
+//  del VCO. Recorriendola a paso constante, la FRECUENCIA avanza linealmente
+//  en el tiempo; la tension no. La tabla ya trae la escala completa (termina
+//  en el codigo de 3.000 V), asi que 'max' no interviene en este modo: el
+//  rango lo define la tabla.
+//
+//  Sin predistorsion se hace la rampa lineal en tension de siempre, para poder
+//  comparar las dos en el osciloscopio.
+//
+static inline uint16_t codigoPaso(int32_t k) {
+  if (g_predist) {
+    uint32_t i = (uint32_t)k * (TABLA_VCO_N - 1) / (g_pasos - 1);
+    return TABLA_VCO[i];
+  }
+  return (uint16_t)((uint32_t)g_max * k / (g_pasos - 1));
 }
 
 
@@ -217,9 +242,25 @@ static void mostrarInfo() {
                 periodo, 1000.0f / periodo);
   Serial.printf("  Escalones/rampa   : %u\n", g_pasos);
   Serial.printf("  Periodo escalon   : %lu us\n", (unsigned long)paso_us);
-  Serial.printf("  Codigo maximo     : %u  (%.3f V con VCC=3.3 V)\n",
-                g_max, 3.3f * g_max / 4095.0f);
-  Serial.printf("  Escalon en tension: %.2f mV\n", 3300.0f * g_max / 4095.0f / g_pasos);
+  Serial.println();
+  if (g_predist) {
+    Serial.println("  Modo              : PREDISTORSION (frecuencia lineal)");
+    Serial.printf("  Barrido           : %.0f a %.0f MHz  (BW %.0f MHz)\n",
+                  TABLA_VCO_F0_MHZ, TABLA_VCO_F1_MHZ, TABLA_VCO_BW_MHZ);
+    Serial.printf("  Resolucion radar  : %.1f cm\n",
+                  3e4f / (2.0f * TABLA_VCO_BW_MHZ));
+    Serial.printf("  Escalon frecuencia: %.2f MHz\n", TABLA_VCO_BW_MHZ / g_pasos);
+    Serial.printf("  Alcance no ambiguo: %.1f m\n",
+                  1.5e2f / (TABLA_VCO_BW_MHZ / g_pasos));
+    Serial.printf("  Beat por metro    : %.0f Hz/m\n",
+                  2.0f * TABLA_VCO_BW_MHZ * 1e6f / (3e8f * (g_rampa_us / 1e6f)));
+    Serial.println("  (el rango lo fija la tabla; 'max' no interviene)");
+  } else {
+    Serial.println("  Modo              : LINEAL EN TENSION (sin predistorsion)");
+    Serial.printf("  Codigo maximo     : %u  (%.3f V con VCC=3.3 V)\n",
+                  g_max, 3.3f * g_max / 4095.0f);
+    Serial.printf("  Escalon en tension: %.2f mV\n", 3300.0f * g_max / 4095.0f / g_pasos);
+  }
   Serial.println();
   if (paso_us < t_escritura_us + 5) {
     Serial.println("  [AVISO] El escalon pedido es mas corto que la escritura I2C.");
@@ -267,6 +308,13 @@ static void procesar(String s) {
     g_corriendo = false;
     escribirDAC((uint16_t)arg);
     Serial.printf("[OK] salida fija en %ld (%.3f V)\n", arg, 3.3f * arg / 4095.0f);
+  } else if (cmd == "pre") {
+    String a = (e < 0) ? "" : s.substring(e + 1);
+    a.trim();
+    g_predist = (a != "off" && a != "0");
+    Serial.printf("[OK] %s\n", g_predist
+                  ? "PREDISTORSION: la frecuencia barre lineal en el tiempo"
+                  : "LINEAL EN TENSION: triangular clasica (la frecuencia NO es lineal)");
   } else if (cmd == "run") {
     g_corriendo = true; recalcular();
     Serial.println("[OK] triangular");
@@ -331,7 +379,7 @@ void loop() {
     if (retraso > peor_us) peor_us = retraso;
     if (retraso > paso_us / 2) atrasos++;
 
-    escribirDAC((uint32_t)g_max * indice / (g_pasos - 1));
+    escribirDAC(codigoPaso(indice));
     escalones++;
 
     indice += sentido;
