@@ -42,7 +42,8 @@
  *  ---------------------------------------------------------------------------
  *  COMANDOS (Monitor Serie)
  *  ---------------------------------------------------------------------------
- *      t <ms>     duracion de una rampa (subida o bajada)
+ *      t <ms>     duracion de UNA rampa (subida o bajada), acepta decimales
+ *      prf <ms>   periodo completo de la triangular (= 2 x rampa)
  *      n <pasos>  escalones por rampa
  *      max <cod>  codigo maximo, 0..4095  (3723 = 3.00 V con VCC de 3.3 V)
  *      clk <hz>   velocidad del bus I2C (100000 / 400000 / 1000000)
@@ -59,9 +60,9 @@
 #define PIN_SCL   1
 
 static uint8_t  g_addr    = 0x60;      // se detecta al arrancar
-static uint32_t g_t_ms    = 20;        // duracion de una rampa
+static uint32_t g_rampa_us = 2500;     // duracion de UNA rampa, en us
 static uint16_t g_pasos   = 200;       // escalones por rampa
-static uint16_t g_max     = 4095;      // codigo maximo
+static uint16_t g_max     = 3723;      // codigo maximo (3723 = 3.00 V @ 3.3 V)
 static uint32_t g_clk     = 400000;    // velocidad del bus
 static bool     g_corriendo = true;
 
@@ -103,7 +104,7 @@ static inline bool escribirDAC(uint16_t valor) {
 
 static void recalcular() {
   if (g_pasos < 2) g_pasos = 2;
-  paso_us = (g_t_ms * 1000UL) / g_pasos;
+  paso_us = g_rampa_us / g_pasos;
   if (paso_us < 20) paso_us = 20;        // ni el bus mas rapido baja de esto
   indice  = 0;
   sentido = +1;
@@ -135,7 +136,7 @@ static void medirEscritura() {
 
 
 static void mostrarInfo() {
-  float periodo = 2.0f * g_t_ms;
+  float periodo = 2.0f * g_rampa_us / 1000.0f;
   Serial.println();
   Serial.println("---------------- ESTADO ----------------");
   Serial.printf("  Direccion I2C     : 0x%02X\n", g_addr);
@@ -144,7 +145,7 @@ static void mostrarInfo() {
                 (unsigned long)t_escritura_us,
                 (unsigned long)(t_escritura_us ? 1000000UL / t_escritura_us : 0));
   Serial.println();
-  Serial.printf("  Rampa             : %lu ms\n", (unsigned long)g_t_ms);
+  Serial.printf("  Rampa (media onda): %.3f ms\n", g_rampa_us / 1000.0f);
   Serial.printf("  Periodo triangular: %.1f ms  (%.1f Hz)\n",
                 periodo, 1000.0f / periodo);
   Serial.printf("  Escalones/rampa   : %u\n", g_pasos);
@@ -166,12 +167,24 @@ static void procesar(String s) {
   s.toLowerCase();
   int e = s.indexOf(' ');
   String cmd = (e < 0) ? s : s.substring(0, e);
-  long arg = (e < 0) ? 0 : s.substring(e + 1).toInt();
+  long  arg  = (e < 0) ? 0 : s.substring(e + 1).toInt();
+  // 't' se acepta con decimales: una PRF de 5 ms son 2.5 ms por rampa, y con
+  // enteros no se podria pedir.
+  float argf = (e < 0) ? 0 : s.substring(e + 1).toFloat();
 
-  if (cmd == "t" && arg > 0) {
-    g_t_ms = arg; recalcular();
-    Serial.printf("[OK] rampa = %lu ms, escalon = %lu us\n",
-                  (unsigned long)g_t_ms, (unsigned long)paso_us);
+  if (cmd == "t" && argf > 0.05f) {
+    g_rampa_us = (uint32_t)(argf * 1000.0f + 0.5f);
+    recalcular();
+    Serial.printf("[OK] rampa = %.3f ms (PRF %.3f ms), escalon = %lu us\n",
+                  g_rampa_us / 1000.0f, 2.0f * g_rampa_us / 1000.0f,
+                  (unsigned long)paso_us);
+  } else if (cmd == "prf" && argf > 0.1f) {
+    // Atajo: se pide el periodo completo de la triangular
+    g_rampa_us = (uint32_t)(argf * 500.0f + 0.5f);
+    recalcular();
+    Serial.printf("[OK] PRF = %.3f ms (rampa %.3f ms), escalon = %lu us\n",
+                  2.0f * g_rampa_us / 1000.0f, g_rampa_us / 1000.0f,
+                  (unsigned long)paso_us);
   } else if (cmd == "n" && arg >= 2) {
     g_pasos = arg; recalcular();
     Serial.printf("[OK] %u escalones, escalon = %lu us\n",
@@ -193,7 +206,7 @@ static void procesar(String s) {
   } else if (cmd == "info") {
     mostrarInfo();
   } else {
-    Serial.println("Comandos: t <ms> | n <pasos> | max <cod> | clk <hz> | dc <cod> | run | info");
+    Serial.println("X");
   }
 }
 
