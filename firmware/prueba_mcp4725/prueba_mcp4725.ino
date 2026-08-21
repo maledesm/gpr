@@ -56,6 +56,73 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+// ---------------------------------------------------------------------------
+//  Consola dual: escribe por los DOS puertos serie posibles
+// ---------------------------------------------------------------------------
+//  `Serial` es un macro que apunta a hardware distinto segun la opcion
+//  "USB CDC On Boot" del IDE:
+//      Enabled  -> USB nativo (el mismo cable que programa)
+//      Disabled -> UART0, pines GPIO20/21   <-- default de "ESP32C3 Dev Module"
+//  Con Disabled no se ve NADA por USB aunque el sketch corra perfecto. Para que
+//  no dependa de un menu, se escribe por los dos y se lee de los dos.
+#if ARDUINO_USB_MODE && !ARDUINO_USB_CDC_ON_BOOT
+static HWCDC UsbCdc;
+#define CONSOLA_DUAL 1
+#else
+#define CONSOLA_DUAL 0
+#endif
+
+class Consola : public Print {
+public:
+  void begin(unsigned long baud) {
+    Serial.begin(baud);
+#if CONSOLA_DUAL
+    UsbCdc.begin();
+    UsbCdc.setTxTimeoutMs(0);
+#endif
+  }
+  size_t write(uint8_t c) override {
+    size_t n = Serial.write(c);
+#if CONSOLA_DUAL
+    n = max(n, UsbCdc.write(c));
+#endif
+    return n;
+  }
+  size_t write(const uint8_t *b, size_t len) override {
+    size_t n = Serial.write(b, len);
+#if CONSOLA_DUAL
+    n = max(n, UsbCdc.write(b, len));
+#endif
+    return n;
+  }
+  int available() {
+    int n = Serial.available();
+#if CONSOLA_DUAL
+    n += UsbCdc.available();
+#endif
+    return n;
+  }
+  int read() {
+    if (Serial.available()) return Serial.read();
+#if CONSOLA_DUAL
+    if (UsbCdc.available()) return UsbCdc.read();
+#endif
+    return -1;
+  }
+  bool usbConectado() {
+#if ARDUINO_USB_MODE
+    return HWCDC::isConnected();
+#else
+    return true;
+#endif
+  }
+  operator bool() { return true; }
+};
+
+static Consola Con;
+#undef Serial
+#define Serial Con
+
 #define PIN_SDA   0
 #define PIN_SCL   1
 
@@ -214,7 +281,7 @@ static void procesar(String s) {
 void setup() {
   Serial.begin(115200);
   uint32_t t = millis();
-  while (!Serial && millis() - t < 2500) delay(10);
+  while (!Serial.usbConectado() && millis() - t < 2500) delay(10);
   delay(300);
 
   Serial.println();
