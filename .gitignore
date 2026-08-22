@@ -35,6 +35,15 @@ build/
 # sentido versionarlas: solo generan ruido en los diffs.
 # Si alguna figura es "la buena" para la tesis, sacala de acá con:
 #     git add -f analisis/v2/espectro_distancia.png
+#
+# Ya estan versionadas asi (son resultado final, no salida de una medicion
+# puntual, y conviene poder verlas en GitHub sin correr nada):
+#     Filtro Pasabajos/respuesta_filtro.png
+#     VCO/curva_vco.png
+#     VCO/vco_frecuencia_vs_tension.png
+#     VCO/dac_capturas_osciloscopio.png
+# Una vez agregadas con -f quedan trackeadas: si regeneras el grafico, el
+# cambio aparece en el diff como cualquier otro archivo.
 # ---------------------------------------------------------------------------
 *.png
 *.pdf
