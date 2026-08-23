@@ -1,0 +1,1015 @@
+%============================================================
+%  TESIS DE GRADO EN INGENIERÍA ELECTRÓNICA / TELECOMUNICACIONES
+%  Título provisional: Procesamiento de señales para radar de
+%  penetración terrestre (GPR) tipo FMCW/SFCW con resolución
+%  mejorada mediante la transformada chirp-Z (CZT)
+%============================================================
+
+\documentclass[12pt, a4paper, twoside]{report}
+
+%------------------------------------------------------------
+% PAQUETES
+%------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{lmodern}
+
+% Márgenes (IRAM / normas universitarias argentinas)
+\usepackage[
+  top=2.5cm, bottom=2.5cm,
+  inner=3.0cm, outer=2.0cm
+]{geometry}
+
+% Matemáticas
+\usepackage{amsmath, amssymb, amsfonts}
+\usepackage{bm}           % vectores en negrita
+
+% Tablas
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{multirow}
+
+% Figuras
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+
+% Colores y código fuente
+\usepackage{xcolor}
+\usepackage{listings}
+
+% Hipervínculos (debe ir casi al final)
+\usepackage[
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=green!50!black,
+  urlcolor=blue!70!black
+]{hyperref}
+
+% Bibliografía
+\usepackage[
+  backend=biber,
+  style=ieee,
+  sorting=none
+]{biblatex}
+\addbibresource{referencias.bib}
+
+% Encabezados y pies de página
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\thepage}
+\fancyhead[RE]{\nouppercase{\leftmark}}
+\fancyhead[LO]{\nouppercase{\rightmark}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% Espaciado
+\usepackage{setspace}
+\onehalfspacing
+
+% Párrafos sin sangría, con espacio entre ellos
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
+%------------------------------------------------------------
+% DATOS DE LA TESIS  (modificar según corresponda)
+%------------------------------------------------------------
+\newcommand{\TituloTesis}{Procesamiento de Señales para Radar de
+Penetración Terrestre (GPR)}
+\newcommand{\Autor}{[Nombre del Autor]}
+\newcommand{\Director}{[Nombre del Director]}
+\newcommand{\Institucion}{[Universidad]}
+\newcommand{\Facultad}{[Facultad / Departamento]}
+\newcommand{\Carrera}{Ingeniería Electrónica / Telecomunicaciones}
+\newcommand{\AnioTesis}{2025}
+
+%------------------------------------------------------------
+% CONFIGURACIÓN DE LISTINGS (código MATLAB/Python)
+%------------------------------------------------------------
+\lstset{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue}\bfseries,
+  commentstyle=\color{gray}\itshape,
+  stringstyle=\color{orange!70!black},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  stepnumber=1,
+  numbersep=8pt,
+  frame=single,
+  rulecolor=\color{black!30},
+  breaklines=true,
+  captionpos=b,
+  tabsize=4
+}
+
+%============================================================
+\begin{document}
+
+%============================================================
+%  PORTADA
+%============================================================
+\begin{titlepage}
+  \centering
+  \vspace*{1.5cm}
+
+  {\Large \textbf{\Institucion}}\\[0.4cm]
+  {\large \Facultad}\\[0.4cm]
+  {\large \Carrera}
+
+  \vspace{1.5cm}
+  \rule{\linewidth}{0.5pt}\\[0.4cm]
+  {\LARGE \textbf{\TituloTesis}}\\[0.2cm]
+  \rule{\linewidth}{0.5pt}
+
+  \vspace{1.5cm}
+  {\large Trabajo Final de Grado}
+
+  \vfill
+
+  \begin{tabular}{rl}
+    \textbf{Autor:}    & \Autor    \\[4pt]
+    \textbf{Director:} & \Director \\
+  \end{tabular}
+
+  \vspace{1.5cm}
+  {\large \AnioTesis}
+\end{titlepage}
+
+%============================================================
+%  PÁGINAS PRELIMINARES
+%============================================================
+\pagenumbering{roman}
+
+%------------------------------------------------------------
+% Dedicatoria (opcional)
+%------------------------------------------------------------
+\chapter*{Dedicatoria}
+\addcontentsline{toc}{chapter}{Dedicatoria}
+\vspace{3cm}
+\begin{flushright}
+  \textit{[Texto de dedicatoria]}
+\end{flushright}
+\clearpage
+
+%------------------------------------------------------------
+% Agradecimientos
+%------------------------------------------------------------
+\chapter*{Agradecimientos}
+\addcontentsline{toc}{chapter}{Agradecimientos}
+
+[Texto de agradecimientos.]
+
+\clearpage
+
+%------------------------------------------------------------
+% Resumen
+%------------------------------------------------------------
+\chapter*{Resumen}
+\addcontentsline{toc}{chapter}{Resumen}
+
+\clearpage
+
+%------------------------------------------------------------
+% Abstract
+%------------------------------------------------------------
+
+%------------------------------------------------------------
+% Índices
+%------------------------------------------------------------
+\tableofcontents
+\clearpage
+\listoffigures
+\clearpage
+\listoftables
+\clearpage
+
+%============================================================
+%  CUERPO PRINCIPAL
+%============================================================
+\pagenumbering{arabic}
+
+%============================================================
+\chapter{Introducción}
+\label{ch:intro}
+%============================================================
+
+\section{Motivación y contexto}
+
+\section{Objetivos}
+
+\subsection{Objetivo general}
+
+Desarrollar y validar un marco de procesamiento de señales basado en
+la transformada chirp-Z para la estimación de alta resolución del
+espesor de capas en sistemas GPR tipo FMCW/SFCW.
+
+\subsection{Objetivos específicos}
+
+\section{Estructura del documento}
+
+%============================================================
+\chapter{Fundamentos Teóricos}
+\label{ch:fundamentos}
+%============================================================
+
+\section{Principios de operación del GPR}
+
+El GPR es un sistema de teledetección electromagnética que emite
+energía de radiofrecuencia hacia el subsuelo y registra las reflexiones
+producidas en las interfases entre materiales de distinta permitividad
+eléctrica $\varepsilon_r$. La profundidad de penetración y la resolución
+en rango dependen de la frecuencia central y el ancho de banda del sistema.
+
+\subsection{Configuraciones de operación}
+
+Los radares GPR pueden clasificarse según su forma de modulación:
+
+\begin{itemize}
+  \item \textbf{GPR de impulso:} emite pulsos muy cortos de banda ultra
+    ancha (UWB). Resolución en rango determinada por el ancho del
+    pulso.
+  \item \textbf{SFCW} (\textit{Stepped-Frequency Continuous-Wave}): barre
+    el espectro en pasos discretos de frecuencia.
+  \item \textbf{FMCW} (\textit{Frequency-Modulated Continuous-Wave}): barre
+    el espectro de forma continua y lineal (chirp).
+\end{itemize}
+
+\section{Sistema FMCW: parámetros fundamentales}
+\label{sec:parametros_fmcw}
+
+Un sistema FMCW emite una señal cuya frecuencia instantánea varía
+linealmente en el tiempo, denominada \textit{chirp}. Los parámetros
+principales se resumen en la Tabla~\ref{tab:parametros}.
+
+\begin{table}[H]
+  \centering
+  \caption{Parámetros principales del sistema FMCW GPR
+  (valores de referencia tomados de~\cite{Huang2022}).}
+  \label{tab:parametros}
+  \begin{tabular}{clll}
+    \toprule
+    \textbf{Símbolo} & \textbf{Nombre} & \textbf{Definición} & \textbf{Valor de ref.}\\
+    \midrule
+    $T_c$  & Período del chirp     & —                      & $0{,}3\,\text{s}$          \\
+    $B$    & Ancho de banda        & $f_\text{max} - f_\text{min}$ & $1\,\text{GHz}$      \\
+    $f_c$  & Frecuencia central    & $(f_\text{max}+f_\text{min})/2$ & $1{,}5\,\text{GHz}$\\
+    $S$    & Tasa de barrido       & $B/T_c$                & $3{,}33\,\text{GHz/s}$     \\
+    $c$    & Velocidad de la luz   & —                      & $3\times10^8\,\text{m/s}$  \\
+    $\varepsilon_r$ & Permitividad relativa & — & Dep.\ del material        \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+La frecuencia instantánea transmitida es:
+
+\begin{equation}
+  f_\text{tx}(t) = f_c - \frac{B}{2} + S\,t,
+  \qquad 0 \leq t \leq T_c.
+  \label{eq:f_tx}
+\end{equation}
+
+\section{Propagación en medios estratificados}
+
+La velocidad de propagación de la onda electromagnética en un medio
+con permitividad relativa $\varepsilon_r$ es:
+
+\begin{equation}
+  v = \frac{c}{\sqrt{\varepsilon_r}}.
+\end{equation}
+
+Para los materiales de mayor interés práctico se indican valores
+típicos de $\varepsilon_r$ en la Tabla~\ref{tab:epsilon}.
+
+\begin{table}[H]
+  \centering
+  \caption{Permitividad relativa de materiales constructivos típicos.}
+  \label{tab:epsilon}
+  \begin{tabular}{lcc}
+    \toprule
+    \textbf{Material}    & $\boldsymbol{\varepsilon_r}$ & $\boldsymbol{\sqrt{\varepsilon_r}}$ \\
+    \midrule
+    Aire                 & $1{,}0$       & $1{,}000$ \\
+    Asfalto seco         & $4 - 7$       & $2{,}00 - 2{,}65$ \\
+    Asfalto húmedo       & $6 - 9$       & $2{,}45 - 3{,}00$ \\
+    Concreto             & $8 - 12$      & $2{,}83 - 3{,}46$ \\
+    Pared (cemento)      & $5 - 6$       & $2{,}24 - 2{,}45$ \\
+    Hielo                & $3{,}2$       & $1{,}79$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+%============================================================
+\chapter{Señal IF y Frecuencia de Batido}
+\label{ch:senal_if}
+%============================================================
+
+\section{Señal transmitida y frecuencia instantánea}
+\label{sec:fi_inst}
+
+La señal transmitida es un coseno cuya fase instantánea $\phi(t)$
+está determinada por la frecuencia instantánea $f(t)$:
+
+\begin{equation}
+  s_\text{tx}(t) = A\cos\!\bigl(\phi(t)\bigr),
+  \qquad
+  \phi(t) = 2\pi\int_0^t f(t')\,dt'.
+  \label{eq:stx_general}
+\end{equation}
+
+En el radar FMCW con modulación triangular, la frecuencia
+instantánea varía linealmente en forma de diente triangular: asciende
+de $f_c - B/2$ a $f_c + B/2$ durante el primer semiperíodo
+$T_c/2$, y desciende simétricamente durante el segundo. La tasa de
+barrido (en módulo) es la misma en ambas ramas:
+
+\begin{equation}
+  S \;=\; \frac{B}{T_c/2} \;=\; \frac{2B}{T_c}.
+  \label{eq:sweep_rate}
+\end{equation}
+
+La frecuencia instantánea es, por tanto:
+
+\begin{equation}
+  f(t) =
+  \begin{cases}
+    \displaystyle f_c - \frac{B}{2} + S\,t,
+    & 0 \leq t \leq \dfrac{T_c}{2}, \\[10pt]
+    \displaystyle f_c + \frac{B}{2} - S\!\left(t - \frac{T_c}{2}\right),
+    & \dfrac{T_c}{2} < t \leq T_c.
+  \end{cases}
+  \label{eq:f_inst}
+\end{equation}
+
+Dado que las dos ramas son simétricas y producen la misma frecuencia
+de batido (véase la Sección~\ref{sec:beat_freq}), el desarrollo
+analítico se realiza sobre la \textbf{rampa ascendente}
+($0 \leq t \leq T_c/2$); los resultados son directamente aplicables
+a la rampa descendente por simetría.
+
+Sustituyendo la rama ascendente de~\eqref{eq:f_inst}
+en~\eqref{eq:stx_general}:
+
+\begin{equation}
+  \phi(t) = 2\pi\int_0^t \!\left(f_c - \frac{B}{2} + S\,t'\right)dt'
+  = 2\pi\left[\left(f_c - \frac{B}{2}\right)t + \frac{S}{2}\,t^2\right].
+\end{equation}
+
+La señal transmitida durante la rampa ascendente es, entonces:
+
+\begin{equation}
+  \boxed{
+    s_\text{tx}(t) = A\cos\!\left(
+      2\pi\left[\left(f_c - \frac{B}{2}\right)t + \frac{B}{T_c}\,t^2\right]
+    \right),
+    \qquad 0 \leq t \leq \frac{T_c}{2}.
+  }
+  \label{eq:stx}
+\end{equation}
+
+Esta expresión muestra que la señal es un chirp lineal que parte
+de la frecuencia $f_c - B/2$ y llega a $f_c + B/2$ al cabo del
+semiperíodo.
+
+\section{Señal recibida}
+\label{sec:senal_rx}
+
+Un obstáculo ubicado a distancia $d$ del radar produce una señal
+reflejada con retardo $\tau_d = 2d/c$, donde $c$ es la velocidad de
+propagación en el medio. Durante la rampa ascendente, la señal
+recibida es una réplica de~\eqref{eq:stx} retrasada $\tau_d$ segundos.
+Definiendo $\tau_d \ll T_c/2$ (condición habitualmente satisfecha en
+GPR), la señal recibida válida en el intervalo
+$\tau_d \leq t \leq T_c/2$ es:
+
+\begin{equation}
+  \Gamma(t) = A' \cos\!\left(
+    2\pi\left[\left(f_c - \frac{B}{2}\right)(t-\tau_d)
+    + \frac{B}{T_c}(t-\tau_d)^2\right] - \theta
+  \right),
+  \label{eq:gamma}
+\end{equation}
+
+donde $A'$ absorbe la atenuación de propagación y $\theta$ una fase
+inicial arbitraria. La señal~\eqref{eq:gamma} es estructuralmente
+idéntica a $s_\text{tx}(t)$, pero con el argumento temporal
+desplazado por $\tau_d = 2d/c$.
+
+\section{Proceso de desrampa (\textit{dechirp} / \textit{mixing})}
+\label{sec:mixing}
+
+Al multiplicar $s_\text{tx}(t)$ (ec.~\eqref{eq:stx}) por $\Gamma(t)$
+(ec.~\eqref{eq:gamma}) y aplicar un filtro pasa-bajos, se obtiene la
+\textbf{señal IF} o señal de batido. Usando la identidad trigonométrica:
+
+\begin{equation}
+  \cos x \cdot \cos y = \tfrac{1}{2}\bigl[\cos(x - y) + \cos(x + y)\bigr],
+\end{equation}
+
+el producto $s_\text{tx}(t)\cdot\Gamma(t)$ genera dos términos: uno de
+diferencia de fases (baja frecuencia, conservado por el filtro
+pasa-bajos) y uno de suma (alta frecuencia, eliminado). Definiendo
+$\tau_d = 2d/c$ por brevedad, las fases instantáneas son:
+
+\begin{align}
+  \psi_\text{tx}(t) &= 2\pi\left[\left(f_c-\tfrac{B}{2}\right)t
+  + \tfrac{B}{T_c}\,t^2\right], \\
+  \psi_\text{rx}(t) &= 2\pi\left[\left(f_c-\tfrac{B}{2}\right)(t-\tau_d)
+  + \tfrac{B}{T_c}(t-\tau_d)^2\right] - \theta.
+\end{align}
+
+El término de diferencia, tras el filtrado pasa-bajos, es:
+
+\begin{equation}
+  x'(t) = A^*\cos\!\bigl[\psi_\text{tx}(t) - \psi_\text{rx}(t)\bigr].
+\end{equation}
+
+Calculando la diferencia de fases:
+
+\begin{align}
+  \psi_\text{tx} - \psi_\text{rx}
+  &= 2\pi\left(f_c - \frac{B}{2}\right)\tau_d
+  + \frac{2\pi B}{T_c}\!\left[t^2 - (t-\tau_d)^2\right] + \theta.
+\end{align}
+
+Desarrollando el binomio $(t-\tau_d)^2 = t^2 - 2\tau_d t + \tau_d^2$:
+
+\begin{equation}
+  t^2 - (t-\tau_d)^2 = 2\tau_d\,t - \tau_d^2,
+\end{equation}
+
+con lo que:
+
+\begin{align}
+  \psi_\text{tx} - \psi_\text{rx}
+  &= 2\pi\left[\left(f_c-\frac{B}{2}\right)\tau_d
+    + \frac{2B}{T_c}\tau_d\,t
+  - \frac{B}{T_c}\tau_d^2\right] + \theta.
+  \label{eq:diff_phase}
+\end{align}
+
+La señal IF resultante es, por tanto:
+
+\begin{equation}
+  x'(t) = A^*\cos\!\left[
+    2\pi\frac{2B}{T_c}\tau_d\,t
+    + 2\pi\!\left(f_c-\frac{B}{2}\right)\!\tau_d
+    - \frac{2\pi B}{T_c}\tau_d^2 - \theta
+  \right],
+  \quad \tau_d \leq t \leq \frac{T_c}{2}.
+  \label{eq:xIF}
+\end{equation}
+
+\section{Frecuencia de batido}
+\label{sec:beat_freq}
+
+Identificando en~\eqref{eq:xIF} el coeficiente lineal en $t$,
+la \textbf{frecuencia de batido} de la rampa ascendente es:
+
+\begin{equation}
+  f_b^+ = \frac{2B}{T_c}\,\tau_d = \frac{2B}{T_c}\cdot\frac{2d}{c}
+  = \frac{4Bd}{c\,T_c}.
+  \label{eq:fb_up}
+\end{equation}
+
+Los términos restantes de~\eqref{eq:xIF} son puramente de fase
+(constantes respecto de $t$); agrupándolos en $\varphi^*$:
+
+\begin{equation}
+  \varphi^* = 2\pi\!\left(f_c - \frac{B}{2}\right)\!\tau_d
+  - \frac{2\pi B}{T_c}\tau_d^2 + \theta,
+\end{equation}
+
+la señal IF adopta la forma compacta de tono sinusoidal puro:
+
+\begin{equation}
+  \boxed{
+    x'(t) = A^*\cos\!\bigl(2\pi f_b^+\, t + \varphi^*\bigr),
+    \qquad \tau_d \leq t \leq \frac{T_c}{2}.
+  }
+  \label{eq:xIF_compact}
+\end{equation}
+
+\subsection*{Rampa descendente: simetría del resultado}
+
+Durante la rampa descendente la tasa de barrido es $-S = -2B/T_c$.
+Repitiendo el mismo desarrollo con $f(t) = f_c + B/2 - S(t-T_c/2)$
+se obtiene una frecuencia de batido $f_b^- = f_b^+$ (el signo de $S$
+cancela con el cambio de signo del retardo relativo). En consecuencia,
+\textbf{ambas ramas producen la misma frecuencia de batido en módulo}:
+
+\begin{equation}
+  \boxed{
+    f^* \;=\; f_b^+ \;=\; f_b^- \;=\; \frac{4Bd}{c\,T_c}.
+  }
+  \label{eq:beat_freq}
+\end{equation}
+
+Cada semiperíodo puede procesarse de forma independiente con
+la FFT o la CZT, y los espectros resultantes son equivalentes.
+En la práctica se puede promediar la magnitud de ambos para
+mejorar la relación señal a ruido.
+El signo negativo del coeficiente lineal en la rampa descendente no altera la frecuencia observable: para una señal real, $\cos(-2\pi f_0 t)$ y $\cos(2\pi f_0 t)$ producen el mismo pico espectral en $\lvert f_0 \rvert$. La diferencia de signo se absorbe en la fase inicial y no afecta la estimación de distancia.
+
+\section{Prueba de validación con reflector metálico}
+\label{sec:prueba_metalica}
+
+Antes de abordar escenarios con múltiples capas y materiales de
+permitividad desconocida, resulta conveniente realizar una prueba
+de validación en condiciones controladas. El caso más simple consiste
+en apuntar el radar a una \textbf{plancha metálica plana} ubicada a
+una distancia $d$ conocida en aire libre.
+
+\subsection{Por qué es un caso ideal}
+
+Un metal conductor actúa como un reflector casi perfecto: su
+coeficiente de reflexión en módulo es $|\Gamma| \approx 1$. Esto
+implica tres ventajas para la validación:
+
+\begin{enumerate}
+  \item \textbf{Reflexión única.} Solo existe una interfase
+    (aire--metal), por lo que la señal IF contiene una única
+    frecuencia de batido $f^*$, sin ambigüedad.
+  \item \textbf{Sin incertidumbre en $\varepsilon_r$.} La propagación
+    ocurre íntegramente en aire ($\varepsilon_r = 1$,
+    $c_\text{medio} = c$), eliminando una variable desconocida.
+  \item \textbf{Resultado verificable \textit{a priori}.} Conocida $d$,
+    el valor teórico de $f^*$ se puede calcular antes de la medición
+    y comparar directamente con el pico observado en el espectro.
+\end{enumerate}
+
+\subsection{Predicción teórica de $f^*$}
+
+En aire libre ($\varepsilon_r = 1$), la ecuación~\eqref{eq:beat_freq}
+se simplifica a:
+
+\begin{equation}
+  f^* = \frac{4Bd}{c\,\tau},
+  \label{eq:beat_freq_aire}
+\end{equation}
+
+e inversamente, la distancia estimada a partir de la frecuencia
+medida $\hat{f}^*$ es:
+
+\begin{equation}
+  \hat{d} = \frac{c\,\tau\,\hat{f}^*}{4B}.
+  \label{eq:d_estimada}
+\end{equation}
+
+El error absoluto de distancia queda:
+
+\begin{equation}
+  \Delta d = \left|\hat{d} - d\right|.
+  \label{eq:error_d}
+\end{equation}
+
+\subsection{Parámetros del sistema y frecuencias esperadas}
+
+El sistema disponible opera con $B = 1\,\text{GHz}$ (barrido de
+$1\,\text{GHz}$ a $2\,\text{GHz}$) y tiempo de barrido
+$\tau = 300\,\text{ms}$. La constante del radar resulta:
+
+\begin{equation}
+  \frac{4B}{c\,\tau}
+  = \frac{4 \times 10^9}{3\times10^8 \times 0{,}3}
+  \approx 44{,}4\,\text{Hz/m}.
+  \label{eq:constante_radar}
+\end{equation}
+
+La Tabla~\ref{tab:prueba_metalica} lista las frecuencias de batido
+esperadas para distancias representativas de un banco de prueba en
+interiores.
+
+\begin{table}[H]
+  \centering
+  \caption{Frecuencia de batido teórica $f^*$ y frecuencia de muestreo
+    mínima $f_{s,\min}$ para distintas distancias antena--plancha
+  ($B = 1\,\text{GHz}$, $\tau = 300\,\text{ms}$, aire libre).}
+  \label{tab:prueba_metalica}
+  \begin{tabular}{ccc}
+    \toprule
+    $d\,\textnormal{[m]}$ & $f^*\,\textnormal{[Hz]}$ &
+    $f_{s,\min} = 2f^*\,\textnormal{[Hz]}$ \\
+    \midrule
+    0{,}10 &  4{,}4 &   8{,}9 \\
+    0{,}20 &  8{,}9 &  17{,}8 \\
+    0{,}50 & 22{,}2 &  44{,}4 \\
+    1{,}00 & 44{,}4 &  88{,}9 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Procedimiento experimental propuesto}
+
+\begin{enumerate}
+  \item Colocar la antena del radar frente a la plancha metálica,
+    con separación $d$ medida con cinta métrica.
+  \item Verificar que no haya otros objetos reflectores en el campo
+    de visión del radar (paredes, mesas, superficies metálicas
+    laterales) para evitar reflexiones espurias.
+  \item Adquirir la señal IF durante al menos un período de barrido
+    $\tau = 300\,\text{ms}$, muestreando a $f_s > 2f^*$.
+  \item Calcular $f^*_\text{teo}$ con la
+    ecuación~\eqref{eq:beat_freq_aire} usando la $d$ medida.
+  \item Aplicar la FFT sobre las muestras adquiridas e identificar
+    el pico de mayor amplitud.
+  \item Calcular $\hat{d}$ con la ecuación~\eqref{eq:d_estimada} y
+    obtener $\Delta d$ con la ecuación~\eqref{eq:error_d}.
+  \item Opcionalmente, aplicar la CZT en una banda estrecha alrededor
+    del pico para refinar la estimación de $\hat{f}^*$.
+\end{enumerate}
+
+\subsection{Criterio de éxito}
+
+La resolución en rango teórica del sistema, determinada por el ancho
+de banda, es:
+
+\begin{equation}
+  \delta d = \frac{c}{2B} = \frac{3\times10^8}{2\times10^9} = 0{,}15\,\text{m}.
+  \label{eq:resolucion_rango}
+\end{equation}
+
+La prueba se considera exitosa si:
+
+\begin{equation}
+  \Delta d < \delta d = 15\,\text{cm}.
+  \label{eq:criterio}
+\end{equation}
+
+\section{Las dos reflexiones y el espesor de capa}
+\label{sec:dos_reflexiones}
+
+Para una capa de material con espesor $h$ y permitividad $\varepsilon_r$,
+existen dos reflexiones:
+
+\begin{itemize}
+  \item $R_1$: reflexión en la superficie superior → retardo $\tau_1$
+    → frecuencia IF $f_1 = S\,\tau_1$.
+  \item $R_2$: reflexión en la superficie inferior → retardo $\tau_2$
+    → frecuencia IF $f_2 = S\,\tau_2$.
+\end{itemize}
+
+El tiempo extra que tarda la onda en atravesar la capa (ida y vuelta) es:
+
+\begin{equation}
+  \tau_\text{extra} = \frac{2h\sqrt{\varepsilon_r}}{c}.
+\end{equation}
+
+Combinando con $f_\text{IF} = S\,\tau$ y $S = B/T_c$:
+
+\begin{equation}
+  \Delta f = f_2 - f_1 = \frac{B}{T_c}\cdot\frac{2h\sqrt{\varepsilon_r}}{c}.
+\end{equation}
+
+Despejando $h$:
+
+\begin{equation}
+  \boxed{
+    h = \frac{T_c\,\Delta f\cdot c}{2\,\sqrt{\varepsilon_r}\cdot B}
+  }
+  \label{eq:espesor}
+\end{equation}
+
+\subsection{Ejemplo numérico}
+
+Para los parámetros de referencia de~\cite{Huang2022} y un valor
+$\Delta f = 4{,}00\,\text{Hz}$ medido con CZT:
+
+\begin{equation*}
+  h = \frac{0{,}3 \times 4{,}0 \times 3\times10^8}
+  {2 \times 2{,}449 \times 1\times10^9}
+  \approx 73{,}4\,\text{mm}.
+\end{equation*}
+
+\subsection{Corrección por separación de antenas}
+\label{sub:correccion_antenas}
+
+Cuando las antenas Tx y Rx están separadas una distancia $D$, la
+corrección geométrica es:
+
+\begin{equation}
+  h = \sqrt{\!\left(\frac{L}{2}\right)^{\!2} - \left(\frac{D}{2}\right)^{\!2}},
+  \label{eq:correccion_D}
+\end{equation}
+
+donde $L$ es la distancia total dentro del material calculada con la
+ecuación~\eqref{eq:espesor}. Si $D = 0$ se recupera $h = L/2$.
+
+%============================================================
+\chapter{La Transformada Chirp-Z (CZT)}
+\label{ch:czt}
+%============================================================
+
+\section{Limitación de resolución del FFT}
+\label{sec:limitacion_fft}
+
+La resolución frecuencial de la DFT calculada sobre $N$ muestras a
+frecuencia de muestreo $f_s$ es:
+
+\begin{equation}
+  \Delta f_\text{FFT} = \frac{f_s}{N}\quad[\text{Hz}].
+  \label{eq:res_fft}
+\end{equation}
+
+En el sistema de referencia~\cite{Huang2022}: $f_s = 100\,\text{Hz}$,
+$N = f_s \cdot T_c = 30$ muestras, lo que da:
+
+\begin{equation*}
+  \Delta f_\text{FFT} = \frac{100}{30} \approx 3{,}33\,\text{Hz/bin}.
+\end{equation*}
+
+Si la diferencia real entre los picos es $\Delta f = 4\,\text{Hz}$,
+el FFT apenas puede distinguirla, con un error de espesor que puede
+superar los $20\,\text{mm}$.
+
+Aumentar $N$ exigiría una mayor frecuencia de muestreo (hardware más
+costoso), sin beneficio real dado que las frecuencias IF son bajas
+($< 60\,\text{Hz}$). La CZT resuelve este problema sin modificar el
+hardware.
+
+\section{Conceptos fundamentales de la CZT}
+\label{sec:czt_teoria}
+
+La transformada-Z de una secuencia $x[n]$ de longitud $N$, evaluada en
+$M$ puntos dispuestos sobre un arco del plano complejo, es:
+
+\begin{equation}
+  X_\text{CZT}[k] = \sum_{n=0}^{N-1} x[n]\, z_k^{-n},
+  \qquad k = 0, 1, \ldots, M-1,
+  \label{eq:czt_def}
+\end{equation}
+
+con los puntos de evaluación:
+
+\begin{equation}
+  z_k = A_0\, W_0^{-k},
+  \label{eq:zk}
+\end{equation}
+
+donde:
+
+\begin{align}
+  A_0 &= e^{\,j\,\omega_\text{start}} = e^{\,j\,2\pi f_\text{start}/f_s}, \label{eq:A0}\\
+  W_0 &= e^{-j\,\Delta\omega} = e^{-j\,2\pi(f_\text{end}-f_\text{start})/(f_s(M-1))}. \label{eq:W0}
+\end{align}
+
+La resolución espectral resultante es:
+
+\begin{equation}
+  \Delta f_\text{CZT} = \frac{f_\text{end} - f_\text{start}}{M-1}\quad[\text{Hz}].
+  \label{eq:res_czt}
+\end{equation}
+
+\subsection*{Caso especial: CZT $\equiv$ DFT}
+
+Si $A_0 = 1$ y $W_0 = e^{-j2\pi/N}$, la CZT cubre el círculo unitario
+completo con $N$ puntos igualmente espaciados y su resultado es
+idéntico al DFT estándar. El FFT convencional es un caso particular
+de la CZT.
+
+\section{Tabla de parámetros CZT}
+\label{sec:tabla_czt}
+
+\begin{table}[H]
+  \centering
+  \caption{Parámetros de la CZT y su cálculo desde $f_\text{start}$,
+  $f_\text{end}$ y $f_s$.}
+  \label{tab:czt_params}
+  \begin{tabular}{p{1.5cm}p{4.5cm}p{6cm}}
+    \toprule
+    \textbf{Símbolo} & \textbf{Significado} & \textbf{Cálculo} \\
+    \midrule
+    $A_0$ & Punto de inicio en el plano $z$
+    & $A_0 = e^{\,j\,2\pi f_\text{start}/f_s}$ \\[4pt]
+    $W_0$ & Paso entre muestras (módulo~1)
+    & $W_0 = e^{-j\,2\pi(f_\text{end}-f_\text{start})/(f_s(M-1))}$ \\[4pt]
+    $\Delta\omega$ & Paso angular
+    & $\Delta\omega = 2\pi(f_\text{end}-f_\text{start})/(f_s(M-1))$ \\[4pt]
+    $M$   & Número de puntos del zoom
+    & Elegido por el usuario (potencia de~2 recomendada) \\[4pt]
+    $k$   & Índice de salida
+    & $k = 0, 1, \ldots, M-1$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Implementación eficiente: algoritmo de Bluestein}
+\label{sec:bluestein}
+
+El cálculo directo de la ecuación~\eqref{eq:czt_def} tiene complejidad
+$\mathcal{O}(N\cdot M)$. El algoritmo de Bluestein reduce esto a
+$\mathcal{O}((N+M)\log(N+M))$ mediante la identidad algebraica:
+
+\begin{equation}
+  k\cdot n = \frac{n^2}{2} + \frac{k^2}{2} - \frac{(k-n)^2}{2},
+\end{equation}
+
+que convierte la suma del CZT en una convolución implementable con FFT.
+Los pasos son los siguientes:
+
+\begin{enumerate}
+  \item \textbf{Pre-multiplicación:}
+    $y[n] = x[n]\cdot A_0^{-n}\cdot W_0^{n^2/2}$.
+
+  \item \textbf{Definición del filtro:}
+    \begin{equation*}
+      h[k] = W_0^{-k^2/2}, \quad k = 0,\ldots,M-1; \quad
+      h[L-N+1\,\ldots\,L-1] = W_0^{-(N-k)^2/2}.
+    \end{equation*}
+
+  \item \textbf{Convolución vía FFT:}
+    \begin{equation*}
+      G = \text{IFFT}\!\bigl(\text{FFT}(y,L)\cdot\text{FFT}(h,L)\bigr),
+    \end{equation*}
+    donde $L$ es la potencia de 2 más próxima superior a $M+N-1$.
+
+  \item \textbf{Post-multiplicación:}
+    $X_\text{CZT}[k] = G[k]\cdot W_0^{k^2/2}$, \quad $k=0,\ldots,M-1$.
+
+  \item \textbf{Eje de frecuencias:}
+    \begin{equation}
+      f[k] = f_\text{start} + k\cdot\frac{f_\text{end}-f_\text{start}}{M-1}.
+      \label{eq:eje_f}
+    \end{equation}
+\end{enumerate}
+
+\subsection{Ejemplo numérico}
+\label{sub:ejemplo_czt}
+
+$N = 30$ muestras, $f_s = 100\,\text{Hz}$, zoom: $f_\text{start}=3\,\text{Hz}$,
+$f_\text{end}=15\,\text{Hz}$, $M=512$ puntos.
+
+\begin{table}[H]
+  \centering
+  \caption{Cálculo de los parámetros CZT para el ejemplo de referencia.}
+  \label{tab:ejemplo_czt}
+  \begin{tabular}{ll}
+    \toprule
+    \textbf{Cálculo} & \textbf{Resultado} \\
+    \midrule
+    $\omega_\text{start}$ & $2\pi\times3/100 = 0{,}18850\,\text{rad}$ \\
+    $\omega_\text{end}$   & $2\pi\times15/100 = 0{,}94248\,\text{rad}$ \\
+    $\Delta\omega$         & $(0{,}94248-0{,}18850)/511 = 0{,}001476\,\text{rad/muestra}$ \\
+    $\Delta f_\text{CZT}$ & $(15-3)/511 \approx 0{,}0235\,\text{Hz/bin}$ \\
+    $\Delta f_\text{FFT}$ & $100/30 \approx 3{,}33\,\text{Hz/bin}$ (142$\times$ peor) \\
+    $A_0$                 & $\cos(0{,}18850)+j\sin(0{,}18850)$ \\
+    $W_0$                 & $e^{-j\,0{,}001476}$ \\
+    $L$                   & $2^{\lceil\log_2(512+30-1)\rceil} = 2^{10} = 1024$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Guía de selección de parámetros}
+\label{sec:guia_params}
+
+\subsection{Rango de zoom [$f_\text{start}$, $f_\text{end}$]}
+
+\begin{enumerate}
+  \item Calcular el FFT completo para identificar la región de interés.
+  \item Estimar el rango esperado de $\Delta f$ con la inversa de la
+    ecuación~\eqref{eq:espesor}:
+    \begin{equation}
+      \Delta f_\text{max} = \frac{2\sqrt{\varepsilon_r}\,B\,h_\text{max}}{T_c\,c},
+      \quad
+      \Delta f_\text{min} = \frac{2\sqrt{\varepsilon_r}\,B\,h_\text{min}}{T_c\,c}.
+    \end{equation}
+  \item Agregar un margen del 30–50\% a cada lado.
+\end{enumerate}
+
+\subsection{Número de puntos $M$}
+
+\begin{table}[H]
+  \centering
+  \caption{Resolución CZT para distintos valores de $M$ (rango de
+  zoom de 12\,Hz).}
+  \label{tab:M_resolucion}
+  \begin{tabular}{ccl}
+    \toprule
+    $M$ & $\Delta f_\text{CZT}$ & \textbf{Uso recomendado} \\
+    \midrule
+    128  & $\approx 0{,}094\,\text{Hz}$ & Exploración rápida, capas gruesas ($>15\,\text{cm}$) \\
+    512  & $\approx 0{,}024\,\text{Hz}$ & Balance calidad/velocidad, uso general \\
+    2048 & $\approx 0{,}006\,\text{Hz}$ & Alta precisión, capas delgadas ($<5\,\text{cm}$) \\
+    8192 & $\approx 0{,}0015\,\text{Hz}$ & Máxima resolución, verificación crítica \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textit{Regla práctica:} $\Delta f_\text{CZT} < \Delta f_\text{real}/5$.
+
+%============================================================
+\chapter{Simulaciones y Resultados}
+\label{ch:resultados}
+%============================================================
+
+\section{Descripción del entorno de simulación}
+
+[Esta sección se completará con los resultados de simulación.
+  Se describirán aquí los parámetros del sistema simulado, las señales
+  generadas y las métricas de evaluación utilizadas (RMSE del espesor,
+tasa de detección de picos, etc.).]
+
+\section{Comparación FFT vs.\ CZT}
+
+[Se incluirán figuras comparativas del espectro FFT y del zoom CZT
+para distintos valores de espesor, así como tablas de error.]
+
+\section{Sensibilidad a los parámetros}
+
+[Análisis de sensibilidad respecto de $M$, del ancho del rango de zoom
+y del valor de $\varepsilon_r$ asumido.]
+
+%============================================================
+\chapter{Conclusiones y Trabajos Futuros}
+\label{ch:conclusiones}
+%============================================================
+
+\section{Conclusiones}
+
+\section{Trabajos futuros}
+
+%============================================================
+%  APÉNDICES
+%============================================================
+\appendix
+
+\chapter{Derivación detallada de la señal IF}
+\label{ap:derivacion}
+
+A continuación se reproduce la derivación completa de la señal IF
+para el caso FMCW, partiendo de la definición de la señal recibida.
+
+\section{Señal transmitida}
+
+Siguiendo la notación del apunte de cátedra, la señal transmitida es:
+
+\begin{equation}
+  s_\text{tx}(t) = A\cos\!\left(2\pi\frac{B}{\tau}\,t^2\right),
+  \qquad 0 \leq t \leq \tau.
+\end{equation}
+
+La frecuencia instantánea se obtiene derivando la fase:
+
+\begin{equation}
+  f(t) = \frac{1}{2\pi}\frac{d}{dt}\!\left(2\pi\frac{B}{\tau}t^2\right) = \frac{2B}{\tau}\,t.
+\end{equation}
+
+Esta expresión confirma que la frecuencia crece linealmente con el
+tiempo, con pendiente $2B/\tau$, como corresponde a un chirp lineal.
+
+\section{Señal recibida y mezcla}
+
+La señal recibida es una réplica retrasada $\tau_d = 2d/c$ segundos:
+
+\begin{equation}
+  \Gamma(t) = A^2\cos\!\left[2\pi\frac{B}{\tau}\!\left(t - \frac{2d}{c}\right)^{\!2} - \theta\right].
+\end{equation}
+
+Tras la multiplicación $s_\text{tx}(t)\cdot\Gamma(t)$ y el filtrado
+pasa-bajos (véase Sección~\ref{sec:mixing}), se obtiene directamente
+la ecuación~\eqref{eq:beat_freq}.
+
+\chapter{Flujo completo del algoritmo}
+\label{ap:flujo}
+
+\begin{table}[H]
+  \centering
+  \caption{Resumen del flujo de procesamiento GPR FMCW con CZT.}
+  \label{tab:flujo}
+  \begin{tabular}{clp{7cm}}
+    \toprule
+    \textbf{\#} & \textbf{Etapa} & \textbf{Descripción} \\
+    \midrule
+    1 & Emisión del chirp
+    & El radar barre de $f_c - B/2$ a $f_c + B/2$ en tiempo $T_c$. \\
+    2 & Reflexiones
+    & $R_1$ y $R_2$ llegan con retardos $\tau_1$, $\tau_2$. \\
+    3 & Mezcla (\textit{mixer})
+    & $s_\text{tx}\times s_\text{rx}$ + LPF $\rightarrow$ señal IF con
+    $f_1 = S\tau_1$ y $f_2 = S\tau_2$. \\
+    4 & Muestreo IF
+    & Se digitaliza la señal IF con $N$ muestras a $f_s\,\text{Hz}$. \\
+    5 & FFT (referencia)
+    & Espectro de baja resolución; puede no separar $f_1$ de $f_2$. \\
+    6 & Definir zoom CZT
+    & Elegir $[f_\text{start}, f_\text{end}]$ y $M$. \\
+    7 & Calcular $A_0$, $W_0$, $\Delta\omega$
+    & Ec.~\eqref{eq:A0}--\eqref{eq:W0}. \\
+    8 & Bluestein
+    & Pre-mult. $\to$ convolución FFT $\to$ post-mult. $\to$ magnitud. \\
+    9 & Detección de picos
+    & Identificar $f_1$ y $f_2$ en el espectro CZT. \\
+    10 & Calcular espesor
+    & $\Delta f = f_2 - f_1$ $\rightarrow$ ec.~\eqref{eq:espesor}. \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+%============================================================
+%  BIBLIOGRAFÍA
+%============================================================
+\printbibliography[heading=bibintoc, title={Referencias}]
+
+\end{document}
