@@ -643,14 +643,55 @@ donde $L$ es la distancia total dentro del material calculada con la
 ecuación~\eqref{eq:espesor}. Si $D = 0$ se recupera $h = L/2$.
 
 %============================================================
-\chapter{Banco de Pruebas y Caracterización del VCO}
+\chapter{Banco de Pruebas}
 \label{ch:banco}
 %============================================================
 
-\section{Banco de pruebas}
-\label{sec:banco_fotos}
+\section{Cadena de RF}
+\label{sec:banco_rf}
 
-\textit{[Pendiente: fotos del banco de prueba y del radar armado.]}
+La Figura~\ref{fig:banco_rf} muestra la primera versión armada de la
+cadena de RF sobre una plaqueta de prueba, con los bloques rotulados a
+mano: VCO, amplificador, atenuador, splitter y la etapa de mezcla hacia
+la antena transmisora.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{figuras/banco/primer_banco_medicion1.jpeg}
+  \caption{Primer banco de la cadena de RF: VCO, amplificador,
+  atenuador y splitter interconectados sobre una plaqueta de prueba
+  rotulada a mano.}
+  \label{fig:banco_rf}
+\end{figure}
+
+\section{Banco de mediciones}
+\label{sec:banco_completo}
+
+Las Figuras~\ref{fig:banco_completo1} y~\ref{fig:banco_completo2}
+muestran el banco completo de mediciones: fuente DC, generador de
+funciones, la cadena de RF de la Figura~\ref{fig:banco_rf} y la
+notebook corriendo el software de adquisición/análisis (el trazo verde
+es la señal capturada y el azul su espectro).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figuras/banco/primer_banco_medicion2.jpeg}
+  \caption{Banco de mediciones: fuente DC, generador de funciones,
+  cadena de RF y notebook con el software de análisis.}
+  \label{fig:banco_completo1}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figuras/banco/primer_banco_medicion3.jpeg}
+  \caption{Banco de mediciones, vista general del puesto de trabajo.}
+  \label{fig:banco_completo2}
+\end{figure}
+
+%============================================================
+\chapter{Caracterización del VCO}
+\label{ch:vco}
+%============================================================
 
 \section{Curva de sintonía del VCO}
 \label{sec:curva_vco}
@@ -663,7 +704,7 @@ muestra la curva resultante junto con la sensibilidad $dF/dV$.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{figuras/vco_frecuencia_vs_tension.png}
+  \includegraphics[width=0.95\linewidth]{figuras/vco/vco_frecuencia_vs_tension.png}
   \caption{Curva de sintonía medida del VCO: frecuencia de salida en
   función de la tensión de control $V_\text{in}$ (antes del mapeo a la
   tensión real de sintonía $V_\text{osc}$, más alta, que entrega el
@@ -708,7 +749,7 @@ muestra las cuatro capturas.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{figuras/dac_capturas_osciloscopio.png}
+  \includegraphics[width=0.95\linewidth]{figuras/vco/dac_capturas_osciloscopio.png}
   \caption{Salida del DAC MCP4725 (rampa de sintonía del VCO), con y sin
   predistorsión, a PRF de $50\,\text{ms}$ y $5\,\text{ms}$. Se indica el
   desvío RMS de cada rampa respecto de la recta ideal.}
