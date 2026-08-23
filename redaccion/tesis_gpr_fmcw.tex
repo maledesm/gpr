@@ -731,12 +731,14 @@ corresponde a una banda de $943$ a $1982\,\text{MHz}$
 \section{Tabla de valores medidos}
 \label{sec:tabla_vco}
 
-La Tabla~\ref{tab:vco_completa} lista los 34 puntos medidos. Entre el
-DAC y el VCO hay un amplificador; $V_\text{osc}$ es la tensión real que
-llega al VCO tras ese amplificador, y solo se midió en los últimos 6
-puntos del barrido ($V_\text{in} \geq 2{,}828\,\text{V}$).
+La Tabla~\ref{tab:vco_completa} lista los 34 puntos medidos.
 
 \input{tabla_vco.tex}
+
+Para el último punto del barrido ($V_\text{in} = 3{,}321\,\text{V}$) se
+midió una tensión de $16{,}490\,\text{V}$ a la entrada del VCO (tras el
+amplificador entre el DAC y el VCO), que se encuentra dentro del rango
+de funcionamiento del dispositivo (hasta $20\,\text{V}$).
 
 \section{Rampa del DAC: señal triangular, con y sin predistorsión}
 \label{sec:rampa_dac}
