@@ -276,13 +276,13 @@ def autoprueba():
              f"media {y.mean():.4f}, rms {y.std():.3f}")
 
     # 5. Ida y vuelta frecuencia <-> distancia
-    bw, ts = 750e6, 10e-3
-    d = frec_a_distancia(500.0, bw, ts)
-    chequear("500 Hz -> 1 m", abs(d - 1.0) < 1e-6, f"{d:.4f} m")
-    d9 = frec_a_distancia(500.0, bw, ts, eps_r=9.0)
-    chequear("con eps_r=9 la distancia se divide por 3", abs(d9 - 1 / 3) < 1e-6,
+    bw, ts = 1000e6, 10e-3          # la banda del radar: 1.0 a 2.0 GHz
+    d = frec_a_distancia(1000.0, bw, ts)
+    chequear("1000 Hz -> 1.5 m", abs(d - 1.5) < 1e-6, f"{d:.4f} m")
+    d9 = frec_a_distancia(1000.0, bw, ts, eps_r=9.0)
+    chequear("con eps_r=9 la distancia se divide por 3", abs(d9 - 0.5) < 1e-6,
              f"{d9:.4f} m")
-    chequear("resolucion = c/2BW", abs(resolucion_distancia(bw) - 0.2) < 1e-9,
+    chequear("resolucion = c/2BW", abs(resolucion_distancia(bw) - 0.15) < 1e-9,
              f"{resolucion_distancia(bw) * 100:.1f} cm")
 
     # 6. El diezmado visual conserva la forma

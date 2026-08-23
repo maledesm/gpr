@@ -129,7 +129,7 @@ class Ventana(QtWidgets.QMainWindow):
         self.lector.leer()
 
         self.fs = self.lector.num("fs_eff", 8000.0)
-        self.bw = self.lector.num("bw_mhz", 750.0) * 1e6
+        self.bw = self.lector.num("bw_mhz", 1000.0) * 1e6
         self.tsweep = self.lector.num("t_sweep_ms", 10.0) / 1000.0
         self.prom = dsp.Promediador(1)
         self.referencia = None

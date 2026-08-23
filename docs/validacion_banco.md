@@ -264,14 +264,15 @@ protege el ΔΣ y qué no — y justifican el RC de entrada.
 
 Se puede validar todo el procesamiento **antes de tener el radar**.
 
-Con `T_sweep = 10 ms` y `BW = 750 MHz`, la relación es **500 Hz por metro**. Poné
-el generador en un tono conocido y verificá que el pico caiga donde corresponde:
+Con `T_sweep = 10 ms` y `BW = 1000 MHz`, la relación es **666,7 Hz por metro**.
+Poné el generador en un tono conocido y verificá que el pico caiga donde
+corresponde:
 
 | Generador | Distancia esperada |
 |---|---|
-| 250 Hz | 0,50 m |
-| 500 Hz | 1,00 m |
-| 1000 Hz | 2,00 m |
+| 250 Hz | 0,375 m |
+| 500 Hz | 0,750 m |
+| 1000 Hz | 1,500 m |
 
 Y con el simulador multi-blanco de
 [`../simulacion/beat_simulado.py`](../simulacion/beat_simulado.py) reproducido por

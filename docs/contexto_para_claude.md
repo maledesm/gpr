@@ -47,6 +47,16 @@ distancias, alcanza con contar muestras por barrido.
 En suelo, la resolución mejora por `√εr`: con εr ≈ 9 (típico de suelo húmedo),
 divide por 3.
 
+**La banda de diseño es 1,0 a 2,0 GHz**, o sea `BW = 1000 MHz` → resolución
+**15 cm en aire, 5 cm en suelo**, y `f_beat = 6,67 / T_sweep` Hz por metro. (Si
+ves 750 MHz o 1,75 GHz en algún lado, es de una prueba inicial y quedó viejo.)
+
+Lo que entrega el VCO hoy con la tabla actual es **943–1982 MHz** (BW 1039 MHz,
+14,4 cm): cubre prácticamente la banda de diseño y con algo más de ancho. Llegar
+a 2,000 GHz exactos pide **3,091 V** y el tope de la tabla es 3,00 V, así que hoy
+se queda en 1982 MHz. Es alcanzable (el DAC llega a VDD = 3,3 V) pero hay que
+regenerar `tabla_vco.h` con otro `V_MAX_USO`.
+
 ---
 
 ### 2. Cómo trabajamos los dos
@@ -123,7 +133,8 @@ digitaliza el beat por I²S.
 **VCO** (caracterizado en el banco, datos en `VCO/Caracteristica VCO.csv`)
 - 34 puntos medidos cada 100 mV, con precisión de espectro de 1 MHz.
 - Con la entrada de **0 a 3.00 V** entrega **943 a 1982 MHz**, o sea
-  **BW = 1039 MHz** → **resolución 14.4 cm** en aire.
+  **BW = 1039 MHz** → **resolución 14.4 cm** en aire. Para 2.000 GHz exactos
+  harían falta 3.091 V (ver §1).
 - **La curva no es lineal**: la sensibilidad `dF/dV` va de **167 a 468 MHz/V**,
   una variación de **2.8 a 1**. Eso, sin corregir, ensancha el pico de distancia
   en la misma proporción y arruina la resolución.
@@ -362,8 +373,8 @@ graficamos `dF/dV` hay que suavizar con Savitzky-Golay.
 
 1. **Acelerar el sweep FMCW. Es el bloqueante principal.** Con el
    `T_sweep ≈ 1.46 s` original, las frecuencias de beat de la zona útil (0.2–2 m)
-   caen entre 0.7 y 7 Hz — o sea **adentro del pasa-altos del PCM1808, que no se
-   puede desactivar**. Bajando a 5–10 ms el beat pasa a 100 Hz – 5 kHz y el
+   caen entre 0.9 y 9 Hz — o sea **adentro del pasa-altos del PCM1808, que no se
+   puede desactivar**. Bajando a 5–10 ms el beat pasa a 130 Hz – 2.7 kHz y el
    problema desaparece. **Techo duro**: el período de la rampa es
    `2 × n_pasos × 125 µs`, así que con 200 pasos da 50 ms como mínimo. Para ir
    más rápido hay que bajar `n` o acelerar la escritura I²C.

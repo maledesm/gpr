@@ -33,7 +33,7 @@ DATOS = os.path.normpath(os.path.join(AQUI, "..", "datos"))
 POR_DEFECTO = {
     "puerto":            "auto",
     "f_start_ghz":       1.00,
-    "f_stop_ghz":        1.75,
+    "f_stop_ghz":        2.00,
     "t_sweep_ms":        10.0,
     "fs":                32000,
     "dec":               4,

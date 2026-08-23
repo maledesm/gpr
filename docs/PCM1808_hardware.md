@@ -23,21 +23,21 @@ El PCM1808 es un ADC **de audio**: tiene un filtro pasa-altos digital interno
 de acople del módulo contra los 60 kΩ de impedancia de entrada (típico 1 µF →
 **2.7 Hz**). No hay forma de puentear el HPF digital: no tiene puerto de control.
 
-Con tu `T_sweep ≈ 1.46 s` y `BW = 750 MHz`, la frecuencia de beat es:
+Con tu `T_sweep ≈ 1.46 s` y `BW = 1000 MHz`, la frecuencia de beat es:
 
 ```
-f_beat = 2·R·BW / (c·T_sweep) = 5 / T_sweep  [Hz por metro]
-       = 3.42 Hz/m   con T_sweep = 1.46 s
+f_beat = 2·R·BW / (c·T_sweep) = 6.67 / T_sweep  [Hz por metro]
+       = 4.57 Hz/m   con T_sweep = 1.46 s
 ```
 
-O sea que **toda la zona de interés de un GPR (0.2 m – 2 m) cae entre 0.7 Hz y
-7 Hz**, es decir justo adentro del pasa-altos. Ejemplo con corner efectivo ~2.7 Hz:
+O sea que **toda la zona de interés de un GPR (0.2 m – 2 m) cae entre 0.9 Hz y
+9 Hz**, es decir justo adentro del pasa-altos. Ejemplo con corner efectivo ~2.7 Hz:
 
 | Profundidad (aire) | f_beat | Atenuación HPF | Error de fase |
 |---|---|---|---|
-| 0.2 m | 0.68 Hz | **−12 dB** | +76° |
-| 0.5 m | 1.71 Hz | **−5.4 dB** | +58° |
-| 1.0 m | 3.42 Hz | −2.1 dB | +38° |
+| 0.2 m | 0.91 Hz | **−9.9 dB** | +71° |
+| 0.5 m | 2.28 Hz | **−3.8 dB** | +50° |
+| 1.0 m | 4.57 Hz | −1.3 dB | +31° |
 | 5.0 m | 17.1 Hz | −0.1 dB | +8° |
 
 La atenuación se puede compensar; **el error de fase que varía rápido con el rango
@@ -460,7 +460,7 @@ Y además va a soportar **dos modos de salida**:
 
 ```
      ┌──────────────────┐
-     │  VCO 1.0–1.75GHz │◄─── V_tune ──┬── (Opción C) MCP4921 ◄─SPI─┐
+     │  VCO 1.0–2.0 GHz │◄─── V_tune ──┬── (Opción C) MCP4921 ◄─SPI─┐
      └────────┬─────────┘              │                            │
               │                        └── (Opción A) divisor ──┐   │
         ┌─────┴─────┐                                           │   │

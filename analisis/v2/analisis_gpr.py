@@ -12,8 +12,8 @@ Estrategia de segmentación:
 
 Beat freq para target a distancia R:
   f_beat = 2 * R * BW / (c * T_sweep)
-  -> Para R=1m, T=1.46s, BW=750MHz: f_beat = 3.4 Hz
-  -> Para R=5m: f_beat = 17 Hz
+  -> Para R=1m, T=1.46s, BW=1000MHz: f_beat = 4.6 Hz
+  -> Para R=5m: f_beat = 23 Hz
 """
 
 import os
@@ -26,8 +26,8 @@ from scipy.signal import butter, sosfiltfilt
 
 C       = 3e8
 F_START = 1.00e9
-F_STOP  = 1.75e9
-BW      = F_STOP - F_START    # 750 MHz
+F_STOP  = 2.00e9
+BW      = F_STOP - F_START    # 1000 MHz
 
 D_MAX_PLOT = 5.0   # m
 

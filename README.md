@@ -38,15 +38,25 @@ Si preferís la consola, es lo mismo:
 
 | | |
 |---|---|
-| Banda | 1,00 – 1,75 GHz |
-| Ancho de banda | 750 MHz |
-| Resolución en distancia | 20 cm en aire · ~6,7 cm en suelo (εr ≈ 9) |
+| Banda de diseño | **1,0 – 2,0 GHz** |
+| Ancho de banda | 1000 MHz |
+| Resolución en distancia | 15 cm en aire · 5 cm en suelo (εr ≈ 9) |
 | Digitalización | PCM1808, 24 bit, 8–96 kHz |
 | Controlador | ESP32-C3 SuperMini |
 
 ```
-f_beat = 2·R·BW / (c·T_sweep) = (5 / T_sweep) Hz por metro
+f_beat = 2·R·BW / (c·T_sweep) = (6,67 / T_sweep) Hz por metro
 ```
+
+**Lo que entrega el VCO hoy**, con la tabla de predistorsión actual (rango del
+DAC de 0 a 3,00 V): **943 – 1982 MHz**, o sea BW 1039 MHz y 14,4 cm de
+resolución. Cubre prácticamente la banda de diseño y con algo más de ancho.
+
+Para llegar a **2,000 GHz exactos harían falta 3,091 V**, por encima del tope de
+3,00 V que tiene hoy la tabla. Es alcanzable —el DAC llega hasta VDD = 3,3 V—
+pero implica regenerar `tabla_vco.h` con otro `V_MAX_USO`. Los 3,00 V son un
+margen elegido, no un límite del hardware. Medición y análisis en
+[`VCO/analisis_vco.py`](VCO/analisis_vco.py).
 
 ---
 
@@ -57,6 +67,10 @@ firmware/
   PCM1808_ESP32C3/      ★ EL FIRMWARE ACTUAL. Es el que va en la placa.
                           Salida en texto (Serial Plotter, Telemetry Viewer)
                           y en binario con CRC para el software de Python.
+  prueba_mcp4725/         Rampa de sintonía del VCO por I²C. Sketch AISLADO:
+                          no toca el I²S ni el PCM1808, para probar el DAC sin
+                          arriesgar la cadena de adquisición.
+    tabla_vco.h           GENERADO por VCO/analisis_vco.py — no editar a mano.
   generador_patron/       Arduino Uno: cuadrada de 100 Hz como señal de
                           referencia, para validar sin el radar.
   historico/              Etapas viejas. NO cargar: ver su README.
@@ -77,6 +91,16 @@ docs/
 analisis/               Procesamiento offline (corre en WSL o en Windows)
   v1/  Espectros y señales crudas por medición.
   v2/  Segmentación por sweeps + espectro promediado vs. distancia.
+
+VCO/                    Caracterización y linealización del barrido
+  Caracteristica VCO.csv  34 puntos medidos cada 100 mV. Decimales con COMA.
+  analisis_vco.py         Genera firmware/prueba_mcp4725/tabla_vco.h + curva_vco.png
+  grafico_vco.py          Figura F vs V con la sensibilidad dF/dV.
+  grafico_capturas_dac.py Figura de las 4 capturas de osciloscopio de la rampa.
+  Osciloscopio DAC/       Capturas SDS00001..4 (.CSV y .BMP).
+
+Filtro Pasabajos/       Caracterización de un filtro activo. Trabajo aparte del
+                        radar, se dejó acá para no perderlo.
 
 simulacion/
   beat_simulado.py        Genera un WAV con la señal de beat de varios blancos,
@@ -122,9 +146,9 @@ Pendiente, en orden de importancia:
 
 - [ ] **Acelerar el sweep FMCW.** Es el bloqueante principal. Con el
       `T_sweep ≈ 1,46 s` actual, las frecuencias de beat de la zona útil
-      (0,2–2 m) caen entre 0,7 y 7 Hz, o sea **adentro del pasa-altos del
+      (0,2–2 m) caen entre 0,9 y 9 Hz, o sea **adentro del pasa-altos del
       PCM1808**, que no se puede desactivar. Bajando a 5–10 ms el beat pasa a
-      100 Hz – 5 kHz y el problema desaparece. Números en
+      130 Hz – 2,7 kHz y el problema desaparece. Números en
       [`docs/PCM1808_hardware.md`](docs/PCM1808_hardware.md) §0.
 - [ ] **Sincronismo con el sweep.** Sin él no se puede promediar
       coherentemente. Tres arquitecturas evaluadas en §6 del mismo documento.

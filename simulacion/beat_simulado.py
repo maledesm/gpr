@@ -31,8 +31,8 @@ from scipy.io import wavfile
 
 C        = 3e8
 F_START  = 1.00e9
-F_STOP   = 1.75e9
-BW       = F_STOP - F_START      # 750 MHz
+F_STOP   = 2.00e9
+BW       = F_STOP - F_START      # 1000 MHz
 
 T_SWEEP    = 10e-3               # 10 ms  ← el sweep acelerado que hay que lograr
 EPSILON_R  = 1.0                 # 1.0 = aire · 9.0 ≈ suelo húmedo

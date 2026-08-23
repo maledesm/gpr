@@ -100,6 +100,35 @@ amplitud en el ADC = 5 × 0.320 × 0.949   = 1.52 Vpp   (−5.9 dBFS)
 > Si no encontrás el rótulo, seguí la pista que llega a los capacitores de
 > acople: esa es la entrada.
 
+## 4 bis. ESP32-C3 → MCP4725 (la rampa de sintonía del VCO)
+
+Es el DAC que genera la triangular que barre el VCO. Va por I²C, en un bus
+aparte de todo lo demás.
+
+| ESP32-C3 | | MCP4725 | Qué es |
+|---|---|---|---|
+| `GPIO0` | ↔ | `SDA` | datos I²C |
+| `GPIO1` | → | `SCL` | reloj I²C |
+| `3V3` | → | `VCC` | **3.3 V** |
+| `GND` | ↔ | `GND` | |
+| | | `OUT` | → entrada del amplificador que ataca al VCO |
+
+**`VCC` define la escala completa**: la salida del DAC va de 0 a VDD. Si el riel
+real no es 3.300 V, todas las tensiones se escalan y el barrido se corre entero.
+Medilo con el tester y, si difiere, regenerá la tabla cambiando `VDD` en
+[`../VCO/analisis_vco.py`](../VCO/analisis_vco.py).
+
+La mayoría de los módulos ya traen las resistencias de pull-up del bus. Si el
+tuyo no las tiene, van **2 × 4k7 a 3.3 V**, una en SDA y otra en SCL.
+
+El sketch [`prueba_mcp4725`](../firmware/prueba_mcp4725/) **escanea las
+direcciones 0x60 a 0x67** al arrancar y te dice cuál encontró, así que no hace
+falta saberla de antemano.
+
+> ⚠ **Falta la protección del VCO.** Todavía no hay clamp ni Zener entre el
+> amplificador y la entrada de sintonía. Está pendiente de saber la tensión de
+> alimentación del amplificador para dimensionarlo.
+
 ## 5. Masa común — no es negociable
 
 **Uno, ESP32 y módulo tienen que compartir masa.** Sin retorno común, las
