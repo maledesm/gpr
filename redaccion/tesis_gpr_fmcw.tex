@@ -740,6 +740,81 @@ midió una tensión de $16{,}490\,\text{V}$ a la entrada del VCO (tras el
 amplificador entre el DAC y el VCO), que se encuentra dentro del rango
 de funcionamiento del dispositivo (hasta $20\,\text{V}$).
 
+\section{Predistorsión: linealización mediante interpolación PCHIP}
+\label{sec:predistorsion_pchip}
+
+Como se señaló en la Sección~\ref{sec:curva_vco}, la sensibilidad
+$dF/dV$ del VCO no es constante. En un radar FMCW la frecuencia de
+batido es proporcional a $dF/dt$, de modo que si la rampa de tensión
+es lineal en el tiempo pero $dF/dV$ no lo es, la frecuencia tampoco
+barre linealmente: el eco de un único blanco puntual queda repartido
+sobre todo el rango de pendientes en lugar de concentrarse en una
+única frecuencia de batido, y el pico de distancia se ensancha.
+
+Para corregirlo se invierte la curva medida: en vez de recorrer la
+tensión linealmente, se recorre la \emph{frecuencia} linealmente y se
+calcula, para cada instante, qué tensión hace falta. La inversión se
+hace ajustando la curva de 34 puntos (Tabla~\ref{tab:vco_completa})
+con un interpolador PCHIP (\textit{Piecewise Cubic Hermite
+Interpolating Polynomial}) tanto en el sentido $V\!\to\!F$ como en su
+inversa $F\!\to\!V$; se eligió PCHIP en lugar de un spline cúbico
+porque preserva la monotonía de los datos medidos sin generar
+oscilaciones entre puntos que no están respaldadas por una medición.
+La tabla resultante (1024 entradas, cuantizadas a los 12~bits del DAC
+MCP4725) se calcula una única vez de forma offline con el script
+\texttt{VCO/analisis\_vco.py} y se vuelca al firmware como
+\texttt{tabla\_vco.h}, de modo que el ESP32-C3 solo indexa la tabla en
+tiempo de ejecución sin necesidad de punto flotante.
+
+La Figura~\ref{fig:curva_vco_completa} resume el procedimiento y su
+resultado: arriba a la izquierda, la curva medida con el ajuste PCHIP
+superpuesto y el rango efectivamente usado ($0$ a $3\,\text{V}$)
+sombreado; arriba a la derecha, la sensibilidad punto a punto
+$dF/dV$; abajo a la izquierda, la rampa de tensión que efectivamente
+entrega el DAC con y sin predistorsión; abajo a la derecha, la
+frecuencia resultante en función del tiempo, comparada con la recta
+ideal.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figuras/vco/curva_vco.png}
+  \caption{Linealización del barrido del VCO mediante predistorsión
+  (script \texttt{VCO/analisis\_vco.py}). Arriba: curva de sintonía
+  medida con ajuste PCHIP (izq.) y sensibilidad $dF/dV$ punto a punto
+  sin suavizar (der.). Abajo: rampa de tensión del DAC con y sin
+  predistorsión (izq.) y frecuencia resultante en función del tiempo
+  normalizado, comparada con la recta ideal (der.).}
+  \label{fig:curva_vco_completa}
+\end{figure}
+
+Sobre el rango útil $V_\text{in} \in [0{,}002,\ 3{,}000]\,\text{V}$
+($943$ a $1982\,\text{MHz}$, $BW = 1039\,\text{MHz}$, consistente con
+la Sección~\ref{sec:curva_vco}), \textbf{sin predistorsión} la
+pendiente $dF/dt$ varía entre $0{,}68$ y $1{,}29$ veces su valor
+medio: un blanco puntual a $1\,\text{m}$ se desparramaría, por este
+efecto, entre aproximadamente $0{,}68$ y $1{,}29\,\text{m}$.
+\textbf{Con predistorsión}, $dF/dt$ queda acotado entre $0{,}991$ y
+$1{,}010$ veces el promedio (variación de apenas $\pm 1\%$), con un
+error de frecuencia residual de $0{,}20\,\text{MHz}$ pico
+($0{,}08\,\text{MHz}$ rms), equivalente al $0{,}020\%$ del ancho de
+banda. El escalón de tensión del DAC de 12~bits
+($3{,}300\,\text{V}/4095 \approx 0{,}806\,\text{mV}$) equivale
+típicamente a $0{,}27\,\text{MHz}$, valor que fija el piso de
+resolución de la tabla.
+
+\textit{Nota sobre la sensibilidad graficada:} el panel superior
+derecho de la Figura~\ref{fig:curva_vco_completa} usa la derivada
+cruda punto a punto ($444$ a $170\,\text{MHz/V}$), distinta de la
+sensibilidad ya reportada en la Sección~\ref{sec:curva_vco} ($167$ a
+$468\,\text{MHz/V}$), que se calculó suavizando con un filtro
+Savitzky--Golay sobre la curva PCHIP (script
+\texttt{VCO/grafico\_vco.py}). La derivada cruda arrastra la
+cuantización de la medición (frecuencia redondeada a $1\,\text{MHz}$,
+pasos de $100\,\text{mV}$) y por eso exagera el rango de
+sensibilidad; ambos cálculos coinciden en lo cualitativo (la
+sensibilidad varía fuertemente y no es constante), pero difieren en
+el valor puntual según el método de derivación utilizado.
+
 \section{Rampa del DAC: señal triangular, con y sin predistorsión}
 \label{sec:rampa_dac}
 
@@ -766,6 +841,116 @@ resultante sobre la rampa de tensión (los $32$--$53\,\text{mV}$~rms
 medidos según la captura) es consistente con lo que predice la tabla
 ($57\,\text{mV}$~rms), dentro del ruido de cuantización del
 osciloscopio.
+
+%============================================================
+\chapter{Filtro Pasabajos}
+\label{ch:filtro}
+%============================================================
+
+\section{Objetivo y método de medición}
+\label{sec:filtro_metodo}
+
+Como ejercicio de práctica independiente del resto de la cadena de
+RF, se caracterizó un filtro activo pasabajos con una etapa de
+ganancia ajustable mediante potenciómetro, barriendo con un generador
+de funciones senoidal y midiendo la tensión pico a pico de entrada y
+de salida en dos posiciones del potenciómetro ($G=1$ y $G=2$) a lo
+largo de un barrido logarítmico en frecuencia. La excitación de
+entrada se mantuvo aproximadamente constante en
+$3{,}113 \pm 0{,}045\,\text{V}_{pp}$ ($1{,}5\%$ de dispersión) a lo
+largo de todo el barrido. Se registraron $52$ puntos para $G=2$ y
+$24$ para $G=1$.
+
+En cada punto el operador anotó el nivel de distorsión observado en
+el osciloscopio (sin distorsión / poca distorsión / mucha distorsión
+/ ruido), porque la tensión pico a pico de una onda distorsionada no
+es la amplitud de su componente fundamental: un punto con distorsión
+visible no representa la función transferencia lineal del filtro y
+debe excluirse del ajuste cuantitativo. Con este criterio, los datos
+se consideran válidos (sin distorsión) hasta $1750\,\text{Hz}$; por
+encima de esa frecuencia (zona sombreada y trazo punteado en la
+Figura~\ref{fig:respuesta_filtro}) las mediciones existen pero no
+deben leerse como respuesta lineal del filtro.
+
+\section{Respuesta en frecuencia}
+\label{sec:filtro_respuesta}
+
+La ganancia en banda de paso se calculó como la mediana de
+$20\log_{10}(V_{pp,\text{out}}/V_{pp,\text{in}})$ sobre los puntos
+válidos entre $200$ y $1750\,\text{Hz}$; las frecuencias de corte a
+$-3\,\text{dB}$ se obtuvieron interpolando en escala logarítmica de
+frecuencia el cruce con (ganancia de banda de paso $-3\,\text{dB}$).
+Los resultados se resumen en la Tabla~\ref{tab:filtro_parametros} y
+en la Figura~\ref{fig:respuesta_filtro}.
+
+\begin{table}[H]
+  \centering
+  \caption{Parámetros medidos del filtro activo en las dos
+  posiciones del potenciómetro de ganancia (banda de paso: mediana
+  entre $200$ y $1750\,\text{Hz}$, puntos sin distorsión).}
+  \label{tab:filtro_parametros}
+  \begin{tabular}{lcc}
+    \toprule
+     & $G = 1$ & $G = 2$ \\
+    \midrule
+    Ganancia en banda de paso &
+      $-0{,}17\,\text{dB}$ ($\times 0{,}981$) &
+      $+6{,}51\,\text{dB}$ ($\times 2{,}115$) \\
+    Corte inferior ($-3\,\text{dB}$) &
+      $19{,}3\,\text{Hz}$ & $18{,}6\,\text{Hz}$ \\
+    Corte superior ($-3\,\text{dB}$)\textsuperscript{*} &
+      $20{,}3\,\text{kHz}$ & $17{,}5\,\text{kHz}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textsuperscript{*}Ambos valores de corte superior caen dentro de la
+zona confirmada sin distorsión solo hasta $1750\,\text{Hz}$
+(Sección~\ref{sec:filtro_metodo}); como se discute en la
+Sección~\ref{sec:filtro_normalizada}, deben interpretarse como
+\textbf{cota inferior} del ancho de banda real del filtro y no como
+su valor exacto.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figuras/filtro/respuesta_filtro.png}
+  \caption{Respuesta en frecuencia del filtro activo, barrido
+  senoidal con $V_{in} = 3{,}11\,\text{Vpp}$, en las dos posiciones
+  del potenciómetro de ganancia. Arriba: respuesta absoluta, con las
+  frecuencias de corte indicadas; el trazo se vuelve punteado a
+  partir de la zona con distorsión. Abajo: diferencia entre ambas
+  curvas normalizadas a su propia banda de paso.}
+  \label{fig:respuesta_filtro}
+\end{figure}
+
+La ganancia adicional que aporta el potenciómetro entre las
+posiciones $G=1$ y $G=2$ es de $6{,}68\,\text{dB}$ ($\times 2{,}157$).
+
+\section{Comparación normalizada: separar el efecto de la ganancia
+del efecto de la amplitud}
+\label{sec:filtro_normalizada}
+
+Si el filtro fuese lineal, normalizar cada curva a su propia banda de
+paso debería hacer que ambas coincidan exactamente: el potenciómetro
+escala la ganancia global pero no debería mover la posición de los
+polos del filtro. El panel inferior de la
+Figura~\ref{fig:respuesta_filtro} muestra que, en efecto, entre
+$1\,\text{Hz}$ y $10\,\text{kHz}$ ambas curvas normalizadas coinciden
+dentro de $0{,}40\,\text{dB}$.
+
+Por encima de $15\,\text{kHz}$, sin embargo, divergen hasta
+$6{,}68\,\text{dB}$ —exactamente la ganancia que aporta el
+potenciómetro—. Esta divergencia ocurre precisamente en la zona ya
+identificada como distorsionada (por encima de $1750\,\text{Hz}$,
+Sección~\ref{sec:filtro_metodo}), donde la tensión pico a pico
+medida deja de representar la amplitud de la componente fundamental.
+La interpretación consistente con los datos es que ese flanco
+superior depende del nivel de señal (la posición $G=2$, con más del
+doble de amplitud de salida, entra antes en una zona no lineal del
+circuito o de la medición) y no de la respuesta propia del filtro. En
+consecuencia, el ancho de banda real del filtro es mayor que los
+$\sim\!20\,\text{kHz}$ medidos en $G=1$, que a su vez ya es, por lo
+dicho arriba, una cota inferior.
 
 %============================================================
 %  APÉNDICES
