@@ -1,8 +1,7 @@
 %============================================================
 %  TESIS DE GRADO EN INGENIERÍA ELECTRÓNICA / TELECOMUNICACIONES
 %  Título provisional: Procesamiento de señales para radar de
-%  penetración terrestre (GPR) tipo FMCW/SFCW con resolución
-%  mejorada mediante la transformada chirp-Z (CZT)
+%  penetración terrestre (GPR) tipo FMCW
 %============================================================
 
 \documentclass[12pt, a4paper, twoside]{report}
@@ -144,39 +143,6 @@ Penetración Terrestre (GPR)}
 \pagenumbering{roman}
 
 %------------------------------------------------------------
-% Dedicatoria (opcional)
-%------------------------------------------------------------
-\chapter*{Dedicatoria}
-\addcontentsline{toc}{chapter}{Dedicatoria}
-\vspace{3cm}
-\begin{flushright}
-  \textit{[Texto de dedicatoria]}
-\end{flushright}
-\clearpage
-
-%------------------------------------------------------------
-% Agradecimientos
-%------------------------------------------------------------
-\chapter*{Agradecimientos}
-\addcontentsline{toc}{chapter}{Agradecimientos}
-
-[Texto de agradecimientos.]
-
-\clearpage
-
-%------------------------------------------------------------
-% Resumen
-%------------------------------------------------------------
-\chapter*{Resumen}
-\addcontentsline{toc}{chapter}{Resumen}
-
-\clearpage
-
-%------------------------------------------------------------
-% Abstract
-%------------------------------------------------------------
-
-%------------------------------------------------------------
 % Índices
 %------------------------------------------------------------
 \tableofcontents
@@ -190,25 +156,6 @@ Penetración Terrestre (GPR)}
 %  CUERPO PRINCIPAL
 %============================================================
 \pagenumbering{arabic}
-
-%============================================================
-\chapter{Introducción}
-\label{ch:intro}
-%============================================================
-
-\section{Motivación y contexto}
-
-\section{Objetivos}
-
-\subsection{Objetivo general}
-
-Desarrollar y validar un marco de procesamiento de señales basado en
-la transformada chirp-Z para la estimación de alta resolución del
-espesor de capas en sistemas GPR tipo FMCW/SFCW.
-
-\subsection{Objetivos específicos}
-
-\section{Estructura del documento}
 
 %============================================================
 \chapter{Fundamentos Teóricos}
@@ -508,7 +455,7 @@ cancela con el cambio de signo del retardo relativo). En consecuencia,
 \end{equation}
 
 Cada semiperíodo puede procesarse de forma independiente con
-la FFT o la CZT, y los espectros resultantes son equivalentes.
+la FFT, y los espectros resultantes son equivalentes.
 En la práctica se puede promediar la magnitud de ambos para
 mejorar la relación señal a ruido.
 El signo negativo del coeficiente lineal en la rampa descendente no altera la frecuencia observable: para una señal real, $\cos(-2\pi f_0 t)$ y $\cos(2\pi f_0 t)$ producen el mismo pico espectral en $\lvert f_0 \rvert$. La diferencia de signo se absorbe en la fase inicial y no afecta la estimación de distancia.
@@ -617,8 +564,6 @@ interiores.
     el pico de mayor amplitud.
   \item Calcular $\hat{d}$ con la ecuación~\eqref{eq:d_estimada} y
     obtener $\Delta d$ con la ecuación~\eqref{eq:error_d}.
-  \item Opcionalmente, aplicar la CZT en una banda estrecha alrededor
-    del pico para refinar la estimación de $\hat{f}^*$.
 \end{enumerate}
 
 \subsection{Criterio de éxito}
@@ -675,7 +620,7 @@ Despejando $h$:
 \subsection{Ejemplo numérico}
 
 Para los parámetros de referencia de~\cite{Huang2022} y un valor
-$\Delta f = 4{,}00\,\text{Hz}$ medido con CZT:
+$\Delta f = 4{,}00\,\text{Hz}$ (valor de ejemplo):
 
 \begin{equation*}
   h = \frac{0{,}3 \times 4{,}0 \times 3\times10^8}
@@ -698,9 +643,22 @@ donde $L$ es la distancia total dentro del material calculada con la
 ecuación~\eqref{eq:espesor}. Si $D = 0$ se recupera $h = L/2$.
 
 %============================================================
-\chapter{La Transformada Chirp-Z (CZT)}
-\label{ch:czt}
+%  APÉNDICES
 %============================================================
+\appendix
+
+%============================================================
+\chapter{La transformada chirp-Z (CZT) — trabajo futuro}
+\label{ap:czt}
+%============================================================
+
+\textit{Este capítulo queda como apéndice de referencia teórica para
+una etapa posterior de la tesis. Todavía no se implementó ni se
+validó experimentalmente sobre el banco de pruebas: la separación de
+reflexiones cercanas (espesor de capa) se está resolviendo por ahora
+con la FFT estándar. Se deja documentado acá porque es la técnica que
+se evaluará más adelante para mejorar esa resolución, no porque el
+resto de la tesis dependa de ella.}
 
 \section{Limitación de resolución del FFT}
 \label{sec:limitacion_fft}
@@ -726,8 +684,8 @@ superar los $20\,\text{mm}$.
 
 Aumentar $N$ exigiría una mayor frecuencia de muestreo (hardware más
 costoso), sin beneficio real dado que las frecuencias IF son bajas
-($< 60\,\text{Hz}$). La CZT resuelve este problema sin modificar el
-hardware.
+($< 60\,\text{Hz}$). La CZT es una alternativa para resolver este
+problema sin modificar el hardware, a evaluar más adelante.
 
 \section{Conceptos fundamentales de la CZT}
 \label{sec:czt_teoria}
@@ -899,84 +857,12 @@ $f_\text{end}=15\,\text{Hz}$, $M=512$ puntos.
 
 \textit{Regla práctica:} $\Delta f_\text{CZT} < \Delta f_\text{real}/5$.
 
-%============================================================
-\chapter{Simulaciones y Resultados}
-\label{ch:resultados}
-%============================================================
-
-\section{Descripción del entorno de simulación}
-
-[Esta sección se completará con los resultados de simulación.
-  Se describirán aquí los parámetros del sistema simulado, las señales
-  generadas y las métricas de evaluación utilizadas (RMSE del espesor,
-tasa de detección de picos, etc.).]
-
-\section{Comparación FFT vs.\ CZT}
-
-[Se incluirán figuras comparativas del espectro FFT y del zoom CZT
-para distintos valores de espesor, así como tablas de error.]
-
-\section{Sensibilidad a los parámetros}
-
-[Análisis de sensibilidad respecto de $M$, del ancho del rango de zoom
-y del valor de $\varepsilon_r$ asumido.]
-
-%============================================================
-\chapter{Conclusiones y Trabajos Futuros}
-\label{ch:conclusiones}
-%============================================================
-
-\section{Conclusiones}
-
-\section{Trabajos futuros}
-
-%============================================================
-%  APÉNDICES
-%============================================================
-\appendix
-
-\chapter{Derivación detallada de la señal IF}
-\label{ap:derivacion}
-
-A continuación se reproduce la derivación completa de la señal IF
-para el caso FMCW, partiendo de la definición de la señal recibida.
-
-\section{Señal transmitida}
-
-Siguiendo la notación del apunte de cátedra, la señal transmitida es:
-
-\begin{equation}
-  s_\text{tx}(t) = A\cos\!\left(2\pi\frac{B}{\tau}\,t^2\right),
-  \qquad 0 \leq t \leq \tau.
-\end{equation}
-
-La frecuencia instantánea se obtiene derivando la fase:
-
-\begin{equation}
-  f(t) = \frac{1}{2\pi}\frac{d}{dt}\!\left(2\pi\frac{B}{\tau}t^2\right) = \frac{2B}{\tau}\,t.
-\end{equation}
-
-Esta expresión confirma que la frecuencia crece linealmente con el
-tiempo, con pendiente $2B/\tau$, como corresponde a un chirp lineal.
-
-\section{Señal recibida y mezcla}
-
-La señal recibida es una réplica retrasada $\tau_d = 2d/c$ segundos:
-
-\begin{equation}
-  \Gamma(t) = A^2\cos\!\left[2\pi\frac{B}{\tau}\!\left(t - \frac{2d}{c}\right)^{\!2} - \theta\right].
-\end{equation}
-
-Tras la multiplicación $s_\text{tx}(t)\cdot\Gamma(t)$ y el filtrado
-pasa-bajos (véase Sección~\ref{sec:mixing}), se obtiene directamente
-la ecuación~\eqref{eq:beat_freq}.
-
-\chapter{Flujo completo del algoritmo}
-\label{ap:flujo}
+\section{Flujo completo del algoritmo (a futuro)}
+\label{sec:flujo_czt}
 
 \begin{table}[H]
   \centering
-  \caption{Resumen del flujo de procesamiento GPR FMCW con CZT.}
+  \caption{Resumen del flujo de procesamiento GPR FMCW con CZT, propuesto para cuando se implemente.}
   \label{tab:flujo}
   \begin{tabular}{clp{7cm}}
     \toprule
