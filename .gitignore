@@ -45,6 +45,8 @@ build/
 #     VCO/curva_vco.png
 #     VCO/vco_frecuencia_vs_tension.png
 #     VCO/dac_capturas_osciloscopio.png
+#     redaccion/figuras/vco_frecuencia_vs_tension.png
+#     redaccion/figuras/dac_capturas_osciloscopio.png
 # Una vez agregadas con -f quedan trackeadas: si regeneras el grafico, el
 # cambio aparece en el diff como cualquier otro archivo.
 # ---------------------------------------------------------------------------

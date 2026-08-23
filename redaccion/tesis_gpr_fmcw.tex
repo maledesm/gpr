@@ -643,6 +643,88 @@ donde $L$ es la distancia total dentro del material calculada con la
 ecuación~\eqref{eq:espesor}. Si $D = 0$ se recupera $h = L/2$.
 
 %============================================================
+\chapter{Banco de Pruebas y Caracterización del VCO}
+\label{ch:banco}
+%============================================================
+
+\section{Banco de pruebas}
+\label{sec:banco_fotos}
+
+\textit{[Pendiente: fotos del banco de prueba y del radar armado.]}
+
+\section{Curva de sintonía del VCO}
+\label{sec:curva_vco}
+
+El VCO se caracterizó punto a punto, barriendo la tensión de control
+$V_\text{in}$ de $0$ a $3{,}321\,\text{V}$ en pasos de $100\,\text{mV}$
+(34 puntos) y midiendo la frecuencia de salida con un analizador de
+espectro (precisión de $1\,\text{MHz}$). La Figura~\ref{fig:curva_vco}
+muestra la curva resultante junto con la sensibilidad $dF/dV$.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figuras/vco_frecuencia_vs_tension.png}
+  \caption{Curva de sintonía medida del VCO: frecuencia de salida en
+  función de la tensión de control $V_\text{in}$ (antes del mapeo a la
+  tensión real de sintonía $V_\text{osc}$, más alta, que entrega el
+  amplificador entre el DAC y el VCO). El rango sombreado indica los
+  $0$--$3{,}00\,\text{V}$ que efectivamente se usan para generar la
+  rampa del radar.}
+  \label{fig:curva_vco}
+\end{figure}
+
+En el rango medido completo ($0{,}002$ a $3{,}321\,\text{V}$) la
+frecuencia va de $943$ a $2042\,\text{MHz}$. La sensibilidad $dF/dV$
+no es constante: varía entre $167$ y $468\,\text{MHz/V}$ (relación
+$2{,}8$ a $1$ entre el extremo más y menos sensible), lo cual es la
+razón por la que una rampa de tensión lineal no produce una rampa de
+frecuencia lineal (se retoma la predistorsión en la
+Sección~\ref{sec:rampa_dac}).
+
+Para no exceder el rango seguro de operación del VCO ni del DAC, el
+rango de tensión que efectivamente se usa para generar la rampa del
+radar se acotó a $V_\text{in} \in [0{,}00,\ 3{,}00]\,\text{V}$, lo que
+corresponde a una banda de $943$ a $1982\,\text{MHz}$
+($BW = 1039\,\text{MHz}$).
+
+\section{Tabla de valores medidos}
+\label{sec:tabla_vco}
+
+La Tabla~\ref{tab:vco_completa} lista los 34 puntos medidos. Entre el
+DAC y el VCO hay un amplificador; $V_\text{osc}$ es la tensión real que
+llega al VCO tras ese amplificador, y solo se midió en los últimos 6
+puntos del barrido ($V_\text{in} \geq 2{,}828\,\text{V}$).
+
+\input{tabla_vco.tex}
+
+\section{Rampa del DAC: señal triangular, con y sin predistorsión}
+\label{sec:rampa_dac}
+
+Se capturó con el osciloscopio la salida real del DAC MCP4725 (la
+rampa de sintonía del VCO), con la predistorsión activada y
+desactivada, y a dos frecuencias de repetición de la rampa (PRF) de
+$50\,\text{ms}$ y $5\,\text{ms}$. La Figura~\ref{fig:capturas_dac}
+muestra las cuatro capturas.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figuras/dac_capturas_osciloscopio.png}
+  \caption{Salida del DAC MCP4725 (rampa de sintonía del VCO), con y sin
+  predistorsión, a PRF de $50\,\text{ms}$ y $5\,\text{ms}$. Se indica el
+  desvío RMS de cada rampa respecto de la recta ideal.}
+  \label{fig:capturas_dac}
+\end{figure}
+
+Sin predistorsión, la rampa de tensión es lineal por construcción pero
+—dado que $dF/dV$ no es constante— produce una rampa de frecuencia no
+lineal. Con predistorsión, la tabla invertida (\texttt{tabla\_vco.h},
+generada por \texttt{VCO/analisis\_vco.py}) corrige esto, y la comba
+resultante sobre la rampa de tensión (los $32$--$53\,\text{mV}$~rms
+medidos según la captura) es consistente con lo que predice la tabla
+($57\,\text{mV}$~rms), dentro del ruido de cuantización del
+osciloscopio.
+
+%============================================================
 %  APÉNDICES
 %============================================================
 \appendix
