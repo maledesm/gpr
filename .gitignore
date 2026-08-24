@@ -39,6 +39,7 @@ build/
 # Ya estan versionadas asi (son resultado final, no salida de una medicion
 # puntual, y conviene poder verlas en GitHub sin correr nada):
 #     Filtro Pasabajos/respuesta_filtro.png
+#     docs/principio_fmcw.png
 #     VCO/curva_vco.png
 #     VCO/vco_frecuencia_vs_tension.png
 #     VCO/dac_capturas_osciloscopio.png
