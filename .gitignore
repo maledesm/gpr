@@ -40,6 +40,7 @@ build/
 # puntual, y conviene poder verlas en GitHub sin correr nada):
 #     Filtro Pasabajos/respuesta_filtro.png
 #     docs/diagrama_bloques.png
+#     docs/mixer_iq.png
 #     docs/principio_fmcw.png
 #     VCO/curva_vco.png
 #     VCO/vco_frecuencia_vs_tension.png
