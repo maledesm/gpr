@@ -62,6 +62,22 @@ build/
 *.svg
 
 # ---------------------------------------------------------------------------
+# Basura intermedia de compilar redaccion/tesis_gpr_fmcw.tex (pdflatex + biber)
+# ---------------------------------------------------------------------------
+redaccion/*.aux
+redaccion/*.bbl
+redaccion/*.bcf
+redaccion/*.blg
+redaccion/*.lof
+redaccion/*.log
+redaccion/*.lot
+redaccion/*.run.xml
+redaccion/*.synctex.gz
+redaccion/*.toc
+redaccion/*.fls
+redaccion/*.fdb_latexmk
+
+# ---------------------------------------------------------------------------
 # Simulaciones electromagnéticas: son decenas de GB, no entran en GitHub
 # ---------------------------------------------------------------------------
 *.h5
