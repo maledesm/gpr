@@ -243,6 +243,13 @@ static bool     g_bin     = true;    // salida binaria (si no, solo texto)
 static uint8_t  g_addr    = 0x60;
 static uint32_t g_clk     = 400000;
 
+// Si no hay MCP4725 conectado el firmware NO se planta: sigue funcionando con
+// la rampa en seco. La cuenta de escalones y los vertices se generan igual,
+// asi que se puede probar toda la cadena -- segmentacion, tramas, CRC y el
+// software de la PC -- teniendo solo el ESP32 sobre la mesa. Lo unico que no
+// pasa es la escritura al bus.
+static bool     g_dacOk   = false;
+
 static i2s_chan_handle_t rx_chan = nullptr;
 static TaskHandle_t      h_adq   = nullptr;
 static volatile bool     g_corriendo = false;
@@ -297,6 +304,10 @@ static bool     bajadaAct = false;
 // y tarda 25-50 ms por escritura, o sea que en una rampa se quemaria en
 // minutos.
 static inline bool escribirDAC(uint16_t valor) {
+  // Sin DAC no se toca el bus: una transaccion contra una direccion que nadie
+  // contesta igual consume tiempo esperando el NACK, y en la rampa eso se
+  // pagaria en cada escalon.
+  if (!g_dacOk) return true;
   if (valor > 4095) valor = 4095;
   Wire.beginTransmission(g_addr);
   Wire.write((uint8_t)(valor >> 8));
@@ -307,8 +318,9 @@ static inline bool escribirDAC(uint16_t valor) {
 static bool buscarDAC() {
   for (uint8_t a = 0x60; a <= 0x67; a++) {
     Wire.beginTransmission(a);
-    if (Wire.endTransmission() == 0) { g_addr = a; return true; }
+    if (Wire.endTransmission() == 0) { g_addr = a; g_dacOk = true; return true; }
   }
+  g_dacOk = false;
   return false;
 }
 
@@ -653,7 +665,13 @@ static void mostrarInfo() {
   Serial.printf("  f_beat por metro  : %.0f Hz/m\n",
                 2.0f * TABLA_VCO_BW_MHZ * 1e6f / (3e8f * (prfActual() / 2000.0f)));
   Serial.println();
-  Serial.printf("  DAC en 0x%02X, bus %lu Hz\n", g_addr, (unsigned long)g_clk);
+  if (g_dacOk) {
+    Serial.printf("  DAC               : 0x%02X, bus %lu Hz\n",
+                  g_addr, (unsigned long)g_clk);
+  } else {
+    Serial.println("  DAC               : NO CONECTADO -- rampa en seco");
+    Serial.println("                      (se cuentan escalones y vertices, no sale tension)");
+  }
   if (paso < ESCRITURA_TIPICA_US * 1.2f) {
     Serial.printf("  [AVISO] el escalon dura %.0f us y una escritura I2C ~%d us:\n",
                   paso, ESCRITURA_TIPICA_US);
@@ -759,6 +777,7 @@ static void ayuda() {
   Serial.println("  pre on|off            predistorsion del VCO");
   Serial.println("  ch l|r                canal del PCM1808");
   Serial.println("  bin on|off            salida binaria por serie");
+  Serial.println("  dac                   volver a buscar el MCP4725 en el bus");
   Serial.println("  dc <codigo>           tension fija en el DAC (con la adq parada)");
   Serial.println("  jit                   dispersion de la duracion de rampa");
   Serial.println("  info | reset | help");
@@ -783,8 +802,16 @@ static void procesar(String s) {
   if (cmd == "jit")        { mostrarJitter(); return; }
   if (cmd == "reset")      { resetCuentas(); Serial.println("[ok] cuentas en cero"); return; }
 
+  if (cmd == "dac") {
+    if (g_corriendo) { Serial.println("[error] pará la adquisicion primero"); return; }
+    if (buscarDAC()) { Serial.printf("[ok] MCP4725 en 0x%02X\n", g_addr); escribirDAC(0); }
+    else             Serial.println("[aviso] sigo sin encontrarlo; rampa en seco");
+    return;
+  }
+
   if (cmd == "dc") {
     if (g_corriendo) { Serial.println("[error] pará la adquisicion primero"); return; }
+    if (!g_dacOk) { Serial.println("[error] no hay DAC conectado ('dac' para buscarlo)"); return; }
     escribirDAC((uint16_t)ai);
     Serial.printf("[ok] DAC = %ld  (%.3f V con VDD 3.3)\n", ai, 3.3f * ai / 4095.0f);
     return;
@@ -855,15 +882,22 @@ void setup() {
 
   Wire.begin(PIN_SDA, PIN_SCL);
   Wire.setClock(g_clk);
-  if (!buscarDAC()) {
-    Serial.println("[ERROR] No encuentro el MCP4725 en 0x60..0x67.");
-    Serial.printf("  - SDA en GPIO%d, SCL en GPIO%d\n", PIN_SDA, PIN_SCL);
-    Serial.println("  - VCC a 3.3 V y GND comun");
-    Serial.println("  - Si el modulo no trae pull-ups, 4k7 de SDA y SCL a 3.3 V");
-    while (true) { digitalWrite(PIN_LED, !digitalRead(PIN_LED)); delay(150); }
+  if (buscarDAC()) {
+    Serial.printf("  MCP4725 en 0x%02X\n", g_addr);
+    escribirDAC(0);
+  } else {
+    Serial.println();
+    Serial.println("  [AVISO] No encuentro el MCP4725 en 0x60..0x67.");
+    Serial.println("          Sigo igual, con la RAMPA EN SECO: se cuentan los");
+    Serial.println("          escalones y se marcan los vertices, pero no sale");
+    Serial.println("          tension. Sirve para probar la cadena completa");
+    Serial.println("          teniendo solo el ESP32.");
+    Serial.println("          Cuando lo conectes, 'dac' vuelve a buscarlo sin");
+    Serial.println("          tener que reiniciar.");
+    Serial.printf("          Revisa: SDA en GPIO%d, SCL en GPIO%d, VCC 3.3 V,\n",
+                  PIN_SDA, PIN_SCL);
+    Serial.println("          GND comun y pull-ups de 4k7 si el modulo no trae.");
   }
-  Serial.printf("  MCP4725 en 0x%02X\n", g_addr);
-  escribirDAC(0);
 
   mostrarInfo();
   Serial.println("\n'run' para arrancar, 'help' para la lista de comandos.");
