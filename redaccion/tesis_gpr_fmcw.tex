@@ -669,9 +669,15 @@ En la rama de transmisión, la rampa de tensión del DAC se amplifica, sintoniza
 el VCO (banda $1$--$2\,\text{GHz}$), se atenúa $3\,\text{dB}$ y se divide en
 un splitter: una salida excita la antena transmisora y la otra actúa como
 oscilador local (LO) del mezclador. En la rama de recepción, el eco captado
-por la antena receptora se amplifica con un LNA, se mezcla con el LO para
-obtener la señal de batido $f_\text{beat}$, se filtra con un pasa-bajos
-antialiasing y se digitaliza en el PCM1808.
+por la antena receptora se amplifica con un LNA y se mezcla con el LO. El
+mezclador entrega, además de la señal de batido $f_\text{beat}$ buscada, un
+término de suma en torno a $2f_c$ (varios GHz); el pasa-bajos que sigue
+rechaza ese término de suma\footnote{No debe confundirse con el filtro
+antialiasing del muestreo: ese ya está resuelto internamente por el
+PCM1808 (filtro analógico interno a $1{,}3\,\text{MHz}$ más el
+sobremuestreo $64\times$ de su modulador $\Delta\Sigma$), ver
+\texttt{docs/PCM1808\_hardware.md}.} y la señal resultante se digitaliza en
+el PCM1808.
 
 \begin{figure}[H]
   \centering
