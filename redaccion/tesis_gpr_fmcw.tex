@@ -661,9 +661,9 @@ canal, que es el alcance de esta tesis. El microcontrolador ESP32-C3 cumple
 una doble función: genera la rampa de sintonía por I²C (hacia el DAC
 MCP4725) y, simultáneamente, digitaliza la señal de batido por I²S (desde el
 PCM1808). Esta doble función es la razón por la que hace falta sincronismo
-entre el barrido de frecuencia y el reloj de muestreo (pendiente
-todavía, ver \S\ref{ch:banco}\footnote{Sin ese sincronismo no es posible
-promediar coherentemente entre barridos sucesivos.}).
+entre el barrido de frecuencia y el reloj de muestreo, todavía no
+implementado.\footnote{Sin ese sincronismo no es posible promediar
+coherentemente entre barridos sucesivos.}
 
 En la rama de transmisión, la rampa de tensión del DAC se amplifica, sintoniza
 el VCO (banda $1$--$2\,\text{GHz}$), se atenúa $3\,\text{dB}$ y se divide en
