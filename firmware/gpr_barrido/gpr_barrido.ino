@@ -270,6 +270,7 @@ static volatile uint32_t g_rampa      = 0;   // rampas desde que arranco
 static volatile uint32_t g_ovfDma     = 0;
 static volatile uint32_t g_ovfRing    = 0;
 static volatile uint32_t g_atrasos    = 0;
+static volatile uint32_t g_escalones  = 0;
 static volatile uint32_t g_peorUs     = 0;
 static volatile uint32_t g_rampaMinUs = 0xFFFFFFFF;
 static volatile uint32_t g_rampaMaxUs = 0;
@@ -466,6 +467,7 @@ static bool i2sStart() {
 // segmentar el stream en barridos.
 static inline void pasoDac() {
   if (!escribirDAC(codigoPaso(idxPaso))) g_errI2C = g_errI2C + 1;
+  g_escalones = g_escalones + 1;
 
   idxPaso += sentido;
   bool vertice = false;
@@ -524,7 +526,13 @@ static void tareaAdq(void *) {
       if ((int32_t)(ahora - proximoUs) >= 0) {
         uint32_t retraso = ahora - proximoUs;
         if (retraso > g_peorUs) g_peorUs = retraso;
-        if (retraso > pasoUs / 2) g_atrasos = g_atrasos + 1;
+        // El umbral es UN PERIODO Y MEDIO y no medio periodo. El escalon solo
+        // se puede atender al terminar cada bloque de I2S, y el bloque dura
+        // exactamente un periodo de escalon: un retraso de hasta un periodo es
+        // la granularidad del lazo, no una falla. Con el umbral en pasoUs/2
+        // casi todos los escalones contaban como tarde segun la fase, y el
+        // numero no significaba nada.
+        if (retraso > pasoUs + pasoUs / 2) g_atrasos = g_atrasos + 1;
         pasoDac();
         proximoUs += pasoUs;
         if ((int32_t)(micros() - proximoUs) > (int32_t)(pasoUs * 4)) {
@@ -608,14 +616,14 @@ static inline void binAgregar(float v) {
 // manteniendo un numero ENTERO de muestras por escalon. Devuelve el PRF real.
 static float snapPrf(float prf_ms) {
   uint32_t muestrasRampa = (uint32_t)(prf_ms / 2.0f * g_fs / 1000.0f + 0.5f);
-  uint32_t n = muestrasRampa / g_pasos;
+  uint32_t n = muestrasRampa / (g_pasos - 1);
   if (n < NMUE_MIN) n = NMUE_MIN;
   if (n > NMUE_MAX) n = NMUE_MAX;
   g_nmue = (uint16_t)n;
-  return 2.0f * g_pasos * g_nmue * 1000.0f / g_fs;
+  return 2.0f * (g_pasos - 1) * g_nmue * 1000.0f / g_fs;
 }
 
-static float prfActual() { return 2.0f * g_pasos * g_nmue * 1000.0f / g_fs; }
+static float prfActual() { return 2.0f * (g_pasos - 1) * g_nmue * 1000.0f / g_fs; }
 static float pasoUsActual() { return g_nmue * 1000000.0f / g_fs; }
 
 static void guardar() {
@@ -651,17 +659,17 @@ static void mostrarInfo() {
   Serial.println();
   Serial.printf("  Escalones/rampa   : %u\n", g_pasos);
   Serial.printf("  Muestras/escalon  : %u  (%.1f us)\n", g_nmue, paso);
-  Serial.printf("  Muestras/rampa    : %lu\n", (unsigned long)((uint32_t)g_pasos * g_nmue));
+  Serial.printf("  Muestras/rampa    : %lu\n", (unsigned long)((uint32_t)(g_pasos - 1) * g_nmue));
   Serial.printf("  Rampa             : %.3f ms\n", prfActual() / 2.0f);
   Serial.printf("  PRF (periodo)     : %.3f ms  (%.1f Hz)\n",
                 prfActual(), 1000.0f / prfActual());
   Serial.println();
   Serial.printf("  Barrido           : %.0f a %.0f MHz  (BW %.0f MHz)\n",
                 TABLA_VCO_F0_MHZ, TABLA_VCO_F1_MHZ, TABLA_VCO_BW_MHZ);
-  Serial.printf("  Escalon frecuencia: %.2f MHz\n", TABLA_VCO_BW_MHZ / g_pasos);
+  Serial.printf("  Escalon frecuencia: %.2f MHz\n", TABLA_VCO_BW_MHZ / (g_pasos - 1));
   Serial.printf("  Resolucion        : %.1f cm\n", 15000.0f / TABLA_VCO_BW_MHZ);
   Serial.printf("  Alcance no ambiguo: %.2f m en aire\n",
-                g_pasos * 15000.0f / TABLA_VCO_BW_MHZ / 100.0f);
+                (g_pasos - 1) * 15000.0f / TABLA_VCO_BW_MHZ / 100.0f);
   Serial.printf("  f_beat por metro  : %.0f Hz/m\n",
                 2.0f * TABLA_VCO_BW_MHZ * 1e6f / (3e8f * (prfActual() / 2000.0f)));
   Serial.println();
@@ -694,15 +702,46 @@ static void mostrarJitter() {
     Serial.printf("  Dispersion        : %lu us  =  %.0f ppm  =  %.2f %% \n",
                   (unsigned long)(mx - mn), (mx - mn) / nominal * 1e6f,
                   (mx - mn) / nominal * 100.0f);
-    // Lo que importa no es el jitter en si sino cuanto corre la distancia:
-    // un error relativo en T_sweep se traslada igual a la distancia.
-    Serial.printf("  Error de rango    : %.1f %% de la distancia medida\n",
-                  (mx - mn) / nominal * 100.0f);
+    float eps = (mx - mn) / nominal;          // dispersion relativa
+
+    // Un error relativo en T_sweep se traslada igual a la distancia.
+    Serial.printf("  Error de rango    : %.2f %% de la distancia medida\n",
+                  eps * 100.0f);
+
+    // ESTE es el numero que decide si hace falta ATADO.
+    //
+    // Para el rango, la dispersion es casi irrelevante: 0.1 % sobre un metro
+    // son milimetros contra celdas de 15 cm. Lo que si es exigente es promediar
+    // barridos coherentemente, porque ahi se suman fases y no magnitudes.
+    //
+    // Un blanco a R produce 2*R*BW/c ciclos de beat en un barrido. Si la
+    // duracion del barrido se corre en una fraccion eps, la fase acumulada al
+    // final se corre 2*pi*ciclos*eps. Mientras eso quede bien por debajo de un
+    // radian, sumar barridos crudos funciona y no hace falta remuestrear.
+    float ciclos = 2.0f * 1.0f * TABLA_VCO_BW_MHZ * 1e6f / 3e8f;   // a 1 m
+    float deriva = 2.0f * PI * ciclos * eps;
+    Serial.printf("  Deriva de fase    : %.3f rad a 1 m  (%.3f a 5 m)\n",
+                  deriva, deriva * 5.0f);
+    Serial.printf("  Veredicto         : %s\n",
+                  deriva < 0.3f ? "MARCA alcanza para promediar coherentemente"
+                                : "conviene pasar a ATADO");
   } else {
     Serial.println("  Rampa medida      : (todavia sin datos, corre 'run')");
   }
-  Serial.printf("  Escalones tarde   : %lu  (peor %lu us)\n",
-                (unsigned long)g_atrasos, (unsigned long)g_peorUs);
+  // "Tarde" = mas de un periodo y medio. Hasta un periodo es la granularidad
+  // del lazo: el escalon solo se atiende al terminar un bloque de I2S, y el
+  // bloque dura justo un periodo de escalon.
+  uint32_t esc = g_escalones;
+  Serial.printf("  Escalones          : %lu  (bloque de I2S = %.0f us)\n",
+                (unsigned long)esc, pasoUsActual());
+  Serial.printf("  Tarde (>1.5 paso) : %lu  (%.2f %%, peor %lu us)\n",
+                (unsigned long)g_atrasos,
+                esc ? 100.0f * g_atrasos / esc : 0.0f,
+                (unsigned long)g_peorUs);
+  if (!g_dacOk) {
+    Serial.println("  [OJO] sin DAC conectado no se escribe al bus: estos");
+    Serial.println("        numeros son una COTA INFERIOR del jitter real.");
+  }
   Serial.printf("  Overflow DMA      : %lu\n", (unsigned long)g_ovfDma);
   Serial.printf("  Overflow ring     : %lu\n", (unsigned long)g_ovfRing);
   Serial.printf("  Errores I2C       : %lu\n", (unsigned long)g_errI2C);
@@ -714,6 +753,7 @@ static void mostrarJitter() {
 // valor de una asignacion esta deprecado en C++20 y el compilador avisa.
 static void resetCuentas() {
   g_atrasos    = 0;
+  g_escalones  = 0;
   g_peorUs     = 0;
   g_rampaMinUs = 0xFFFFFFFF;
   g_rampaMaxUs = 0;
