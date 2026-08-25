@@ -22,16 +22,48 @@ Autoprueba, sin hardware:
 import struct
 import sys
 import time
+from typing import NamedTuple, Optional
 
 import numpy as np
 
-MAGIC = b"\xA5\x5A"
-CAB = 9                 # magic(2) + idx(4) + n(2) + flags(1)
+# Dos formatos de trama conviven a proposito.
+#
+#   v1  0xA5 0x5A  magic(2) + idx(4) + n(2) + flags(1)                    = 9
+#   v2  0xA5 0x5B  magic(2) + idx(4) + n(2) + flags(1) + rampa(4)         = 13
+#
+# El v2 lo emite gpr_barrido, que ademas de las muestras manda en que barrido
+# van: cada trama pertenece a UNA sola rampa y la que la inaugura viene con
+# FLAG_VERTICE. O sea que la segmentacion en barridos llega hecha desde el
+# firmware y no hay que buscarla en la senal.
+#
+# El preambulo distinto no es capricho: si el firmware nuevo hablara con un
+# decodificador viejo, este no sincronizaria y fallaria limpio, en vez de leer
+# los campos corridos y entregar datos plausibles pero equivocados.
+MAGIC_V1 = b"\xA5\x5A"
+MAGIC_V2 = b"\xA5\x5B"
+CAB_V1 = 9
+CAB_V2 = 13
+
+MAGIC = MAGIC_V1        # compatibilidad con codigo que lo importaba
+CAB = CAB_V1
+
 MAX_MUESTRAS = 4096     # cota de sanidad: descarta cabeceras absurdas
 
 VID_ESPRESSIF = 0x303A  # USB Serial/JTAG del ESP32-C3
 
-FLAG_INICIO_RAFAGA = 0x01
+FLAG_INICIO_RAFAGA = 0x01   # v1: arranque de rafaga  ·  v2: primera trama
+FLAG_OVF_DMA       = 0x02   # v2: hubo desborde del DMA del I2S
+FLAG_BAJADA        = 0x04   # v2: la rampa de esta trama es descendente
+FLAG_VERTICE       = 0x08   # v2: esta trama inaugura un barrido
+FLAG_OVF_RING      = 0x10   # v2: el firmware no vacio su buffer a tiempo
+
+
+class Paquete(NamedTuple):
+    idx: int
+    flags: int
+    datos: np.ndarray
+    rampa: Optional[int]    # numero de barrido; None en v1
+    version: int            # 1 o 2
 
 
 # ---------------------------------------------------------------------------
@@ -84,13 +116,34 @@ class Decodificador:
         self.bytes_basura = 0     # descartados buscando sincronismo
         self.muestras = 0
 
+    def _hallar(self):
+        """Posicion del proximo preambulo y su version.
+
+        Devuelve (-1, 0) si no hay ninguno, y (pos, 0) cuando el buffer termina
+        justo en un 0xA5 suelto: ahi todavia no se sabe la version y hay que
+        esperar el byte siguiente en vez de tirarlo.
+        """
+        i = 0
+        while True:
+            i = self.buf.find(0xA5, i)
+            if i < 0:
+                return -1, 0
+            if i + 1 >= len(self.buf):
+                return i, 0
+            b = self.buf[i + 1]
+            if b == 0x5A:
+                return i, 1
+            if b == 0x5B:
+                return i, 2
+            i += 1
+
     def alimentar(self, datos: bytes):
-        """Agrega bytes y devuelve los paquetes completos: (idx, flags, ndarray)."""
+        """Agrega bytes y devuelve los Paquete completos que se hayan armado."""
         self.buf.extend(datos)
         salida = []
 
         while True:
-            i = self.buf.find(MAGIC)
+            i, ver = self._hallar()
             if i < 0:
                 # Sin preambulo a la vista. Se conserva el ultimo byte por si
                 # es la primera mitad de un preambulo partido entre lecturas.
@@ -103,30 +156,35 @@ class Decodificador:
                 self.bytes_basura += i
                 del self.buf[:i]
 
-            if len(self.buf) < CAB:
+            if ver == 0:
+                break                                  # falta el segundo byte
+
+            cab = CAB_V1 if ver == 1 else CAB_V2
+            if len(self.buf) < cab:
                 break                                  # falta cabecera
 
             idx, n, flags = struct.unpack_from("<IHB", self.buf, 2)
+            rampa = struct.unpack_from("<I", self.buf, 9)[0] if ver == 2 else None
 
             if n == 0 or n > MAX_MUESTRAS:
                 del self.buf[:2]                       # preambulo falso
                 self.bytes_basura += 2
                 continue
 
-            total = CAB + 4 * n + 2
+            total = cab + 4 * n + 2
             if len(self.buf) < total:
                 break                                  # falta cuerpo
 
-            cuerpo = bytes(self.buf[2:CAB + 4 * n])
-            crc_rx = struct.unpack_from("<H", self.buf, CAB + 4 * n)[0]
+            cuerpo = bytes(self.buf[2:cab + 4 * n])
+            crc_rx = struct.unpack_from("<H", self.buf, cab + 4 * n)[0]
 
             if crc16(cuerpo) != crc_rx:
                 self.paquetes_crc += 1
                 del self.buf[:2]
                 continue
 
-            datos_np = np.frombuffer(bytes(self.buf[CAB:CAB + 4 * n]), dtype="<f4")
-            salida.append((idx, flags, datos_np))
+            datos_np = np.frombuffer(bytes(self.buf[cab:cab + 4 * n]), dtype="<f4")
+            salida.append(Paquete(idx, flags, datos_np, rampa, ver))
             self.paquetes_ok += 1
             self.muestras += n
             del self.buf[:total]
@@ -239,7 +297,14 @@ def configurar(ser, fs, dec, raf_on=0, raf_off=0, canal="l"):
 def _armar(idx, muestras, flags=0):
     n = len(muestras)
     cuerpo = struct.pack("<IHB", idx, n, flags) + np.asarray(muestras, dtype="<f4").tobytes()
-    return MAGIC + cuerpo + struct.pack("<H", crc16(cuerpo))
+    return MAGIC_V1 + cuerpo + struct.pack("<H", crc16(cuerpo))
+
+
+def _armar2(idx, muestras, flags=0, rampa=0):
+    n = len(muestras)
+    cuerpo = (struct.pack("<IHBI", idx, n, flags, rampa)
+              + np.asarray(muestras, dtype="<f4").tobytes())
+    return MAGIC_V2 + cuerpo + struct.pack("<H", crc16(cuerpo))
 
 
 def autoprueba():
@@ -324,6 +389,43 @@ def autoprueba():
             detectados += 1
     total = len(range(0, len(cuerpo) * 8, 7))
     chequear("CRC detecta bit flips", detectados == total, f"{detectados}/{total}")
+
+    # 9. Trama v2: ademas de las muestras trae el numero de barrido
+    d = Decodificador()
+    paq = d.alimentar(_armar2(0, origen, flags=FLAG_VERTICE, rampa=42))
+    ok = (len(paq) == 1 and paq[0].version == 2 and paq[0].rampa == 42
+          and paq[0].flags & FLAG_VERTICE and np.array_equal(paq[0].datos, origen))
+    chequear("trama v2 con numero de barrido", ok,
+             f"rampa={paq[0].rampa if paq else None}")
+
+    # 10. Los dos formatos en el mismo flujo. No es hipotetico: conviven
+    #     mientras haya capturas viejas y firmware nuevo.
+    d = Decodificador()
+    paq = d.alimentar(_armar(0, origen) + _armar2(256, origen, rampa=1)
+                      + _armar(512, origen))
+    chequear("v1 y v2 mezclados", [p.version for p in paq] == [1, 2, 1],
+             f"versiones={[p.version for p in paq]}, rampas={[p.rampa for p in paq]}")
+
+    # 11. Partido justo entre los dos bytes del preambulo. Es el caso que
+    #     rompe si al no reconocer la version se tira el 0xA5 suelto.
+    d = Decodificador()
+    crudo = _armar2(9, origen, rampa=3)
+    recibidos = d.alimentar(crudo[:1])          # solo el 0xA5
+    recibidos += d.alimentar(crudo[1:])
+    chequear("preambulo v2 partido al medio",
+             len(recibidos) == 1 and recibidos[0].rampa == 3 and d.bytes_basura == 0,
+             f"basura={d.bytes_basura}")
+
+    # 12. Sentido de la rampa
+    d = Decodificador()
+    paq = d.alimentar(_armar2(0, origen, flags=FLAG_VERTICE | FLAG_BAJADA, rampa=7)
+                      + _armar2(256, origen, flags=0, rampa=7))
+    chequear("marca de bajada y continuacion de barrido",
+             len(paq) == 2
+             and bool(paq[0].flags & FLAG_BAJADA)
+             and bool(paq[0].flags & FLAG_VERTICE)
+             and not (paq[1].flags & FLAG_VERTICE)
+             and paq[1].rampa == 7)
 
     print("=" * 58)
     print("TODO OK" if fallos == 0 else f"{fallos} PRUEBA(S) FALLARON")

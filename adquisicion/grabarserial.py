@@ -221,15 +221,15 @@ def main():
 
                 datos = ser.read(max(1, ser.in_waiting))
                 if datos:
-                    for idx, flags, valores in dec_p.alimentar(datos):
-                        cont.revisar(idx, flags, len(valores))
+                    for p in dec_p.alimentar(datos):
+                        cont.revisar(p.idx, p.flags, len(p.datos))
                         # El indice se escribe explicito: en modo rafaga el
                         # numero de fila NO es el tiempo, y sin esta columna
                         # el eje temporal quedaria comprimido en silencio.
-                        base = idx
+                        base = p.idx
                         f.write("".join(
-                            f"{base + k},{v:.8f}\n" for k, v in enumerate(valores)))
-                        muestras += len(valores)
+                            f"{base + k},{v:.8f}\n" for k, v in enumerate(p.datos)))
+                        muestras += len(p.datos)
 
                 ahora = time.time()
                 if ahora - ultimo_flush > 0.25:
