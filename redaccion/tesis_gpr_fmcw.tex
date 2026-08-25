@@ -643,6 +643,81 @@ donde $L$ es la distancia total dentro del material calculada con la
 ecuación~\eqref{eq:espesor}. Si $D = 0$ se recupera $h = L/2$.
 
 %============================================================
+\chapter{Arquitectura del Sistema}
+\label{ch:arquitectura}
+%============================================================
+
+Antes de describir el banco de pruebas físico (Capítulo~\ref{ch:banco}), se
+presenta la arquitectura completa del sistema implementado y se repasa,
+sobre un caso concreto de blanco estático, cómo los principios expuestos en
+el Capítulo~\ref{ch:senal_if} se traducen en la señal que efectivamente
+entrega el mezclador.
+
+\section{Diagrama en bloques}
+\label{sec:diagrama_bloques}
+
+La Figura~\ref{fig:diagrama_bloques} resume la cadena completa, de un solo
+canal, que es el alcance de esta tesis. El microcontrolador ESP32-C3 cumple
+una doble función: genera la rampa de sintonía por I²C (hacia el DAC
+MCP4725) y, simultáneamente, digitaliza la señal de batido por I²S (desde el
+PCM1808). Esta doble función es la razón por la que hace falta sincronismo
+entre el barrido de frecuencia y el reloj de muestreo (pendiente
+todavía, ver \S\ref{ch:banco}\footnote{Sin ese sincronismo no es posible
+promediar coherentemente entre barridos sucesivos.}).
+
+En la rama de transmisión, la rampa de tensión del DAC se amplifica, sintoniza
+el VCO (banda $1$--$2\,\text{GHz}$), se atenúa $3\,\text{dB}$ y se divide en
+un splitter: una salida excita la antena transmisora y la otra actúa como
+oscilador local (LO) del mezclador. En la rama de recepción, el eco captado
+por la antena receptora se amplifica con un LNA, se mezcla con el LO para
+obtener la señal de batido $f_\text{beat}$, se filtra con un pasa-bajos
+antialiasing y se digitaliza en el PCM1808.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/arquitectura/diagrama_bloques.png}
+  \caption{Diagrama en bloques del GPR FMCW, versión de un solo canal
+  (alcance de esta tesis). El PCM1808 es estéreo, así que el camino de
+  hardware para un segundo canal en cuadratura (mezclador IQ) ya existe y
+  queda como ampliación posible, sin implementar.}
+  \label{fig:diagrama_bloques}
+\end{figure}
+
+\section{Principio de funcionamiento: FMCW sin efecto Doppler}
+\label{sec:principio_fmcw_sin_doppler}
+
+El GPR no se desplaza respecto del suelo durante una medición, por lo que,
+a diferencia del radar automotriz, no hay efecto Doppler que desplace en
+frecuencia la señal recibida. Como se estableció en la
+Sección~\ref{sec:beat_freq}, esto tiene una consecuencia directa: las ramas
+ascendente y descendente de la triangular producen la \textbf{misma}
+frecuencia de batido, así que una sola rampa alcanza para estimar distancia
+(no hace falta la asimetría subida/bajada que en radar automotriz se usa
+para despejar velocidad).
+
+La Figura~\ref{fig:principio_fmcw} ilustra este principio en tres paneles
+alineados en el tiempo: (a) la frecuencia instantánea transmitida y recibida,
+con el retardo $\tau$ y la frecuencia de batido $f_\text{beat}$ marcados;
+(b) la diferencia de frecuencias entre ambas señales, mostrando que vale lo
+mismo en el tramo de subida que en el de bajada; y (c) la tensión a la
+salida del mezclador, que oscila a $f_\text{beat}$ salvo en los vértices de
+la triangular, donde el retardo hace que $f_\text{tx}$ y $f_\text{rx}$
+crucen y la diferencia caiga momentáneamente a cero.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{figuras/arquitectura/principio_fmcw.png}
+  \caption{Principio de funcionamiento del FMCW para un blanco estático, sin
+  efecto Doppler (script \texttt{docs/principio\_fmcw.py}). Los valores de
+  $\tau$, $T_m$ y $B$ usados en la figura son adimensionales y se eligieron
+  para que el dibujo se lea bien, no para representar las magnitudes reales
+  del sistema: en el radar real, $\tau/T_m$ es del orden de $10^{-7}$ para un
+  blanco a $1\,\text{m}$, y a esa escala la señal recibida se superpondría
+  visualmente por completo a la transmitida.}
+  \label{fig:principio_fmcw}
+\end{figure}
+
+%============================================================
 \chapter{Banco de Pruebas}
 \label{ch:banco}
 %============================================================
