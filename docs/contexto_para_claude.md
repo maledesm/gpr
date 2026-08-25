@@ -212,6 +212,11 @@ analisis/               Procesamiento offline (WSL o Windows)
 VCO/                    Caracterización y linealización del VCO
   Caracteristica VCO.csv  34 puntos medidos (Vin, Freq, Vosc). Decimales con COMA.
   analisis_vco.py         Genera firmware/prueba_mcp4725/tabla_vco.h + curva_vco.png
+                          ⚠ HAY DOS COPIAS de tabla_vco.h (prueba_mcp4725 y
+                          gpr_barrido) y el script escribe SOLO la primera. La
+                          segunda es copia a mano: si regenerás la tabla, hay que
+                          copiarla, o divergen en silencio. Pendiente: que el
+                          script escriba las dos.
   grafico_vco.py          Figura F vs V con dF/dV
   grafico_capturas_dac.py Figura de las 4 capturas de osciloscopio
   Osciloscopio DAC/       SDS00001..4 (.CSV y .BMP)
@@ -346,8 +351,13 @@ Otros detalles que ya están resueltos y conviene no volver a pisar:
 10. **Linealización del barrido por predistorsión** (`VCO/analisis_vco.py`):
     se invierte la curva medida con PCHIP y se genera `tabla_vco.h`. Resultado:
     `dF/dt` pasó de variar **0.68–1.29×** a **0.991–1.010×**, con 0.20 MHz de
-    error pico sobre 1039 MHz de barrido. La resolución mejora de 20 cm a
-    **14.4 cm**.
+    error pico sobre 1039 MHz de barrido.
+    **Ojo con qué es lo que mejora:** la resolución la fija el ancho de banda
+    (`c/2BW` = 14.4 cm con 1039 MHz) y la predistorsión **no la cambia**. Lo que
+    corrige es el **ensanchamiento** del pico: sin predistorsión, un blanco
+    puntual a 1 m se desparrama entre ~0.68 y ~1.29 m porque la pendiente `dF/dt`
+    varía en esa proporción. Con predistorsión el pico se concentra donde
+    corresponde y recién ahí se aprovechan los 14.4 cm.
 11. **Capturas de osciloscopio de la rampa** con y sin predistorsión, a PRF de
     50 ms y 5 ms → `VCO/dac_capturas_osciloscopio.png`.
 

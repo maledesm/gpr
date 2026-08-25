@@ -3,8 +3,10 @@
 Software de captura y visualización en tiempo real contra el firmware
 [`PCM1808_ESP32C3`](../firmware/PCM1808_ESP32C3/).
 
-> **Estado: en construcción.** El firmware con protocolo binario ya está listo;
-> el cliente Python todavía no.
+> **Estado: funcionando y verificado sobre hardware.** Firmware con protocolo
+> binario, grabador a CSV con metadata y verificación de continuidad, y
+> visualizador en vivo (espectro, osciloscopio y B-scan). Medido: 8001,6 S/s
+> contra 8000 nominales, cero pérdidas.
 
 ---
 
@@ -31,8 +33,9 @@ Python 3.11.0. Desde PowerShell, sin activarlo:
 $py = "C:\Users\tinch\venvs\gpr-win\Scripts\python.exe"
 ```
 
-Instalado: `pyserial 3.5`, `numpy 2.4.6`, `matplotlib 3.11.1`.
-Falta para el cliente completo: `pyqtgraph` y `PyQt6`.
+Instalado: `pyserial 3.5`, `numpy 2.4.6`, `scipy 1.17.1`, `matplotlib 3.11.1`,
+`pyqtgraph 0.14.0`, `PyQt6 6.11.0`. Con eso el cliente está completo:
+`graficarserial.py` necesita `pyqtgraph` + `PyQt6` y `dsp.py` necesita `scipy`.
 
 ### ⚠️ Kaspersky rompe pip — y cómo se resolvió
 

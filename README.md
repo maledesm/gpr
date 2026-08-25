@@ -95,6 +95,10 @@ analisis/               Procesamiento offline (corre en WSL o en Windows)
 VCO/                    Caracterización y linealización del barrido
   Caracteristica VCO.csv  34 puntos medidos cada 100 mV. Decimales con COMA.
   analisis_vco.py         Genera firmware/prueba_mcp4725/tabla_vco.h + curva_vco.png
+                          ⚠ tabla_vco.h está DUPLICADA (prueba_mcp4725 y
+                          gpr_barrido) y el script escribe solo la primera. Si la
+                          regenerás, copiala a mano a la otra. Pendiente:
+                          que el script escriba las dos.
   grafico_vco.py          Figura F vs V con la sensibilidad dF/dV.
   grafico_capturas_dac.py Figura de las 4 capturas de osciloscopio de la rampa.
   Osciloscopio DAC/       Capturas SDS00001..4 (.CSV y .BMP).

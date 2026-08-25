@@ -203,7 +203,7 @@ principales se resumen en la Tabla~\ref{tab:parametros}.
     $T_c$  & Período del chirp     & —                      & $0{,}3\,\text{s}$          \\
     $B$    & Ancho de banda        & $f_\text{max} - f_\text{min}$ & $1\,\text{GHz}$      \\
     $f_c$  & Frecuencia central    & $(f_\text{max}+f_\text{min})/2$ & $1{,}5\,\text{GHz}$\\
-    $S$    & Tasa de barrido       & $B/T_c$                & $3{,}33\,\text{GHz/s}$     \\
+    $S$    & Tasa de barrido       & $B/T_c$ (diente de sierra) & $3{,}33\,\text{GHz/s}$ \\
     $c$    & Velocidad de la luz   & —                      & $3\times10^8\,\text{m/s}$  \\
     $\varepsilon_r$ & Permitividad relativa & — & Dep.\ del material        \\
     \bottomrule
@@ -217,6 +217,21 @@ La frecuencia instantánea transmitida es:
   \qquad 0 \leq t \leq T_c.
   \label{eq:f_tx}
 \end{equation}
+
+\paragraph{Advertencia sobre la convención de $S$ y $T_c$.}
+La ecuación~\eqref{eq:f_tx} y la Tabla~\ref{tab:parametros} corresponden a un
+chirp de \textbf{diente de sierra}, que es la modulación del sistema de
+referencia~\cite{Huang2022}: la frecuencia recorre todo el ancho de banda $B$
+en el período completo $T_c$, y por lo tanto $S = B/T_c$.
+
+El sistema desarrollado en esta tesis usa en cambio modulación
+\textbf{triangular}, y mantiene a $T_c$ como el \emph{período completo} de la
+triangular. Cada rampa dura entonces $T_c/2$ y la tasa de barrido es el doble:
+$S = 2B/T_c$ (se deduce en la ecuación~\eqref{eq:sweep_rate}). \textbf{De acá en
+adelante rige esa convención}, y todas las expresiones del
+Capítulo~\ref{ch:senal_if} están escritas con ella. Es la fuente de error más
+fácil al comparar contra la bibliografía: un factor 2 en la frecuencia de batido
+y en el espesor estimado.
 
 \section{Propagación en medios estratificados}
 
@@ -493,7 +508,7 @@ En aire libre ($\varepsilon_r = 1$), la ecuación~\eqref{eq:beat_freq}
 se simplifica a:
 
 \begin{equation}
-  f^* = \frac{4Bd}{c\,\tau},
+  f^* = \frac{4Bd}{c\,T_c},
   \label{eq:beat_freq_aire}
 \end{equation}
 
@@ -501,7 +516,7 @@ e inversamente, la distancia estimada a partir de la frecuencia
 medida $\hat{f}^*$ es:
 
 \begin{equation}
-  \hat{d} = \frac{c\,\tau\,\hat{f}^*}{4B}.
+  \hat{d} = \frac{c\,T_c\,\hat{f}^*}{4B}.
   \label{eq:d_estimada}
 \end{equation}
 
@@ -514,39 +529,60 @@ El error absoluto de distancia queda:
 
 \subsection{Parámetros del sistema y frecuencias esperadas}
 
-El sistema disponible opera con $B = 1\,\text{GHz}$ (barrido de
-$1\,\text{GHz}$ a $2\,\text{GHz}$) y tiempo de barrido
-$\tau = 300\,\text{ms}$. La constante del radar resulta:
+El sistema opera con $B = 1\,\text{GHz}$ (barrido de $1\,\text{GHz}$ a
+$2\,\text{GHz}$). El período de la triangular $T_c$, en cambio, \textbf{no es un
+valor fijo del sistema}: es un parámetro de la medición, que se ajusta según la
+profundidad de interés y las condiciones del ensayo, y que el firmware configura
+por consola. La constante del radar es, por lo tanto, función de $T_c$:
 
 \begin{equation}
-  \frac{4B}{c\,\tau}
-  = \frac{4 \times 10^9}{3\times10^8 \times 0{,}3}
-  \approx 44{,}4\,\text{Hz/m}.
+  \frac{f^*}{d} = \frac{4B}{c\,T_c}
+  = \frac{4\times10^9}{3\times10^8\;T_c}
+  = \frac{13{,}3}{T_c}\ \ \text{[Hz/m]},
+  \qquad T_c\ \text{en segundos}.
   \label{eq:constante_radar}
 \end{equation}
 
-La Tabla~\ref{tab:prueba_metalica} lista las frecuencias de batido
-esperadas para distancias representativas de un banco de prueba en
+La Tabla~\ref{tab:prueba_metalica} evalúa esa constante para tres valores
+representativos de $T_c$ y para distancias típicas de un banco de prueba en
 interiores.
 
 \begin{table}[H]
   \centering
-  \caption{Frecuencia de batido teórica $f^*$ y frecuencia de muestreo
-    mínima $f_{s,\min}$ para distintas distancias antena--plancha
-  ($B = 1\,\text{GHz}$, $\tau = 300\,\text{ms}$, aire libre).}
+  \caption{Frecuencia de batido teórica $f^*$ en aire libre
+    ($B = 1\,\text{GHz}$) para tres períodos de triangular. Recordar que
+  $T_c$ es el período completo: cada rampa dura $T_c/2$.}
   \label{tab:prueba_metalica}
-  \begin{tabular}{ccc}
+  \begin{tabular}{cccc}
     \toprule
-    $d\,\textnormal{[m]}$ & $f^*\,\textnormal{[Hz]}$ &
-    $f_{s,\min} = 2f^*\,\textnormal{[Hz]}$ \\
+    & \multicolumn{3}{c}{$f^*\,\textnormal{[Hz]}$} \\
+    \cmidrule(l){2-4}
+    $d\,\textnormal{[m]}$ & $T_c = 10\,\text{ms}$ & $T_c = 50\,\text{ms}$
+    & $T_c = 300\,\text{ms}$ \\
     \midrule
-    0{,}10 &  4{,}4 &   8{,}9 \\
-    0{,}20 &  8{,}9 &  17{,}8 \\
-    0{,}50 & 22{,}2 &  44{,}4 \\
-    1{,}00 & 44{,}4 &  88{,}9 \\
+    0{,}10 &  133 &  27 &  4{,}4 \\
+    0{,}20 &  267 &  53 &  8{,}9 \\
+    0{,}50 &  667 & 133 & 22{,}2 \\
+    1{,}00 & 1333 & 267 & 44{,}4 \\
     \bottomrule
   \end{tabular}
 \end{table}
+
+Dos condiciones acotan la elección de $T_c$, una por arriba y otra por abajo:
+
+\begin{itemize}
+  \item \textbf{Barridos lentos ($T_c$ grande).} La señal de batido tiene que
+    quedar por encima del pasa-altos no desactivable del ADC PCM1808, cuyo corte
+    combinado es de $\approx 1{,}2\,\text{Hz}$. Ya con
+    $T_c = 300\,\text{ms}$ un blanco a $0{,}10\,\text{m}$ cae en
+    $4{,}4\,\text{Hz}$, sobre el faldón del filtro; con barridos de segundos el
+    blanco cercano se pierde adentro del filtro y su fase queda distorsionada.
+  \item \textbf{Barridos rápidos ($T_c$ chico).} Hace falta $f_s > 2f^*$
+    (Nyquist). Con $T_c = 10\,\text{ms}$ y $f_s = 48\,\text{kHz}$ el alcance
+    máximo sin \textit{aliasing} es de $18\,\text{m}$, muy por encima de lo
+    útil: el límite efectivo lo impone la cantidad de escalones que alcanza a
+    escribir el DAC durante la rampa, no el muestreo.
+\end{itemize}
 
 \subsection{Procedimiento experimental propuesto}
 
@@ -556,8 +592,8 @@ interiores.
   \item Verificar que no haya otros objetos reflectores en el campo
     de visión del radar (paredes, mesas, superficies metálicas
     laterales) para evitar reflexiones espurias.
-  \item Adquirir la señal IF durante al menos un período de barrido
-    $\tau = 300\,\text{ms}$, muestreando a $f_s > 2f^*$.
+  \item Adquirir la señal IF durante al menos un período completo de la
+    triangular $T_c$, muestreando a $f_s > 2f^*$.
   \item Calcular $f^*_\text{teo}$ con la
     ecuación~\eqref{eq:beat_freq_aire} usando la $d$ medida.
   \item Aplicar la FFT sobre las muestras adquiridas e identificar
@@ -602,30 +638,33 @@ El tiempo extra que tarda la onda en atravesar la capa (ida y vuelta) es:
   \tau_\text{extra} = \frac{2h\sqrt{\varepsilon_r}}{c}.
 \end{equation}
 
-Combinando con $f_\text{IF} = S\,\tau$ y $S = B/T_c$:
+Combinando con $f_\text{IF} = S\,\tau$ y la tasa de barrido de la triangular,
+$S = 2B/T_c$ (ec.~\eqref{eq:sweep_rate}):
 
 \begin{equation}
-  \Delta f = f_2 - f_1 = \frac{B}{T_c}\cdot\frac{2h\sqrt{\varepsilon_r}}{c}.
+  \Delta f = f_2 - f_1 = \frac{2B}{T_c}\cdot\frac{2h\sqrt{\varepsilon_r}}{c}
+  = \frac{4B\,h\sqrt{\varepsilon_r}}{T_c\,c}.
 \end{equation}
 
 Despejando $h$:
 
 \begin{equation}
   \boxed{
-    h = \frac{T_c\,\Delta f\cdot c}{2\,\sqrt{\varepsilon_r}\cdot B}
+    h = \frac{T_c\,\Delta f\cdot c}{4\,\sqrt{\varepsilon_r}\cdot B}
   }
   \label{eq:espesor}
 \end{equation}
 
 \subsection{Ejemplo numérico}
 
-Para los parámetros de referencia de~\cite{Huang2022} y un valor
-$\Delta f = 4{,}00\,\text{Hz}$ (valor de ejemplo):
+Para $T_c = 0{,}3\,\text{s}$, $B = 1\,\text{GHz}$, un asfalto húmedo
+($\sqrt{\varepsilon_r} = 2{,}449$) y un valor $\Delta f = 4{,}00\,\text{Hz}$
+(valor de ejemplo):
 
 \begin{equation*}
   h = \frac{0{,}3 \times 4{,}0 \times 3\times10^8}
-  {2 \times 2{,}449 \times 1\times10^9}
-  \approx 73{,}4\,\text{mm}.
+  {4 \times 2{,}449 \times 1\times10^9}
+  \approx 36{,}7\,\text{mm}.
 \end{equation*}
 
 \subsection{Corrección por separación de antenas}
@@ -1220,9 +1259,9 @@ $f_\text{end}=15\,\text{Hz}$, $M=512$ puntos.
   \item Estimar el rango esperado de $\Delta f$ con la inversa de la
     ecuación~\eqref{eq:espesor}:
     \begin{equation}
-      \Delta f_\text{max} = \frac{2\sqrt{\varepsilon_r}\,B\,h_\text{max}}{T_c\,c},
+      \Delta f_\text{max} = \frac{4\sqrt{\varepsilon_r}\,B\,h_\text{max}}{T_c\,c},
       \quad
-      \Delta f_\text{min} = \frac{2\sqrt{\varepsilon_r}\,B\,h_\text{min}}{T_c\,c}.
+      \Delta f_\text{min} = \frac{4\sqrt{\varepsilon_r}\,B\,h_\text{min}}{T_c\,c}.
     \end{equation}
   \item Agregar un margen del 30–50\% a cada lado.
 \end{enumerate}
@@ -1260,7 +1299,8 @@ $f_\text{end}=15\,\text{Hz}$, $M=512$ puntos.
     \textbf{\#} & \textbf{Etapa} & \textbf{Descripción} \\
     \midrule
     1 & Emisión del chirp
-    & El radar barre de $f_c - B/2$ a $f_c + B/2$ en tiempo $T_c$. \\
+    & El radar barre de $f_c - B/2$ a $f_c + B/2$ en tiempo $T_c/2$
+    (media triangular). \\
     2 & Reflexiones
     & $R_1$ y $R_2$ llegan con retardos $\tau_1$, $\tau_2$. \\
     3 & Mezcla (\textit{mixer})

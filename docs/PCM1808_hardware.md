@@ -20,8 +20,12 @@ Hay **una incompatibilidad de fondo entre el PCM1808 y tu radar tal como está h
 
 El PCM1808 es un ADC **de audio**: tiene un filtro pasa-altos digital interno
 (fc = 1.9·10⁻⁵ · fs → **0.91 Hz @ 48 kHz**, 1.82 Hz @ 96 kHz) *más* el capacitor
-de acople del módulo contra los 60 kΩ de impedancia de entrada (típico 1 µF →
-**2.7 Hz**). No hay forma de puentear el HPF digital: no tiene puerto de control.
+de acople del módulo contra los 60 kΩ de impedancia de entrada. El de este módulo
+está rotulado `CS 10`, o sea **10 µF → polo en 0.27 Hz**. Los dos en cascada dan
+un corte combinado de **~1.2 Hz a 48 kHz**, ya corroborado en el banco: la caída
+del techo de una cuadrada dio τ ≈ 125 ms → 1.27 Hz medidos (el detalle está en
+[`validacion_banco.md`](validacion_banco.md) §5).
+No hay forma de puentear el HPF digital: no tiene puerto de control.
 
 Con tu `T_sweep ≈ 1.46 s` y `BW = 1000 MHz`, la frecuencia de beat es:
 
@@ -31,17 +35,22 @@ f_beat = 2·R·BW / (c·T_sweep) = 6.67 / T_sweep  [Hz por metro]
 ```
 
 O sea que **toda la zona de interés de un GPR (0.2 m – 2 m) cae entre 0.9 Hz y
-9 Hz**, es decir justo adentro del pasa-altos. Ejemplo con corner efectivo ~2.7 Hz:
+9 Hz**, es decir sobre el faldón del pasa-altos. Con los dos polos reales en
+cascada (0.91 Hz del filtro interno + 0.27 Hz del capacitor de 10 µF):
 
 | Profundidad (aire) | f_beat | Atenuación HPF | Error de fase |
 |---|---|---|---|
-| 0.2 m | 0.91 Hz | **−9.9 dB** | +71° |
-| 0.5 m | 2.28 Hz | **−3.8 dB** | +50° |
-| 1.0 m | 4.57 Hz | −1.3 dB | +31° |
-| 5.0 m | 17.1 Hz | −0.1 dB | +8° |
+| 0.2 m | 0.91 Hz | **−3.4 dB** | **+61°** |
+| 0.5 m | 2.28 Hz | −0.7 dB | +28° |
+| 1.0 m | 4.57 Hz | −0.2 dB | +15° |
+| 5.0 m | 17.1 Hz | −0.0 dB | +4° |
 
 La atenuación se puede compensar; **el error de fase que varía rápido con el rango
 no**, y es lo que rompe la FFT (te ensancha y corre los picos cercanos).
+
+**Mirá la columna de fase, no la de atenuación.** Entre 0.2 m y 0.5 m la amplitud
+casi no se mueve (−3.4 → −0.7 dB) pero la fase se corre 33°. Ese es el daño real,
+y es el que no se compensa con una ganancia.
 
 ### La solución es acelerar el sweep, no cambiar el ADC
 
@@ -49,11 +58,11 @@ Si bajás `T_sweep` a **5–10 ms**, todo se acomoda solo:
 
 | T_sweep | f_beat/m | @0.2 m | @2 m | @5 m | fs recomendada | ¿Sirve PCM1808? |
 |---|---|---|---|---|---|---|
-| 1.46 s (hoy) | 3.4 Hz/m | 0.7 Hz | 6.8 Hz | 17 Hz | — | ✗ |
-| 100 ms | 50 Hz/m | 10 Hz | 100 Hz | 250 Hz | 8 kHz | ⚠ justo |
-| **10 ms** | **500 Hz/m** | **100 Hz** | **1.0 kHz** | **2.5 kHz** | **48 kHz** | ✓✓ |
-| **5 ms** | **1 kHz/m** | **200 Hz** | **2.0 kHz** | **5.0 kHz** | **48 kHz** | ✓✓ |
-| 1 ms | 5 kHz/m | 1.0 kHz | 10 kHz | 25 kHz | 96 kHz | ✓ |
+| 1.46 s (hoy) | 4.6 Hz/m | 0.9 Hz | 9.1 Hz | 23 Hz | — | ✗ |
+| 100 ms | 67 Hz/m | 13 Hz | 133 Hz | 333 Hz | 8 kHz | ⚠ justo |
+| **10 ms** | **667 Hz/m** | **133 Hz** | **1.3 kHz** | **3.3 kHz** | **48 kHz** | ✓✓ |
+| **5 ms** | **1.3 kHz/m** | **267 Hz** | **2.7 kHz** | **6.7 kHz** | **48 kHz** | ✓✓ |
+| 1 ms | 6.7 kHz/m | 1.3 kHz | 13 kHz | 33 kHz | 96 kHz | ✓ |
 
 Beneficios adicionales de acelerar el sweep, todos gratis:
 
@@ -65,8 +74,8 @@ Beneficios adicionales de acelerar el sweep, todos gratis:
    promediás 1000 sweeps → +30 dB de SNR. Hoy, en 4 s de captura, tenés ~2 sweeps.
 3. **Inmunidad a movimiento y a deriva térmica del VCO** (el sweep termina antes
    de que nada se mueva).
-4. La resolución en distancia **no cambia**: sigue siendo `c/(2·BW) = 0.20 m` en
-   aire, `≈ 6.7 cm` en suelo con εr ≈ 9. La resolución la fija el ancho de banda,
+4. La resolución en distancia **no cambia**: sigue siendo `c/(2·BW) = 0.15 m` en
+   aire, `≈ 5 cm` en suelo con εr ≈ 9. La resolución la fija el ancho de banda,
    no el tiempo de sweep.
 
 ### El número que justifica todo el cambio
@@ -378,10 +387,10 @@ detección de flancos, sin jitter**. Además podés hacer sweeps arbitrarios
 
 - ⚠ El **ESP32-C3 no tiene DAC** (el ESP32 clásico sí). Dos caminos:
   - **PWM (LEDC) + RC**: gratis, pero 8 bits a 312 kHz de portadora → 256 escalones
-    sobre la banda = 2.9 MHz por escalón, y el ripple del PWM te modula el VCO.
+    sobre la banda = 3.9 MHz por escalón, y el ripple del PWM te modula el VCO.
     Aceptable para empezar, mediocre para la tesis.
   - **DAC SPI externo `MCP4921`** (12 bit, ~USD 2, 3 pines): 4096 escalones =
-    183 kHz por paso, salida limpia. **Es lo que recomiendo.** Se le manda una
+    244 kHz por paso, salida limpia. **Es lo que recomiendo.** Se le manda una
     muestra nueva por cada N muestras del I²S → rampa perfectamente enganchada al
     reloj del ADC.
 - ⚠ Requiere saber el rango de tensión de sintonía de tu VCO (¿0–2.2 V como en

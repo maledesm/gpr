@@ -4,9 +4,9 @@ Firmware para verificar que el PCM1808 digitaliza bien, inyectando una senoidal
 con un generador de funciones. La frecuencia de muestreo es una variable que se
 cambia en caliente por consola.
 
-- Sketch: [`PCM1808_ESP32C3/PCM1808_ESP32C3.ino`](PCM1808_ESP32C3/PCM1808_ESP32C3.ino)
+- Sketch: [`firmware/PCM1808_ESP32C3/`](../firmware/PCM1808_ESP32C3/PCM1808_ESP32C3.ino)
 - Estudio de hardware completo (y por qué esto después hay que adaptarlo para el
-  GPR): [`ESTUDIO_HARDWARE.md`](ESTUDIO_HARDWARE.md)
+  GPR): [`PCM1808_hardware.md`](PCM1808_hardware.md)
 
 ---
 
@@ -128,7 +128,7 @@ factor 2.
 (1.9·10⁻⁵ · fs → 0.91 Hz a 48 kHz) más el capacitor de acople del módulo. Es
 estructural, no hay manera de puentearlo. **Por debajo de ~5 Hz la medición no es
 confiable.** Para el GPR esto importa muchísimo — está analizado en
-[`ESTUDIO_HARDWARE.md`](ESTUDIO_HARDWARE.md).
+[`PCM1808_hardware.md`](PCM1808_hardware.md).
 
 ---
 
@@ -264,18 +264,28 @@ Serial Studio) en vez del plotter del IDE. Es lo que antes hacía `plot`.
 | `eff <hz>` | Elige `dec` solo para acercarse a esa `fs_eff`. |
 | **`sig <hz>`** | **Ajuste automático: encuadra ~8 ciclos de una señal de esa frecuencia. Empezá por acá.** |
 | `ch l\|r\|both` | Canal a mostrar. |
+| `win <ms>` | Base de tiempo del osciloscopio: cuántos ms de señal real entran en un barrido. Ajusta `dec` para lograrlo. |
 | `plot` | Modo osciloscopio, para el Serial Plotter. |
 | `stream` | Tiempo real, una línea por muestra. |
 | `stats` | Medición periódica (el modo por defecto al arrancar). |
 | `raw` | CSV `t,L,R` para volcar y procesar en Python. |
+| **`bin`** | **Modo binario con CRC.** Es el que consume el software de Python (`adquisicion/`). Ver el formato de trama en [`../adquisicion/README.md`](../adquisicion/README.md). |
 | `off` | Detiene la salida. |
 | `n <puntos>` | Puntos por barrido del osciloscopio (16–2048). |
 | `rate <pts/s>` | Cadencia hacia el plotter (10–2000). |
 | `unit v\|mv` | Unidad de los valores. |
 | `fmt label\|plain` | Con etiqueta `L:` o solo el número. |
 | `diag` | Repite el diagnóstico de conexión. |
+| **`raf <on> <off>`** | **Modo ráfaga**: captura `on` muestras diezmadas, pausa `off`, y repite. `off = 0` es captura continua. Sirve para bajar el caudal por USB sin bajar `fs`. |
+| **`fsmed [ms]`** | **Mide la `fs` REAL** contando frames del I²S contra el reloj del sistema (por defecto 2000 ms). Es lo que se usa en el paso 4 de [`validacion_banco.md`](validacion_banco.md), porque el divisor fraccionario del C3 no siempre da exacto. |
 | `info` | Estado actual y parámetros derivados. |
+| **`reset`** | **Borra la configuración guardada en flash y reinicia.** Vuelve a los valores de fábrica. |
 | `help` | Lista de comandos. |
+
+> **`raf` y el índice de muestra.** En modo ráfaga el número de fila **no** es el
+> tiempo: durante la pausa el contador `idx` de la trama binaria sigue avanzando.
+> Eso es a propósito — es lo que le permite al cliente distinguir una pausa
+> esperada de una pérdida del DMA.
 
 ### fs y diezmado
 
@@ -352,7 +362,8 @@ Este firmware es el banco de prueba. Para el radar hay que agregar:
   falta la conversión a complejo y el procesamiento.
 - **Sincronismo con el sweep** — sin esto no se puede promediar coherentemente ni
   hacer FFT por barrido. Hay tres arquitecturas posibles, están en la sección 6
-  de [`ESTUDIO_HARDWARE.md`](ESTUDIO_HARDWARE.md).
+  de [`PCM1808_hardware.md`](PCM1808_hardware.md).
 - **Acelerar el sweep** — este es el punto crítico. Con `T_sweep = 1.46 s` las
-  frecuencias de beat caen entre 0.7 y 7 Hz, o sea adentro del pasa-altos del
-  PCM1808. La sección 0 del estudio tiene los números.
+  frecuencias de beat de la zona útil (0.2–2 m) caen entre 0.9 y 9 Hz, o sea
+  sobre el faldón del pasa-altos del PCM1808. La sección 0 del estudio tiene los
+  números.

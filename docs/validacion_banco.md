@@ -324,5 +324,5 @@ Piso de ruido R (a masa):      µVrms
 SNR con tono a -20 dBFS:       dB
 
 Plegado 64·fs: tono de 1.0243 MHz aparece en          Hz  (esperado ~300)
-Validación FMCW: 500 Hz -> pico en          m  (esperado 1.00)
+Validación FMCW: 500 Hz -> pico en          m  (esperado 0.750, con T_sweep=10 ms)
 ```
