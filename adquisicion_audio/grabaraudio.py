@@ -178,7 +178,7 @@ def abrir_stream(cfg, n_canales, cola, estado, forzar_compartido=False):
     """Abre el InputStream ya resuelto. Devuelve (stream, entrada, exclusivo)."""
     import sounddevice as sd
 
-    entrada = audio.elegir(cfg["dispositivo"])
+    entrada = audio.elegir(cfg["dispositivo"], n_canales)
     if entrada is None:
         print("\n[ERROR] No encontre la placa de audio. Entradas disponibles:\n")
         print(audio.tabla())
@@ -187,8 +187,18 @@ def abrir_stream(cfg, n_canales, cola, estado, forzar_compartido=False):
         sys.exit(1)
 
     if entrada.canales < n_canales:
-        print(f"\n[ERROR] '{entrada.nombre}' ofrece {entrada.canales} canal/es y")
-        print(f"        hacen falta {n_canales}. Baja canal_sync a 0, o elegi otra API.")
+        print(f"\n[ERROR] '{entrada.nombre}' ({entrada.api}) ofrece "
+              f"{entrada.canales} canal/es")
+        print(f"        y hacen falta {n_canales}. Ninguna de las APIs donde "
+              "aparece la placa")
+        print("        ofrece esa cantidad. Opciones, en orden:")
+        print("          - Panel de sonido -> Propiedades del dispositivo ->")
+        print("            Avanzado -> formato de 2 canales, 16 bit, 48000 Hz.")
+        print("            Windows lo suele dejar en 1 canal y ahi WASAPI reporta mono.")
+        print("          - Instalar el driver ASIO de Behringer.")
+        print("          - Poner canal_sync = 0 y grabar un solo canal.")
+        print("\n  Entradas disponibles:\n")
+        print(audio.tabla())
         sys.exit(1)
 
     def callback(datos, cuadros, tiempo, flags):
@@ -219,7 +229,7 @@ def abrir_stream(cfg, n_canales, cola, estado, forzar_compartido=False):
     return sd.InputStream(**comun), entrada, False
 
 
-def medir_tasa(stream, cola, canales, segundos=1.5):
+def medir_tasa(stream, cola, canales, segundos=2.0, calentar=0.5):
     """Cuenta cuantas muestras por segundo entrega REALMENTE el stream.
 
     No es paranoia. Probando esto en el banco contra la placa interna de la
@@ -231,7 +241,30 @@ def medir_tasa(stream, cola, canales, segundos=1.5):
     eje de frecuencias queda corrido un 32 %, y como la distancia sale de la
     frecuencia de beat, todas las mediciones salen mal en silencio. Por eso la
     tasa se MIDE antes de grabar en vez de creerle al driver.
+
+    El calentamiento no es adorno. Entre el start() y el primer bloque hay una
+    latencia de arranque que depende de la API —con WDM-KS son decenas de ms— y
+    contarla adentro de la ventana da un error FIJO en tiempo que se traduce en
+    un porcentaje: con 1.5 s de ventana, WDM-KS aparecia 4 % lento y disparaba
+    la alarma sin tener nada malo. Se descartan los primeros bloques y recien
+    ahi arranca el cronometro.
     """
+    # Esperar al primer bloque: hasta que no llega, el stream todavia no corre.
+    t_ini = time.time()
+    while time.time() - t_ini < 5.0:
+        try:
+            cola.get(timeout=0.2)
+            break
+        except queue.Empty:
+            pass
+
+    t0 = time.time()
+    while time.time() - t0 < calentar:
+        try:
+            cola.get(timeout=0.2)
+        except queue.Empty:
+            pass
+
     t0 = time.time()
     n = 0
     while time.time() - t0 < segundos:
@@ -362,6 +395,14 @@ def main():
     pico = 0
     t0 = time.time()
 
+    # Para medir el ritmo real hay que cronometrar ENTRE bloques, no desde el
+    # arranque: la latencia de la primera entrega es un retardo fijo que, metido
+    # en el promedio, hace aparecer la captura mas lenta de lo que es. Se guarda
+    # cuando llego el primer bloque y cuantas muestras vinieron despues de el.
+    t_primero = None
+    t_ultimo = None
+    muestras_ritmo = 0
+
     with open(ruta_csv, "w", encoding="utf-8", newline="") as f:
         escribir_encabezado(f, cfg, inicio, fs, bw_mhz, hz_por_metro,
                             entrada, exclusivo, unidad, fs_medida)
@@ -386,6 +427,12 @@ def main():
 
                 wav.escribir(bloque)
 
+                if t_primero is None:
+                    t_primero = time.time()
+                else:
+                    t_ultimo = time.time()
+                    muestras_ritmo += len(bloque)
+
                 beat = bloque[:, i_beat]
                 p = int(np.max(np.abs(beat.astype(np.int32))))
                 pico = max(pico, p)
@@ -409,10 +456,12 @@ def main():
 
                 if ahora - ultimo_aviso > 1.0:
                     seg = ahora - t0
+                    ritmo = (muestras_ritmo / (t_ultimo - t_primero)
+                             if t_ultimo and t_ultimo > t_primero else 0.0)
                     db = 20 * np.log10(pico / audio.FONDO_ESCALA) if pico else -99
                     sys.stdout.write(
                         f"\r  {seg:6.1f} s | {muestras:9d} muestras | "
-                        f"{muestras / seg / 1000:6.2f} kS/s | pico {db:6.1f} dBFS | "
+                        f"{ritmo / 1000:6.2f} kS/s | pico {db:6.1f} dBFS | "
                         f"clip {clips} | overflow {estado['overflow']}   ")
                     sys.stdout.flush()
                     pico = 0                     # el pico es del ultimo segundo
@@ -429,13 +478,15 @@ def main():
     wav.cerrar()
 
     seg = time.time() - t0
+    ritmo = (muestras_ritmo / (t_ultimo - t_primero)
+             if t_ultimo and t_ultimo > t_primero else 0.0)
     print("\n" + "=" * 68)
     print(f"  CSV        : {ruta_csv}")
     print(f"  WAV        : {ruta_wav}")
     print(f"  Duracion   : {seg:.2f} s")
-    print(f"  Muestras   : {muestras}  ({muestras / seg / 1000:.2f} kS/s medio)")
-    print(f"  Tasa       : {muestras / seg:.1f} S/s medidos sobre toda la captura, "
-          f"{fs:.0f} nominales")
+    print(f"  Muestras   : {muestras}")
+    print(f"  Tasa       : {ritmo:.1f} S/s medidos, {fs:.0f} nominales "
+          f"({abs(ritmo - fs) / fs * 100:.2f} % de error)")
     print(f"  Unidad     : {unidad}"
           f"{'' if unidad == 'V' else '  (sin calibrar; corre --calibrar)'}")
     if clips:

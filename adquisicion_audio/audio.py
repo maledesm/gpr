@@ -96,13 +96,19 @@ def _puntaje_api(nombre_api):
     return len(PREFERENCIA_API)
 
 
-def elegir(pedido="auto"):
+def elegir(pedido="auto", n_canales=1):
     """Resuelve lo que pidio el usuario a un dispositivo concreto.
 
     'pedido' puede ser:
       'auto'      buscar la placa por nombre y quedarse con la mejor API
       un numero   indice de PortAudio, tal cual lo lista --listar
       un texto    parte del nombre del dispositivo
+
+    'n_canales' es cuantos canales hacen falta. Importa porque Windows enumera
+    el MISMO dispositivo una vez por API y no todas ofrecen lo mismo: con la
+    UMC22 y el driver generico, WASAPI aparecia con 1 solo canal (el formato
+    compartido estaba en mono) mientras WDM-KS ofrecia los 2. Sin esto, la
+    preferencia de API ganaba y se elegia una entrada que no alcanzaba.
 
     Devuelve una Entrada, o None si no encontro nada.
     """
@@ -127,10 +133,11 @@ def elegir(pedido="auto"):
     if not candidatos:
         return None
 
-    # Entre varias apariciones del MISMO dispositivo (Windows lo enumera una vez
-    # por API) gana la API mas directa, y a igualdad la que ofrezca los dos
-    # canales, que es lo que hace falta para grabar beat + sincronismo.
-    candidatos.sort(key=lambda e: (_puntaje_api(e.api), -e.canales))
+    # Primero se descarta lo que no alcanza, DESPUES se prefiere la API. Al
+    # reves, una entrada mono con la API mas directa le ganaba a una estereo con
+    # una API peor, y el stream ni abria.
+    candidatos.sort(key=lambda e: (0 if e.canales >= n_canales else 1,
+                                   _puntaje_api(e.api), -e.canales))
     return candidatos[0]
 
 
@@ -311,6 +318,26 @@ def _test():
     check("WASAPI gana a MME",
           _puntaje_api("Windows WASAPI") < _puntaje_api("MME"))
     check("API desconocida ultima", _puntaje_api("Sarasa") == len(PREFERENCIA_API))
+
+    print("\n--- eleccion entre APIs del mismo dispositivo ---")
+    # El caso real del banco: la UMC22 con el driver generico aparecia en WASAPI
+    # con 1 canal y en WDM-KS con 2. Pidiendo 2, tiene que ganar WDM-KS aunque
+    # su API este mas abajo en la preferencia.
+    global listar
+    _listar = listar
+    listar = lambda: [
+        Entrada(1, "Microphone (USB Audio CODEC )", "MME", 2, 44100),
+        Entrada(14, "Microphone (USB Audio CODEC )", "Windows WASAPI", 1, 48000),
+        Entrada(37, "Microphone (USB Audio CODEC)", "Windows WDM-KS", 2, 44100),
+    ]
+    try:
+        check("pidiendo 2 canales gana el que los tiene",
+              elegir("auto", 2).idx == 37, f"idx {elegir('auto', 2).idx}")
+        check("pidiendo 1 canal gana la mejor API",
+              elegir("auto", 1).idx == 14, f"idx {elegir('auto', 1).idx}")
+        check("el indice explicito manda igual", elegir("14", 2).idx == 14)
+    finally:
+        listar = _listar
 
     print("\n--- deteccion de la placa por nombre ---")
     check("UMC ASIO Driver",
