@@ -3,10 +3,15 @@
 Reemplazo **temporal** de la etapa de digitalización: en vez de PCM1808 + ESP32
 por I²S, el beat entra por una placa de sonido USB.
 
-> **Estado: código probado, hardware sin probar.** Los dos módulos pasan su
-> autoprueba y la captura se verificó de punta a punta contra la placa de audio
-> interna de la máquina (CSV y WAV consistentes, sin pérdidas). **Todavía no se
-> midió con la UMC22 conectada al radar.**
+> **¿Venís a dejarlo andando en una máquina nueva?** El procedimiento paso a
+> paso está en [`docs/placa_audio_umc22.md`](../docs/placa_audio_umc22.md).
+> Este README explica el diseño y el porqué.
+
+> **Estado: cadena verificada con la placa conectada, sin señal de radar
+> todavía.** Los dos módulos pasan su autoprueba y la captura se probó contra la
+> UMC22 real: WDM-KS, 48 kHz, 2 canales, 0,05 % de error de tasa, 238592 muestras
+> en 5,1 s sin clipeo ni overflow, CSV y WAV consistentes muestra a muestra.
+> **Falta medir con la cadena de RF conectada.**
 
 La cadena de RF no cambia. Cambia solamente quién digitaliza:
 

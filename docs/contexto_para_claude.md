@@ -280,6 +280,8 @@ VCO/                    Caracterización y linealización del VCO
 
 Filtro Pasabajos/       Caracterización de un filtro activo (trabajo práctico aparte)
 docs/                   conexionado, validación de banco, hardware y uso del PCM1808
+  placa_audio_umc22.md    Puesta en marcha de la UMC22 en una máquina nueva:
+                          instalación, formato de Windows, diagnóstico.
 simulacion/             beat_simulado.py (WAV de prueba) y lpda_meep.py (antena en MEEP)
 datos/                  Capturas. Los .csv están en .gitignore.
 medir.bat / graficar.bat / pruebas.bat / medir_audio.bat   Accesos en la raíz
@@ -436,12 +438,14 @@ graficamos `dF/dV` hay que suavizar con Savitzky-Golay.
 - Visualización en vivo: espectro, osciloscopio y B-scan.
 - Rampa del DAC con predistorsión, corriendo a PRF de 5 ms.
 
-**Camino alternativo por placa de audio (`adquisicion_audio/`): código probado,
-hardware sin probar.** Las dos autopruebas pasan y la captura se verificó de
-punta a punta contra la placa de audio interna de una de las máquinas (144384
-muestras, CSV y WAV consistentes muestra a muestra, sin clipeo ni overflow).
-**Con la UMC22 conectada al radar todavía no se midió.** Ver §3 para el
-conexionado y las dos trampas de la placa.
+**Camino alternativo por placa de audio (`adquisicion_audio/`): cadena
+verificada con la placa conectada, sin señal de radar todavía.** Las dos
+autopruebas pasan y la captura se probó contra la UMC22 real: WDM-KS, 48 kHz,
+2 canales, 0,05 % de error de tasa, 238592 muestras en 5,1 s sin clipeo ni
+overflow, CSV y WAV consistentes muestra a muestra. Piso de ruido con las
+entradas al aire: −78 dBFS. **Falta medir con la cadena de RF conectada.**
+Ver §3 para el conexionado y las trampas de la placa, y
+`docs/placa_audio_umc22.md` para dejarla andando en una máquina nueva.
 
 **Pendiente, en orden de importancia:**
 

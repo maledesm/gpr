@@ -95,6 +95,7 @@ docs/
   validacion_banco.md     Caracterización con generador de funciones.
   PCM1808_hardware.md     Estudio de circuito: relojes, pasa-altos, ruido.
   PCM1808_uso.md          Comandos del firmware y resolución de problemas.
+  placa_audio_umc22.md    Puesta en marcha de la UMC22 en una máquina nueva.
 
 analisis/               Procesamiento offline (corre en WSL o en Windows)
   v1/  Espectros y señales crudas por medición.
