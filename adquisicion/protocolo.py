@@ -273,6 +273,43 @@ def comando(ser, texto, espera=0.35):
     return leer_hasta_silencio(ser, silencio=espera)
 
 
+def configurar_barrido(ser, fs, pasos, nmue, predist=True, canal="l",
+                       sinc="marca"):
+    """Deja listo el firmware 'gpr_barrido' y devuelve el volcado de 'info'.
+
+    Es el equivalente de configurar() para el sketch que corre el DAC y el
+    PCM1808 sincronizados. Los comandos NO son los mismos que los del sketch
+    de banco:
+
+      - para detener se dice 'stop', no 'off'
+      - no existe 'dec': no hay diezmado, el caudal es fs * 4 bytes
+      - no existe 'raf': el troceado lo da la rampa, no una rafaga arbitraria
+      - 'bin' solo cambia el flag de formato; para arrancar hace falta 'run'
+
+    Igual que en configurar(), lo que se registra en la metadata es lo que
+    devuelve 'info', o sea lo que el firmware REALMENTE quedo teniendo: puede
+    haber redondeado 'nmue' o 'pasos' respecto de lo pedido.
+    """
+    comando(ser, "stop")
+    comando(ser, f"fs {int(fs)}")
+    comando(ser, f"pasos {int(pasos)}")
+    comando(ser, f"nmue {int(nmue)}")
+    comando(ser, f"sinc {sinc}")
+    comando(ser, f"pre {'on' if predist else 'off'}")
+    comando(ser, f"ch {canal}")
+    return comando(ser, "info", espera=0.6)
+
+
+def arrancar_barrido(ser):
+    """Pone el firmware en binario y arranca la adquisicion.
+
+    Van separados porque 'bin' es el unico comando que no para la
+    adquisicion, y 'run' es el que efectivamente la larga.
+    """
+    comando(ser, "bin on", espera=0.1)
+    comando(ser, "run", espera=0.1)
+
+
 def configurar(ser, fs, dec, raf_on=0, raf_off=0, canal="l"):
     """Deja el firmware listo y devuelve el volcado de 'info'.
 
