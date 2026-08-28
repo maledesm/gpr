@@ -217,6 +217,7 @@ el **WAV** (los dos canales crudos, para el análisis offline).
 | `clip` distinto de cero | Satura en −3 dBu (≈1,55 Vpp) con GAIN al mínimo | Bajar el GAIN, o agrandar el divisor |
 | `overflow` distinto de cero | Se perdieron muestras; el eje temporal quedó corrido | Cerrar lo que esté usando el disco y repetir |
 | No se abre el gráfico | Falta `pyqtgraph` o `PyQt6` | `pip install pyqtgraph PyQt6` |
+| **"FFT por barrido" no hace nada** | El CSV de audio no trae la columna `rampa` | Esperable, ver abajo |
 
 ### Dos trampas que ya nos costaron tiempo
 
@@ -231,6 +232,22 @@ compartido si se va más del 2 %.
 **2. La API más "directa" no siempre es la que sirve.** Ver §4: WASAPI aparecía
 con 1 canal y WDM-KS con 2. La preferencia de API es una heurística, no una
 garantía; lo que manda es si el dispositivo ofrece los canales que hacen falta.
+
+### Lo que este camino NO puede hacer
+
+El graficador tiene una opción **"FFT por barrido"**, que trocea la señal por el
+número de rampa que manda el firmware en una tercera columna del CSV. **El CSV de
+audio no la tiene**, porque acá no hay firmware que la genere: la placa de sonido
+no sabe nada de la rampa.
+
+No rompe nada —`graficarserial.py` maneja los CSV de dos columnas y sigue
+mostrando todo lo demás— pero esa casilla queda sin efecto, y con ella el
+promedio coherente entre barridos.
+
+La salida es el **canal de sincronismo**: con la rampa del DAC grabada en la
+entrada 1, los bordes de cada barrido se pueden recuperar del WAV en el análisis
+offline. Para encontrar los vértices de la triangular: filtrar por
+**prominencia**, no por distancia. Todavía no está implementado.
 
 ---
 
