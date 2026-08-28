@@ -48,26 +48,31 @@ class LectorCSV:
         self._resto = ""
         self.idx = np.zeros(MAX_MUESTRAS, dtype=np.int64)
         self.val = np.zeros(MAX_MUESTRAS, dtype=np.float64)
+        self.ram = np.full(MAX_MUESTRAS, -1, dtype=np.int64)
         self.n = 0
         self.total = 0
 
-    def _guardar(self, idxs, vals):
+    def _guardar(self, idxs, vals, rams):
         k = len(vals)
         if k >= MAX_MUESTRAS:
             self.idx[:] = idxs[-MAX_MUESTRAS:]
             self.val[:] = vals[-MAX_MUESTRAS:]
+            self.ram[:] = rams[-MAX_MUESTRAS:]
             self.n = MAX_MUESTRAS
         elif self.n + k <= MAX_MUESTRAS:
             self.idx[self.n:self.n + k] = idxs
             self.val[self.n:self.n + k] = vals
+            self.ram[self.n:self.n + k] = rams
             self.n += k
         else:
             sobra = self.n + k - MAX_MUESTRAS
             self.idx[:self.n - sobra] = self.idx[sobra:self.n]
             self.val[:self.n - sobra] = self.val[sobra:self.n]
+            self.ram[:self.n - sobra] = self.ram[sobra:self.n]
             self.n -= sobra
             self.idx[self.n:self.n + k] = idxs
             self.val[self.n:self.n + k] = vals
+            self.ram[self.n:self.n + k] = rams
             self.n += k
         self.total += k
 
@@ -82,7 +87,7 @@ class LectorCSV:
             return 0
         self._resto = datos[corte + 1:]
 
-        idxs, vals = [], []
+        idxs, vals, rams = [], [], []
         for linea in datos[:corte].split("\n"):
             if not linea:
                 continue
@@ -94,14 +99,21 @@ class LectorCSV:
             if linea[0] == "i":            # cabecera de columnas
                 continue
             try:
-                a, b = linea.split(",")
-                idxs.append(int(a))
-                vals.append(float(b))
-            except ValueError:
+                # Dos columnas (idx,V) o tres (idx,V,rampa). Los CSV viejos no
+                # tienen la tercera, y hay que poder seguir abriendolos: si se
+                # desempaquetara a un numero fijo de variables, un archivo del
+                # otro formato haria saltar ValueError en TODAS las lineas de
+                # datos y el grafico quedaria vacio sin decir por que.
+                partes = linea.split(",")
+                idxs.append(int(partes[0]))
+                vals.append(float(partes[1]))
+                rams.append(int(partes[2]) if len(partes) > 2 else -1)
+            except (ValueError, IndexError):
                 continue
         if vals:
             self._guardar(np.array(idxs, dtype=np.int64),
-                          np.array(vals, dtype=np.float64))
+                          np.array(vals, dtype=np.float64),
+                          np.array(rams, dtype=np.int64))
         return len(vals)
 
     def num(self, clave, defecto):
@@ -131,7 +143,12 @@ class Ventana(QtWidgets.QMainWindow):
         self.fs = self.lector.num("fs_eff", 8000.0)
         self.bw = self.lector.num("bw_mhz", 1000.0) * 1e6
         self.tsweep = self.lector.num("t_sweep_ms", 10.0) / 1000.0
+        # Solo estan en los CSV de gpr_barrido; con 0 el troceado por barrido
+        # se desactiva solo y se cae al bloque de siempre.
+        self.pasos = int(self.lector.num("pasos", 0))
+        self.nmue = int(self.lector.num("nmue", 0))
         self.prom = dsp.Promediador(1)
+        self._nrampas = 0
         self.referencia = None
         self.congelado = False
         self.cascada = None
@@ -184,6 +201,42 @@ class Ventana(QtWidgets.QMainWindow):
 
         self.s_prom = spin(1, 256, 8)
         form.addRow("Promediar", self.s_prom)
+
+        # ---- troceado por barrido
+        #
+        # Sin esto la FFT agarra las ultimas N muestras sin mirar donde empieza
+        # cada rampa, o sea que mete varias rampas con las pendientes
+        # ALTERNADAS en una sola transformada. La subida y la bajada dan el
+        # mismo |f_beat| pero la fase evoluciona al reves, asi que al sumarlas
+        # el pico se destruye. Es la diferencia entre ver un blanco y no ver
+        # nada.
+        form.addRow(QtWidgets.QLabel("<b>Barridos</b>"))
+        self.k_rampa = QtWidgets.QCheckBox("FFT por barrido")
+        self.k_rampa.setChecked(True)
+        self.k_rampa.setToolTip(
+            "Trocea por el numero de rampa que manda el firmware.\n"
+            "Necesita un CSV con la columna 'rampa' y los campos\n"
+            "'pasos' y 'nmue' en el encabezado.")
+        form.addRow(self.k_rampa)
+
+        # Promediar en el tiempo antes de transformar solo sirve si los
+        # barridos estan alineados en fase; si no, se cancelan. Es exactamente
+        # lo que el sincronismo del firmware vino a garantizar, asi que sirve
+        # de prueba: si al activarlo el pico SUBE, el sincronismo anda.
+        self.k_coh = QtWidgets.QCheckBox("Promedio coherente")
+        self.k_coh.setToolTip(
+            "Promedia las rampas en el tiempo y despues transforma una vez.\n"
+            "Solo junta rampas del mismo sentido (subida con subida).\n"
+            "Si el pico sube respecto del promedio incoherente, el\n"
+            "sincronismo esta funcionando.")
+        form.addRow(self.k_coh)
+
+        # Los extremos de cada rampa son los bordes de la banda, donde la
+        # potencia del VCO y la adaptacion de las antenas son peores. Ademas
+        # ahi la pendiente se da vuelta. Descartar un par de escalones limpia
+        # el tramo sin costar casi nada de ancho de banda.
+        self.s_desc = spin(0, 20, 1)
+        form.addRow("Descartar escalones", self.s_desc)
 
         # Por defecto en frecuencia: es la magnitud que se mide directamente.
         # La distancia sale de convertirla con BW y T_sweep, asi que depende de
@@ -328,21 +381,31 @@ class Ventana(QtWidgets.QMainWindow):
                              connect="all" if self.k_interp.isChecked() else "pairs")
 
         # ---- espectro
-        nfft = int(self.c_nfft.currentText())
-        n_fft = min(nfft, self.lector.n)
-        xf = self.lector.val[self.lector.n - n_fft:self.lector.n].copy()
-        if self.k_hpf.isChecked():
-            xf = dsp.pasaaltos(xf, self.fs, float(self.s_hpf.value()))
-        if self.k_notch.isChecked():
-            xf = dsp.notch(xf, self.fs, float(self.s_notch.value()))
-
         zp = int(self.c_zp.currentText()[1:])
-        frec, pot = dsp.espectro(xf, self.fs, self.c_ventana.currentText(), zp)
-        if len(frec) == 0:
-            return
+        porrampa = None
+        if self.k_rampa.isChecked():
+            porrampa = self._espectro_por_rampa(zp)
 
-        self.prom.configurar(self.s_prom.value())
-        pot = self.prom.agregar(pot)
+        if porrampa is not None:
+            frec, pot, self._nrampas = porrampa
+            # El promedio ya se hizo sobre barridos completos; volver a
+            # pasarlo por el Promediador seria promediar dos veces.
+            self.prom.configurar(1)
+        else:
+            self._nrampas = 0
+            nfft = int(self.c_nfft.currentText())
+            n_fft = min(nfft, self.lector.n)
+            xf = self.lector.val[self.lector.n - n_fft:self.lector.n].copy()
+            if self.k_hpf.isChecked():
+                xf = dsp.pasaaltos(xf, self.fs, float(self.s_hpf.value()))
+            if self.k_notch.isChecked():
+                xf = dsp.notch(xf, self.fs, float(self.s_notch.value()))
+            frec, pot = dsp.espectro(xf, self.fs,
+                                     self.c_ventana.currentText(), zp)
+            if len(frec) == 0:
+                return
+            self.prom.configurar(self.s_prom.value())
+            pot = self.prom.agregar(pot)
         db = dsp.a_db(pot)
         self._ultima = (frec.copy(), db.copy())
 
@@ -379,6 +442,11 @@ class Ventana(QtWidgets.QMainWindow):
             self._actualizar_cascada(db, eje)
 
         pico = int(np.argmax(db))
+        if self._nrampas:
+            modo = "coherente" if self.k_coh.isChecked() else "incoherente"
+            linea_prom = f"Barridos {self._nrampas} {modo}\n"
+        else:
+            linea_prom = f"Promedios {self.prom.cargados}/{self.prom.k}\n"
         self.lbl.setText(
             f"fs_eff  {self.fs:.1f} Hz\n"
             f"BW      {self.bw / 1e6:.0f} MHz\n"
@@ -386,12 +454,98 @@ class Ventana(QtWidgets.QMainWindow):
             f"Resol.  {dsp.resolucion_distancia(self.bw) * 100:.1f} cm\n"
             f"------------------------\n"
             f"Muestras {self.lector.total}\n"
-            f"Promedios {self.prom.cargados}/{self.prom.k}\n"
+            + linea_prom +
             f"------------------------\n"
             f"Pico  {db[pico]:.1f} dB\n"
             f"      {frec[pico]:.1f} Hz\n"
             f"      {dsp.frec_a_distancia(frec[pico], self.bw, self.tsweep):.3f} m"
         )
+
+    def _tramos_de_rampa(self):
+        """Devuelve (inicio, fin, sentido) de cada barrido COMPLETO en memoria.
+
+        El firmware numera las rampas y corta el paquete binario en cada
+        vertice, asi que el numero de barrido cambia justo donde cambia la
+        pendiente. El primero y el ultimo tramo se descartan porque estan
+        cortados por los bordes del buffer.
+
+        El 'sentido' sale de la paridad del numero de rampa: las rampas
+        alternan subida y bajada, asi que las de igual paridad van todas para
+        el mismo lado. Importa para el promedio coherente, donde mezclar
+        subidas con bajadas cancela en vez de sumar.
+        """
+        n = self.lector.n
+        if n < 16 or self.pasos < 2 or self.nmue < 1:
+            return []
+        ram = self.lector.ram[:n]
+        if ram[0] < 0:
+            return []                      # CSV sin columna de rampa
+
+        corte = np.flatnonzero(np.diff(ram)) + 1
+        if len(corte) < 2:
+            return []
+        ini = np.concatenate(([0], corte))[1:-1]
+        fin = np.concatenate((corte, [n]))[1:-1]
+        return [(int(a), int(b), int(ram[a]) & 1) for a, b in zip(ini, fin)]
+
+    def _espectro_por_rampa(self, zp):
+        """Espectro promediado barrido por barrido.
+
+        Devuelve (frec, potencia, cuantos) o None si no se puede trocear, en
+        cuyo caso el llamador se cae al bloque de siempre.
+        """
+        tramos = self._tramos_de_rampa()
+        if not tramos:
+            return None
+
+        desc = self.s_desc.value() * self.nmue
+        largo = (self.pasos - 1) * self.nmue - 2 * desc
+        if largo < 16:
+            return None
+
+        # Se exige el largo nominal completo: una rampa a la que le falten
+        # muestras (por un desborde del ring en el ESP32) tiene un hueco, y
+        # rellenarlo con ceros meteria un escalon artificial en el medio.
+        # Con perdidas del orden de 1e-4 se descartan poquisimas.
+        buenos = [t for t in tramos if t[1] - t[0] - 2 * desc >= largo]
+        if not buenos:
+            return None
+        buenos = buenos[-self.s_prom.value():]
+
+        ventana = self.c_ventana.currentText()
+        coherente = self.k_coh.isChecked()
+
+        if coherente:
+            # Solo un sentido, el de la rampa mas nueva: sumar subidas con
+            # bajadas cancela el batido.
+            lado = buenos[-1][2]
+            buenos = [t for t in buenos if t[2] == lado]
+
+        acum = None
+        usados = 0
+        for a, b, _ in buenos:
+            x = self.lector.val[a + desc:a + desc + largo].astype(np.float64)
+            if self.k_hpf.isChecked():
+                x = dsp.pasaaltos(x, self.fs, float(self.s_hpf.value()))
+            if self.k_notch.isChecked():
+                x = dsp.notch(x, self.fs, float(self.s_notch.value()))
+            if coherente:
+                acum = x if acum is None else acum + x
+            else:
+                frec, pot = dsp.espectro(x, self.fs, ventana, zp)
+                if len(frec) == 0:
+                    return None
+                acum = pot if acum is None else acum + pot
+            usados += 1
+
+        if not usados:
+            return None
+        acum = acum / usados
+        if coherente:
+            frec, acum = dsp.espectro(acum, self.fs, ventana, zp)
+            if len(frec) == 0:
+                return None
+        return frec, acum, usados
 
     def _actualizar_cascada(self, db, eje):
         """B-scan: cada fila es un espectro, el eje vertical es el tiempo.

@@ -282,7 +282,12 @@ def main():
         for linea in info.splitlines():
             if linea.strip():
                 f.write("# " + linea.rstrip() + "\n")
-        f.write("#\nidx,V\n")
+        # La tercera columna es el numero de barrido que manda el firmware en
+        # la trama v2. Sin ella el graficador no puede trocear por rampa y
+        # termina transformando bloques que abarcan varias, con las pendientes
+        # alternadas cancelandose entre si. Vale -1 cuando el firmware no la
+        # manda (tramas v1, el sketch de banco).
+        f.write("#\nidx,V,rampa\n")
         f.flush()
 
         dec_p = Decodificador()
@@ -315,8 +320,10 @@ def main():
                         # numero de fila NO es el tiempo, y sin esta columna
                         # el eje temporal quedaria comprimido en silencio.
                         base = p.idx
+                        r = -1 if p.rampa is None else p.rampa
                         f.write("".join(
-                            f"{base + k},{v:.8f}\n" for k, v in enumerate(p.datos)))
+                            f"{base + k},{v:.8f},{r}\n"
+                            for k, v in enumerate(p.datos)))
                         muestras += len(p.datos)
 
                 ahora = time.time()
