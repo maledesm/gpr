@@ -106,3 +106,4 @@ datos/*.csv
 
 # Configuracion local del grabador (es por maquina)
 adquisicion/config.json
+adquisicion_audio/config.json

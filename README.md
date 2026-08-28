@@ -82,6 +82,14 @@ adquisicion/            Software de captura y visualización (corre en WINDOWS)
   protocolo.py            Decodificador de tramas.   Autoprueba: --test
   dsp.py                  Ventanas, FFT, filtros, distancia.  Autoprueba: --test
 
+adquisicion_audio/      Captura por placa de sonido (U-Phoria UMC22), TEMPORAL
+  medir_audio.py          Lanzador: grabador + el MISMO graficarserial.py.
+  grabaraudio.py          Graba a CSV (igual formato) + WAV crudo de 2 canales.
+                          Autoprueba: --test.  Utilidades: --listar, --calibrar
+  audio.py                Dispositivos, API de audio, WAV.  Autoprueba: --test
+                          Ver su README: el corte de 10 Hz de la placa es MAS
+                          alto que el del PCM1808, no mas bajo.
+
 docs/
   conexionado.md          Cableado, alimentación, divisores. Empezar por acá.
   validacion_banco.md     Caracterización con generador de funciones.
