@@ -186,6 +186,53 @@ Y sobre la alimentación: el pin `5V` del SuperMini es VBUS del USB directo y es
 ruidoso. El ruido entra por VREF (= 0.5·VCC) derecho a la señal. Hay un RC
 recomendado (10 Ω + 100 µF + 100 nF) en `docs/PCM1808_uso.md`.
 
+#### Camino alternativo de digitalización: placa de audio U-Phoria UMC22
+
+Hay un **segundo camino, temporal**, para digitalizar el beat: una placa de
+sonido USB Behringer U-Phoria UMC22 en lugar del PCM1808 + ESP32. La cadena de
+RF no cambia; cambia sólo quién muestrea. Software en `adquisicion_audio/`, con
+su propio README.
+
+Sirve para medir sin depender del firmware ni del enlace binario, y para tener
+un segundo canal ya disponible. **No reemplaza al PCM1808**: es un desvío para
+destrabar el banco.
+
+| | PCM1808 + ESP32 | UMC22 |
+|---|---|---|
+| Resolución | 24 bits | **16 bits** |
+| `fs` | 8–96 kHz, variable en caliente | 44.1 / 48 kHz |
+| Corte inferior | 0.91 Hz a 48 kHz | **10 Hz** (−3 dB) |
+| Sincronismo con la rampa | atable a la cuenta de muestras | **no hay** |
+| Canales | 1 (el segundo está pendiente) | 2 |
+
+**El corte inferior es lo que importa: la UMC22 corta MÁS ARRIBA que el
+PCM1808.** O sea que el pendiente número 1 (acelerar el sweep) no se relaja al
+cambiar de ADC, se endurece. Con `T_sweep = 10 ms` el beat a 0.2 m son 133 Hz y
+sobra margen; con el sweep original de 1.46 s no se ve nada.
+
+Los 16 bits no son el límite real: el piso de ruido medido de la cadena da ~62 dB
+de SNR (≈10 bits efectivos).
+
+**Conexionado:** entrada 2, el jack de 1/4" **INSTRUMENT** (Hi-Z, 1 MΩ), con
+plug **TS mono**: *tip* = señal, *sleeve* = GND. **No** en el combo XLR, que va
+al preamp de micrófono y tiene el botón de **+48 V** al lado. Satura en −3 dBu
+(≈1.55 Vpp) con la perilla GAIN al mínimo y el peor caso de la cadena es 3 Vpp,
+así que hace falta un divisor de entrada (10 kΩ / 1.1 kΩ, división por 10.1).
+
+**Dos trampas que ya nos costaron tiempo con esta placa:**
+1. **WASAPI en modo exclusivo puede mentir la frecuencia de muestreo.** Contra
+   la placa interna de una de las máquinas, `stream.samplerate` declaraba 48000
+   y el stream entregaba **63.2 kS/s**; el mismo dispositivo en modo compartido
+   daba 47.7 kS/s. No se ve en ningún lado —el WAV suena raro y nada más— pero
+   corre el eje de frecuencias un 32 %, y como la distancia sale del beat,
+   arruina todo en silencio. Por eso `grabaraudio.py` **mide** la tasa real
+   antes de grabar y reintenta en compartido si se va más del 2 %.
+2. **Sin calibrar no hay volts.** Entre el divisor y la perilla GAIN no hay forma
+   de saber a qué tensión corresponde el fondo de escala, así que el CSV va en
+   fracción de fondo de escala y el encabezado lo dice (`unidad = FS`). Se mide
+   con `--calibrar` contra una amplitud conocida (la cuadrada de 1.52 Vpp del
+   `generador_patron` sirve) y **vale mientras no se mueva la perilla GAIN**.
+
 ---
 
 ### 4. El repositorio
@@ -204,6 +251,16 @@ adquisicion/            Captura y visualización en vivo (corre en WINDOWS)
   graficarserial.py       Espectro + osciloscopio + B-scan en tiempo real (pyqtgraph).
   protocolo.py            Decodificador de tramas.   Autoprueba: --test
   dsp.py                  Ventanas, FFT, filtros, distancia.  Autoprueba: --test
+
+adquisicion_audio/      Captura por placa de audio UMC22 — TEMPORAL, ver §3
+  medir_audio.py          Lanzador: grabador + el MISMO graficarserial.py.
+  grabaraudio.py          Graba a CSV (formato IDENTICO al de grabarserial.py,
+                          para no tocar el graficador) + WAV crudo de 2 canales.
+                          Autoprueba: --test.  Utilidades: --listar, --calibrar
+  audio.py                Dispositivos, API de audio, WAV.  Autoprueba: --test
+  config.json             Generado, por máquina, en .gitignore.
+                          ⚠ No toca adquisicion/, firmware/ ni analisis/. Para
+                          volver al PCM1808 alcanza con correr medir.py.
 
 analisis/               Procesamiento offline (WSL o Windows)
   v1/  Espectros y señales crudas por medición.
@@ -225,7 +282,7 @@ Filtro Pasabajos/       Caracterización de un filtro activo (trabajo práctico 
 docs/                   conexionado, validación de banco, hardware y uso del PCM1808
 simulacion/             beat_simulado.py (WAV de prueba) y lpda_meep.py (antena en MEEP)
 datos/                  Capturas. Los .csv están en .gitignore.
-medir.bat / graficar.bat / pruebas.bat    Accesos directos en la raíz
+medir.bat / graficar.bat / pruebas.bat / medir_audio.bat   Accesos en la raíz
 ```
 
 **Convenciones del repo:**
@@ -379,6 +436,13 @@ graficamos `dF/dV` hay que suavizar con Savitzky-Golay.
 - Visualización en vivo: espectro, osciloscopio y B-scan.
 - Rampa del DAC con predistorsión, corriendo a PRF de 5 ms.
 
+**Camino alternativo por placa de audio (`adquisicion_audio/`): código probado,
+hardware sin probar.** Las dos autopruebas pasan y la captura se verificó de
+punta a punta contra la placa de audio interna de una de las máquinas (144384
+muestras, CSV y WAV consistentes muestra a muestra, sin clipeo ni overflow).
+**Con la UMC22 conectada al radar todavía no se midió.** Ver §3 para el
+conexionado y las dos trampas de la placa.
+
 **Pendiente, en orden de importancia:**
 
 1. **Acelerar el sweep FMCW. Es el bloqueante principal.** Con el
@@ -388,6 +452,9 @@ graficamos `dF/dV` hay que suavizar con Savitzky-Golay.
    problema desaparece. **Techo duro**: el período de la rampa es
    `2 × n_pasos × 125 µs`, así que con 200 pasos da 50 ms como mínimo. Para ir
    más rápido hay que bajar `n` o acelerar la escritura I²C.
+   **Cambiar de ADC no lo esquiva**: la placa de audio corta a 10 Hz, más arriba
+   que el PCM1808, así que este pendiente sigue igual de vivo por los dos
+   caminos.
 2. **Sincronismo entre la rampa y el reloj de muestreo del I²S.** Sin él no se
    puede promediar coherentemente entre barridos. La idea es atar los pasos del
    DAC a la cuenta de muestras.
