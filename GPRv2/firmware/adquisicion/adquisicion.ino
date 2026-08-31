@@ -10,7 +10,7 @@
 //      fs           informa la fs actual
 //      fs 48000     la cambia (8000 a 96000)
 //
-//  Salida: "L<tab>R" por linea, en cuentas del ADC (+-8388607).
+//  Salida: "L,R" por linea (CSV), en cuentas del ADC (+-8388607).
 //  Las respuestas a los comandos van con '#' adelante.
 //
 //  COMPILAR con la placa "Nologo ESP32C3 Super Mini", o con "ESP32C3 Dev
@@ -189,8 +189,8 @@ void loop() {
     if (++accN < g_dec) continue;
 
     if (g_run) {
-      Serial.printf("%ld\t%ld\n", (long)(accL / (int32_t)g_dec),
-                                  (long)(accR / (int32_t)g_dec));
+      Serial.printf("%ld,%ld\n", (long)(accL / (int32_t)g_dec),
+                                 (long)(accR / (int32_t)g_dec));
     }
     accL = accR = 0;
     accN = 0;

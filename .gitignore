@@ -103,6 +103,7 @@ beat_gpr.wav
 # Capturas: se generan en cada medicion. Conservá las importantes con:
 #     git add -f datos/2026-08-15_143000.csv
 datos/*.csv
+GPRv2/datos/*.csv
 
 # Configuracion local del grabador (es por maquina)
 adquisicion/config.json
