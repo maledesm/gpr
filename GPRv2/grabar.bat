@@ -26,11 +26,17 @@ echo   OJO: sobrescribe la captura anterior, siempre usa el mismo nombre.
 echo  ==========================================================
 
 "%PY%" "analisis\grabar_rampa.py"
+if errorlevel 1 goto :fin
 
 echo.
 echo  ----------------------------------------------------------
-echo   La captura queda en:  %~dp0datos\captura.csv
+echo   Captura en:  %~dp0datos\captura.csv
+echo   Abriendo el grafico. Cerra la ventana para terminar.
 echo  ----------------------------------------------------------
+"%PY%" "analisis\graficar_captura.py"
+
+:fin
+echo.
 pause
 exit /b 0
 
