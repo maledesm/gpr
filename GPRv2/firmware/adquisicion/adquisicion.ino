@@ -65,14 +65,21 @@ static uint32_t accN = 0;
 // el lazo las procesa en rafaga: dentro de esa rafaga no hay tiempo real, y
 // leer el pin ahi ubicaria el flanco en cualquier lado del bloque (16 ms a
 // 16 kHz). Con el timestamp, cada muestra sabe su distancia real al flanco.
-// Se guardan los DOS ultimos flancos. Un bloque de DMA trae 16 ms de
-// muestras, y si el flanco cayo en el medio, las del principio del bloque son
-// anteriores a el: a esas les corresponde el flanco previo, no el nuevo.
-static volatile int64_t t_flanco = 0, t_flanco_ant = 0;
+// Se guarda un anillo de los ultimos flancos, no uno solo ni dos. Un bloque
+// de DMA trae BLOCK_FRAMES/fs segundos de muestras (16 ms a 16 kHz) y en ese
+// rato pueden entrar VARIOS flancos: con rampas de 10 ms entran dos. A cada
+// muestra emitida le corresponde el ultimo flanco ANTERIOR a ella, que no
+// tiene por que ser el mas nuevo del anillo. Con dos slots esto fallaba y
+// salian cuentas negativas y rampas de largo cambiante.
+// 8 slots cubren rampas de hasta BLOCK_FRAMES/(8*fs), o sea 2 ms a 16 kHz.
+#define N_FLANCOS 8
+static volatile int64_t t_flancos[N_FLANCOS] = {0};
+static volatile uint8_t i_flanco = 0;
 
 static void IRAM_ATTR isrSync() {
-  t_flanco_ant = t_flanco;
-  t_flanco     = esp_timer_get_time();
+  uint8_t i = (i_flanco + 1) & (N_FLANCOS - 1);
+  t_flancos[i] = esp_timer_get_time();
+  i_flanco = i;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,11 +216,16 @@ void loop() {
   int64_t t_bloque = esp_timer_get_time();
   uint32_t frames = bytes / (2 * sizeof(int32_t));
 
-  // Lectura doble: son 64 bits sobre un micro de 32, y la ISR puede caer en el
-  // medio de la lectura y partirla. Si los dos valores coinciden, no hubo
-  // flanco en el medio.
-  int64_t t_f, t_a, t_f2;
-  do { t_f = t_flanco; t_a = t_flanco_ant; t_f2 = t_flanco; } while (t_f != t_f2);
+  // Copia del anillo. Si el indice no cambio entre antes y despues, no entro
+  // ningun flanco mientras copiabamos y la foto es consistente. Hace falta
+  // porque son 64 bits sobre un micro de 32 y la ISR puede partir una lectura.
+  int64_t fl[N_FLANCOS];
+  uint8_t iv, iv2;
+  do {
+    iv = i_flanco;
+    for (uint8_t k = 0; k < N_FLANCOS; k++) fl[k] = t_flancos[k];
+    iv2 = i_flanco;
+  } while (iv != iv2);
 
   for (uint32_t i = 0; i < frames; i++) {
     // 24 bits alineados al MSB dentro de 32 -> el shift aritmetico da el
@@ -223,8 +235,14 @@ void loop() {
     if (++accN < g_dec) continue;
 
     if (g_run) {
-      int64_t t_m  = t_bloque - (int64_t)(frames - 1 - i) * 1000000 / g_fs;
-      int64_t ref  = (t_m >= t_f) ? t_f : t_a;
+      int64_t t_m = t_bloque - (int64_t)(frames - 1 - i) * 1000000 / g_fs;
+      // El anillo esta ordenado en el tiempo: se camina del mas nuevo hacia
+      // atras y el primero que no sea posterior a esta muestra es el suyo.
+      int64_t ref = 0;
+      for (uint8_t k = 0; k < N_FLANCOS; k++) {
+        int64_t c = fl[(iv - k) & (N_FLANCOS - 1)];
+        if (c != 0 && c <= t_m) { ref = c; break; }
+      }
       long desde = (ref == 0) ? -1 : (long)(((t_m - ref) * g_fs) / 1000000);
       Serial.printf("%ld,%ld\n", (long)(accL / (int32_t)g_dec), desde);
     }

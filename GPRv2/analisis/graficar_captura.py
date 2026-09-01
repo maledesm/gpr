@@ -54,7 +54,17 @@ def main():
     ini = np.where(np.diff(sync) < 0)[0] + 1
     n = int(round(T_SWEEP * FS))
     ini = ini[ini + n <= len(beat)]
-    print(f"{len(d)} muestras, {len(ini)} rampas de {n}")
+
+    # Chequeo de salud, para diagnosticar sin tener que abrir el CSV.
+    largos = np.diff(np.where(np.diff(sync) < 0)[0] + 1)
+    print(f"{len(d)} muestras = {len(d)/FS:.2f} s, {len(ini)} rampas de {n}")
+    print(f"  nivel L    {beat.std():9.0f} cuentas rms "
+          f"({beat.std()/8388608*1500:7.1f} mVrms)   satura: "
+          f"{(np.abs(beat) > 8300000).sum()} muestras")
+    print(f"  sync       {sync.min():.0f} a {sync.max():.0f}, "
+          f"{(sync < 0).sum()} negativos")
+    print(f"  largo rampa {largos.min()} a {largos.max()} "
+          f"(deberian ser todos {n})")
 
     curva = cargar_curva_vco(VCO_CSV)
     t = np.linspace(0, T_SWEEP, n, endpoint=False)
