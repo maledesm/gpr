@@ -10,7 +10,10 @@
 //      fs           informa la fs actual
 //      fs 48000     la cambia (8000 a 96000)
 //
-//  Salida: "L,R" por linea (CSV), en cuentas del ADC (+-8388607).
+//  Salida: "L,R,sync" por linea (CSV). L y R en cuentas del ADC (+-8388607);
+//  sync = muestras transcurridas desde el ultimo flanco de subida en GPIO10,
+//  o -1 si todavia no llego ninguno. Se ve como diente de sierra en el
+//  plotter y da la fase dentro de la rampa en cada muestra.
 //  Las respuestas a los comandos van con '#' adelante.
 //
 //  COMPILAR con la placa "Nologo ESP32C3 Super Mini", o con "ESP32C3 Dev
@@ -26,11 +29,13 @@
 
 #include <Arduino.h>
 #include "driver/i2s_std.h"
+#include "esp_timer.h"
 
 #define PIN_MCLK  4
 #define PIN_BCLK  5
 #define PIN_LRCK  6
 #define PIN_DIN   7
+#define PIN_SYNC 10   // <- sync del generador, por divisor 10k/15k (3.00 V)
 
 #define FS_DEF        16000
 #define FS_MIN         8000   // minimo absoluto del PCM1808
@@ -48,6 +53,21 @@ static bool     g_run = false;
 
 static int32_t  accL = 0, accR = 0;
 static uint32_t accN = 0;
+
+// Microsegundos del ultimo flanco de subida del sync. Se guarda el instante
+// y no un contador de muestras porque el DMA entrega 256 tramas de golpe y
+// el lazo las procesa en rafaga: dentro de esa rafaga no hay tiempo real, y
+// leer el pin ahi ubicaria el flanco en cualquier lado del bloque (16 ms a
+// 16 kHz). Con el timestamp, cada muestra sabe su distancia real al flanco.
+// Se guardan los DOS ultimos flancos. Un bloque de DMA trae 16 ms de
+// muestras, y si el flanco cayo en el medio, las del principio del bloque son
+// anteriores a el: a esas les corresponde el flanco previo, no el nuevo.
+static volatile int64_t t_flanco = 0, t_flanco_ant = 0;
+
+static void IRAM_ATTR isrSync() {
+  t_flanco_ant = t_flanco;
+  t_flanco     = esp_timer_get_time();
+}
 
 // ---------------------------------------------------------------------------
 
@@ -167,6 +187,8 @@ void setup() {
   Serial.begin(115200);
   delay(300);
   Serial.println("# GPRv2 adquisicion");
+  pinMode(PIN_SYNC, INPUT);   // el 15k del divisor ya lo mantiene abajo
+  attachInterrupt(PIN_SYNC, isrSync, RISING);
   if (i2sArrancar(FS_DEF)) informar();
   Serial.println("# comandos: run | stop | fs [Hz]");
 }
@@ -178,7 +200,14 @@ void loop() {
   // y para que 'run' arranque con muestras frescas.
   size_t bytes = 0;
   if (i2s_channel_read(rx, buf, sizeof(buf), &bytes, 100) != ESP_OK) return;
+  int64_t t_bloque = esp_timer_get_time();
   uint32_t frames = bytes / (2 * sizeof(int32_t));
+
+  // Lectura doble: son 64 bits sobre un micro de 32, y la ISR puede caer en el
+  // medio de la lectura y partirla. Si los dos valores coinciden, no hubo
+  // flanco en el medio.
+  int64_t t_f, t_a, t_f2;
+  do { t_f = t_flanco; t_a = t_flanco_ant; t_f2 = t_flanco; } while (t_f != t_f2);
 
   for (uint32_t i = 0; i < frames; i++) {
     // 24 bits alineados al MSB dentro de 32 -> el shift aritmetico da el
@@ -189,8 +218,11 @@ void loop() {
     if (++accN < g_dec) continue;
 
     if (g_run) {
-      Serial.printf("%ld,%ld\n", (long)(accL / (int32_t)g_dec),
-                                 (long)(accR / (int32_t)g_dec));
+      int64_t t_m  = t_bloque - (int64_t)(frames - 1 - i) * 1000000 / g_fs;
+      int64_t ref  = (t_m >= t_f) ? t_f : t_a;
+      long desde = (ref == 0) ? -1 : (long)(((t_m - ref) * g_fs) / 1000000);
+      Serial.printf("%ld,%ld,%ld\n", (long)(accL / (int32_t)g_dec),
+                                     (long)(accR / (int32_t)g_dec), desde);
     }
     accL = accR = 0;
     accN = 0;
