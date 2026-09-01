@@ -31,16 +31,16 @@ from correccion_no_linealidad import cargar_curva_vco, T_SWEEP, V_MIN, V_MAX, C
 # no rompe el que ya estaba casi bien.
 BLANCOS   = [0.60, 1.20]   # m
 FS_UNO    = 16000     # Hz, tasa del ISR del Uno. 16 MHz / 1000 exactos.
-# El chirp va CHICO a proposito: el ruido que le suma el firmware ocupa casi
-# todo el rango de 8 bits. Con AMPLITUD=29 y RUIDO=98 (ver generador_chirp.ino)
-# la senal queda 11,6 dB POR DEBAJO del ruido en el tiempo, y las ~500 rampas
-# que entran en 5 s la levantan a 5,2 dB sobre el piso del espectro.
+# AMPLITUD va de la mano con RUIDO en generador_chirp.ino: los dos comparten
+# el rango de 8 bits del PWM y AMPLITUD + RUIDO no puede pasar de 127.
 #
-# El par 29/98 esta calibrado contra el pipeline COMPLETO, con el remuestreo
-# cubico de correccion_no_linealidad.remuestrear(). No es lo mismo que con
-# interpolacion lineal: a 40 muestras por rampa el cubico amplifica el ruido
-# cerca de Nyquist y cuesta 2,3 dB. Si se cambia el interpolador, recalibrar.
-AMPLITUD  = 29        # cuentas de PWM sobre el centro de 128
+#     AMPLITUD  RUIDO   SNR crudo   pico sobre piso
+#         90       25     +10,1 dB       ~19 dB      <- limpio, para diagnosticar
+#         29       98     -11,6 dB        5,2 dB     <- caso extremo, calibrado
+#
+# Los dos pares estan medidos contra el pipeline COMPLETO, con el remuestreo
+# cubico. Si se cambia el remuestreo hay que rehacerlos.
+AMPLITUD  = 90        # cuentas de PWM sobre el centro de 128
 
 AQUI    = os.path.dirname(os.path.abspath(__file__))
 VCO_CSV = os.path.join(AQUI, "..", "..", "VCO", "Caracteristica VCO.csv")
