@@ -27,7 +27,7 @@ from correccion_no_linealidad import (
     T_SWEEP, cargar_curva_vco, eje_theta, remuestrear,
 )
 
-FS       = 2000.0   # sps de la salida diezmada de adquisicion.ino
+FS       = 4000.0   # sps de la salida diezmada de adquisicion.ino (SPS_SALIDA)
 RAMPAS   = 3        # cuántas dibujar en el panel de arriba
 F_MAX    = 400.0    # Hz, recorte del eje del espectro
 RELLENO  = 8        # relleno de ceros de la FFT
@@ -48,7 +48,7 @@ VCO_CSV  = os.path.join(AQUI, "..", "..", "VCO", "Caracteristica VCO.csv")
 
 def main():
     d = np.loadtxt(CAPTURA, delimiter=",")
-    beat, sync = d[:, 0], d[:, 2]
+    beat, sync = d[:, 0], d[:, 1]   # adquisicion.ino emite L,sync
 
     # Cada reinicio del contador de sync es el principio de una rampa.
     ini = np.where(np.diff(sync) < 0)[0] + 1

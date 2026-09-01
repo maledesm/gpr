@@ -3,11 +3,16 @@
 //
 //  Sustituye a toda la cadena de RF para probar en casa. Emite:
 //
-//    D3  senal de batido de un blanco a 1.20 m, con la no linealidad REAL
-//        del VCO, mas ruido blanco. PWM de 62.5 kHz que el RC del divisor
-//        convierte en analogica.
-//    D2  sync: cuadrada de 20 Hz, flanco de SUBIDA justo al principio de
+//    D3  senal de batido de dos blancos, a 0.60 y 1.20 m, con la no
+//        linealidad REAL del VCO, mas ruido blanco. PWM de 62.5 kHz que el
+//        RC del divisor convierte en analogica.
+//    D2  sync: cuadrada de 100 Hz, flanco de SUBIDA justo al principio de
 //        cada rampa.
+//
+//  La senal va 11.6 dB POR DEBAJO del ruido. No es un error: se busca el
+//  caso extremo, y las ~500 rampas que entran en 5 s la levantan a 5.2 dB
+//  sobre el piso del espectro. Ese punto esta cerca del umbral: con 1 dB
+//  menos los picos empiezan a fallar de a ratos.
 //
 //  Los dos salen del mismo timer, o sea que son coherentes: el flanco cae
 //  exactamente en la muestra 0 del chirp. Eso es lo que no da un generador
@@ -15,15 +20,19 @@
 //
 //  La tabla la calcula GPRv2/analisis/generar_tabla_chirp.py desde
 //  VCO/Caracteristica VCO.csv. Se precalcula porque el ATmega no llega a
-//  hacer un coseno en los 125 us que tiene por muestra.
+//  hacer un coseno en los 62 us que tiene por muestra.
 //
 //  Cableado (ver GPRv2/CONTEXTO.md):
 //
 //    D3 ──10k──┬────────────────► VINL del modulo PCM1808
 //              │
-//             4k7 ∥ 43.5nF        (dos de 87nF en serie)
-//              │                   fc = 1.2 kHz: pasa el beat (112-220 Hz)
-//    GND ──────┴──── GND comun     y borra la portadora de PWM
+//             4k7 ∥ 4.7nF         fc = 11 kHz. Con el beat llegando a
+//              │                  1096 Hz hace falta un corte ALTO: con los
+//    GND ──────┴──── GND comun    43.5nF de antes (fc 1.2 kHz) el blanco
+//                                 lejano se comia 3 dB y 42 grados de fase.
+//                                 Lo que este RC deja pasar del PWM cae
+//                                 arriba de 8 kHz y lo mata el filtro de
+//                                 diezmado del PCM1808.
 //
 //    D2 ──10k──┬────────────────► GPIO10 del ESP32-C3
 //              │
@@ -37,18 +46,24 @@
 #include "tabla_chirp.h"
 
 #define PIN_SYNC   2      // PORTD bit 2
-#define RUIDO     25      // amplitud del ruido, en cuentas de PWM. 0 lo apaga.
+#define RUIDO     98      // amplitud del ruido, en cuentas de PWM. 0 lo apaga.
 
 static volatile uint16_t idx = 0;
-static uint16_t lfsr = 0xACE1;
+
+// xorshift de 32 bits, no un LFSR de 16. El de 16 tiene periodo 65535, que a
+// 16 kHz son 4 segundos: con capturas de 5 s el ruido se repetiria dentro de
+// la misma captura y promediar rampas dejaria de bajarlo. Este dura 3 dias.
+static uint32_t rnd = 2463534242UL;
 
 ISR(TIMER1_COMPA_vect) {
   if (idx == 0)             PORTD |=  _BV(PIN_SYNC);
   else if (idx == CHIRP_N / 2) PORTD &= ~_BV(PIN_SYNC);
 
-  lfsr = (lfsr >> 1) ^ (uint16_t)(-(int16_t)(lfsr & 1) & 0xB400);
+  rnd ^= rnd << 13;
+  rnd ^= rnd >> 17;
+  rnd ^= rnd << 5;
   int16_t v = (int16_t)pgm_read_byte(&chirp[idx]) +
-              (((int16_t)(lfsr & 0x3F) - 32) * RUIDO) / 32;
+              (((int16_t)((rnd >> 24) & 0xFF) - 128) * RUIDO) / 128;
   if (v < 0)        v = 0;
   else if (v > 255) v = 255;
   OCR2B = (uint8_t)v;
