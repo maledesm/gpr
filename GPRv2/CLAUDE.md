@@ -51,11 +51,24 @@ constantes del banco, no del algoritmo.
   al directorio actual**, no al archivo: sólo corren parados en
   `GPRv2/analisis/`. Los archivos nuevos usan `os.path.dirname(__file__)`.
 - **`pandas` hace falta** y no venía en el venv `gpr-win`. Ya está instalado.
-- **El interpolador de `remuestrear()` importa.** Es cúbico, y a 40 muestras
-  por rampa amplifica el ruido cerca de Nyquist: cuesta 2,3 dB de pico sobre
-  piso frente a interpolación lineal, medido. `AMPLITUD` y `RUIDO` están
-  calibrados contra el pipeline completo con el cúbico; si se cambia el
-  interpolador, hay que recalibrarlos.
+- **No cambies el interpolador de `remuestrear()` buscando SNR.** Medido sobre
+  señal limpia, el error contra el resultado analítico es el mismo para
+  cúbica, lineal, gaussiana angosta y Lanczos: −8,2 a −8,4 dB. Con 40
+  muestras por rampa el límite es información, no método.
+
+  Cuidado con la métrica de pico sobre piso: **mejora con cualquier cosa que
+  filtre**, aunque la medición empeore. Una gaussiana de σ=1,0 muestra de
+  lejos el mejor número (22,8 dB contra 5,2 del cúbico) y al mismo tiempo
+  pierde el blanco de 1,2 m, devolviendo 611 Hz en vez de 832. El cúbico da
+  el número más bajo justamente porque es el que menos suaviza.
+
+  Si hace falta atenuar ruido arriba de la banda útil, **hacelo con un
+  pasabajos explícito y verificá con las posiciones de los picos**, no
+  cambiando el interpolador. Un filtro escondido adentro del remuestreo no se
+  puede auditar.
+
+  `AMPLITUD` y `RUIDO` están calibrados contra el pipeline completo tal como
+  está; si se cambia el remuestreo, hay que recalibrarlos.
 - El generador del banco emite un **diente de sierra**, no una triangular.
   Con triangular el sync viene a la mitad de frecuencia (un pulso por
   período, o sea dos rampas) y la rampa de bajada barre al revés: hay que
