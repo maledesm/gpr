@@ -29,7 +29,9 @@ from correccion_no_linealidad import (
 
 FS       = 4000.0   # sps de la salida diezmada de adquisicion.ino (SPS_SALIDA)
 RAMPAS   = 3        # cuántas dibujar en el panel de arriba
-F_MAX    = 400.0    # Hz, recorte del eje del espectro
+# Recorte del eje del espectro. None = hasta Nyquist, que es lo sano: una
+# constante fija esconde los picos en silencio si despues se acorta la rampa.
+F_MAX    = None
 RELLENO  = 8        # relleno de ceros de la FFT
 
 
@@ -103,7 +105,7 @@ def main():
              label="sin remuestreo", color="tab:orange")
     ax2.plot(freq, 20*np.log10(E2/ref + 1e-12), lw=1.2,
              label="con remuestreo", color="tab:green")
-    ax2.set_xlim(0, F_MAX)
+    ax2.set_xlim(0, F_MAX if F_MAX else FS / 2)
     ax2.set_ylim(-40, 5)
     ax2.set_xlabel("Frecuencia de batido [Hz]")
     ax2.set_ylabel("dB rel. al pico corregido")
