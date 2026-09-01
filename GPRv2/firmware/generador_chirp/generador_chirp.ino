@@ -9,10 +9,11 @@
 //    D2  sync: cuadrada de 100 Hz, flanco de SUBIDA justo al principio de
 //        cada rampa.
 //
-//  La senal va 11.6 dB POR DEBAJO del ruido. No es un error: se busca el
-//  caso extremo, y las ~500 rampas que entran en 5 s la levantan a 5.2 dB
-//  sobre el piso del espectro. Ese punto esta cerca del umbral: con 1 dB
-//  menos los picos empiezan a fallar de a ratos.
+//  RUIDO va de la mano con AMPLITUD en generar_tabla_chirp.py; los dos
+//  comparten el rango de 8 bits del PWM. Dos pares medidos:
+//      AMPLITUD 90 / RUIDO 25  ->  SNR crudo +10.1 dB, pico ~19 dB  (limpio)
+//      AMPLITUD 29 / RUIDO 98  ->  SNR crudo -11.6 dB, pico  5.2 dB (extremo)
+//  Cambiar uno sin el otro descalibra el caso.
 //
 //  Los dos salen del mismo timer, o sea que son coherentes: el flanco cae
 //  exactamente en la muestra 0 del chirp. Eso es lo que no da un generador
@@ -46,7 +47,7 @@
 #include "tabla_chirp.h"
 
 #define PIN_SYNC   2      // PORTD bit 2
-#define RUIDO     98      // amplitud del ruido, en cuentas de PWM. 0 lo apaga.
+#define RUIDO     25      // amplitud del ruido, en cuentas de PWM. 0 lo apaga.
 
 static volatile uint16_t idx = 0;
 
