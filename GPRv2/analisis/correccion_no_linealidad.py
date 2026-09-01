@@ -33,14 +33,12 @@ Dos modos, elegís abajo en MODO:
     "csv"       - lee una captura real de UNA rampa de subida (columnas de
                   muestras del ADC) y aplica la misma corrección.
 
-                  OJO: adquisicion.ino hoy manda la salida ya diezmada a
-                  2000 muestras/s fijas (ver SPS_SALIDA en el .ino), no la
-                  fs real del ADC. Con T_sweep = 50 ms eso da ~100 muestras
-                  por rampa - alcanza para probar que el código corre, pero
-                  no para un perfil de distancia fino. Ese diezmado es para
-                  mirar en el Serial Plotter, no para medir; cuando el
-                  firmware grabe a fs completa (paso 3 del roadmap), este
-                  modo va a dar resolución de verdad.
+                  adquisicion.ino manda la salida ya diezmada a 4000
+                  muestras/s fijas (ver SPS_SALIDA en el .ino), no la fs
+                  real del ADC. Con T_sweep = 10 ms eso da 40 muestras por
+                  rampa, y alcanza: el ancho de bin de la FFT vale c/(2·BW)
+                  cualquiera sea fs, o sea que el diezmado NO cuesta
+                  resolución. Lo que fs fija es el alcance no ambiguo.
 
 Uso
 ---
@@ -61,14 +59,17 @@ MODO = "sintetico"   # "sintetico" | "csv"
 # GPRv2/datos/ (primera columna = canal L, sin encabezado). Si tiene varias
 # ventanas seguidas, acá se analiza solo la primera.
 CSV_ENTRADA = os.path.join("..", "datos", "captura.csv")
-FS_CSV      = 2000.0   # sps de la salida diezmada de adquisicion.ino
+FS_CSV      = 4000.0   # sps de la salida diezmada de adquisicion.ino
 
 # ─── Parámetros de la rampa hacia el VCO ─────────────────────────────────
 # AJUSTAR cuando se mida la salida real del generador de laboratorio: esto
 # asume que V(t) es una rampa lineal genuina de V_MIN a V_MAX en T_SWEEP.
 
 VCO_CSV  = os.path.join("..", "..", "VCO", "Caracteristica VCO.csv")
-T_SWEEP  = 50e-3          # s, rampa de subida (ver GPRv2/CONTEXTO.md)
+# 10 ms es lo que emite el banco de casa (GPRv2/firmware/generador_chirp).
+# Con 50 ms el batido de un blanco a 0,6 m cae en 83 Hz; a 10 ms se va a
+# 416 Hz, bien arriba del corte de 19 Hz del pasabajos post-mezclador.
+T_SWEEP  = 10e-3          # s, rampa de subida (ver GPRv2/CLAUDE.md)
 V_MIN    = 0.0            # V
 V_MAX    = 3.00           # V  -> con la curva medida da BW = 1039 MHz
 

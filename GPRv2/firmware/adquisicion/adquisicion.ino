@@ -10,10 +10,13 @@
 //      fs           informa la fs actual
 //      fs 48000     la cambia (8000 a 96000)
 //
-//  Salida: "L,R,sync" por linea (CSV). L y R en cuentas del ADC (+-8388607);
+//  Salida: "L,sync" por linea (CSV). L en cuentas del ADC (+-8388607);
 //  sync = muestras transcurridas desde el ultimo flanco de subida en GPIO10,
 //  o -1 si todavia no llego ninguno. Se ve como diente de sierra en el
 //  plotter y da la fase dentro de la rampa en cada muestra.
+//
+//  El canal derecho se lee (el PCM1808 obliga a tramas estereo) pero no se
+//  emite: VINR esta al aire y esos bytes son caudal tirado.
 //  Las respuestas a los comandos van con '#' adelante.
 //
 //  COMPILAR con la placa "Nologo ESP32C3 Super Mini", o con "ESP32C3 Dev
@@ -40,7 +43,10 @@
 #define FS_DEF        16000
 #define FS_MIN         8000   // minimo absoluto del PCM1808
 #define FS_MAX        96000   // maximo absoluto del PCM1808
-#define SPS_SALIDA     2000   // muestras/s que salen por serie, con cualquier fs
+// Muestras/s que salen por serie, con cualquier fs. 4000 da Nyquist en
+// 2000 Hz, contra los 1096 Hz del blanco lejano a 10 ms de rampa, y unos
+// 52 kB/s con dos columnas: comodo frente al techo del CDC.
+#define SPS_SALIDA     4000
 #define BLOCK_FRAMES    256
 #define WARMUP_MS       150
 
@@ -51,7 +57,7 @@ static uint32_t g_fs  = FS_DEF;
 static uint32_t g_dec = FS_DEF / SPS_SALIDA;
 static bool     g_run = false;
 
-static int32_t  accL = 0, accR = 0;
+static int32_t  accL = 0;
 static uint32_t accN = 0;
 
 // Microsegundos del ultimo flanco de subida del sync. Se guarda el instante
@@ -122,7 +128,7 @@ static bool i2sArrancar(uint32_t fs) {
 
   g_fs  = fs;
   g_dec = fs / SPS_SALIDA;
-  accL  = accR = 0;
+  accL  = 0;
   accN  = 0;
   return true;
 }
@@ -213,18 +219,16 @@ void loop() {
     // 24 bits alineados al MSB dentro de 32 -> el shift aritmetico da el
     // valor con signo. El acumulador no desborda: dec llega como mucho a 48
     // (fs 96k), y 48 * 2^23 entra holgado en int32.
-    accL += buf[2 * i]     >> 8;
-    accR += buf[2 * i + 1] >> 8;
+    accL += buf[2 * i] >> 8;
     if (++accN < g_dec) continue;
 
     if (g_run) {
       int64_t t_m  = t_bloque - (int64_t)(frames - 1 - i) * 1000000 / g_fs;
       int64_t ref  = (t_m >= t_f) ? t_f : t_a;
       long desde = (ref == 0) ? -1 : (long)(((t_m - ref) * g_fs) / 1000000);
-      Serial.printf("%ld,%ld,%ld\n", (long)(accL / (int32_t)g_dec),
-                                     (long)(accR / (int32_t)g_dec), desde);
+      Serial.printf("%ld,%ld\n", (long)(accL / (int32_t)g_dec), desde);
     }
-    accL = accR = 0;
+    accL = 0;
     accN = 0;
   }
 }

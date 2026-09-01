@@ -16,7 +16,7 @@ OJO: sin sync (paso 1 del roadmap de GPRv2/CONTEXTO.md), las ventanas NO
 están alineadas a rampas reales del generador: son cortes de T_SWEEP
 segundos sobre el stream continuo, y el corte puede caer a mitad de una
 rampa real y mezclar dos. Cada ventana sigue siendo válida en sí misma (el
-blanco está quieto en esos 50 ms); lo que puede fallar es la prolijidad
+blanco está quieto en esos 10 ms); lo que puede fallar es la prolijidad
 del recorte, no la corrección. Con sync esto se arregla solo.
 
 Uso
@@ -35,7 +35,7 @@ from correccion_no_linealidad import (
 )
 
 CSV_ENTRADA = os.path.join("..", "datos", "captura.csv")
-FS_CSV = 2000.0    # sps de la salida diezmada de adquisicion.ino
+FS_CSV = 4000.0    # sps de la salida diezmada de adquisicion.ino
 D_MAX = 5.0        # m, recorte del eje de distancia para el gráfico
 
 
