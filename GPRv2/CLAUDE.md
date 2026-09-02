@@ -6,6 +6,67 @@ sesión trabaje con parámetros viejos.
 `GPRv2/CONTEXTO.md` sigue siendo el documento que manda. Esto es sólo el
 estado actual del banco, que cambia más seguido.
 
+## ⚠️ `T_SWEEP` y `SPS_SALIDA` tienen dos valores en paralelo, no confundirlos
+
+`T_SWEEP` (en `analisis/correccion_no_linealidad.py`) y `SPS_SALIDA`/`FS_DEF`
+(en `firmware/adquisicion/adquisicion.ino`, compartido por los dos bancos)
+sirven a dos bancos distintos que se usan en paralelo:
+
+- **Banco casero de Martin** (`firmware/generador_chirp`, Arduino Uno, sin
+  RF): calibrado a **10 ms**, `SPS_SALIDA` 4000, `FS_DEF` 16000 — ver la
+  sección de abajo, "Estado del banco".
+- **Primeras mediciones reales de laboratorio de Santiago** (VCO, mezclador,
+  antenas de verdad): **20 ms**, `SPS_SALIDA` 6000, `FS_DEF` 48000 -
+  elegido el 2026-09-02. A 10 ms sobra margen frente al corte de 19 Hz del
+  pasabajos post-mezclador pero quedan pocas muestras por rampa para el
+  remuestreo; a 20 ms el acoplamiento directo a 0,15 m sigue 3x arriba del
+  corte (52 Hz) y hay más margen. `SPS_SALIDA` se subió de 4000 a 6000
+  (dec exacto ×8 con `FS_DEF`=48000) porque a 20 ms sobraba presupuesto de
+  ancho de banda: 6000 sps da 120 muestras/rampa a ~78 kB/s, todavía lejos
+  de los ~128 kB/s donde el CDC empieza a desbordar. No es una discrepancia
+  con el punto de abajo: son bancos distintos, midiendo cosas distintas, en
+  paralelo.
+
+**`adquisicion.ino` es el MISMO archivo para los dos bancos** - si alguno de
+los dos necesita sus propios `FS_DEF`/`SPS_SALIDA` para seguir midiendo,
+avisar antes de re-flashear con los valores del otro.
+
+**Antes de tocar estos parámetros**: fijate cuál de los dos bancos se está
+usando esa sesión, y avisá si los cambiás — el otro los necesita en su valor.
+
+## El generador de laboratorio es TRIANGULAR, no diente de sierra - ya manejado
+
+Confirmado (2026-09-02): el generador real usa triangular, no diente de
+sierra como el banco casero de Martin. `extraer_rampas()` en
+`correccion_no_linealidad.py` resuelve el pendiente que Martin había dejado
+anotado ("hay que dar vuelta la bajada en el tiempo antes de aplicarle el
+mismo mapa θ"):
+
+- Mide la distancia real entre reinicios de `sync`, sin asumir si el
+  generador marca una vez por rampa de subida o una vez por ciclo completo.
+- Si la distancia es ~`n` (una subida sola): la usa tal cual.
+- Si es ~`2n` (ciclo completo subida+bajada): usa la subida tal cual Y
+  ADEMÁS la bajada, invertida en el tiempo (`[::-1]`) - el batido de una
+  bajada simétrica leído al revés es igual al de una subida, así que se le
+  puede aplicar el mismo mapa θ. Esto además DUPLICA la cantidad de rampas
+  utilizables por segundo.
+- Cualquier otra distancia (sync perdido o irregular) se descarta y se
+  cuenta aparte.
+
+Validado con dos triangulares sintéticas (sync una vez por rampa, y una vez
+por ciclo completo con bajada invertida): el pico cae en la distancia
+correcta en los dos casos, en las 100% de las rampas de la prueba.
+
+`graficar_captura.py` y `waterfall.py` ya usan `extraer_rampas()` en vez de
+cortar a ciegas. **Lo único que sigue siendo necesario verificar en el
+banco real**: que el reinicio de `sync` efectivamente caiga al PRINCIPIO de
+la subida (no en la bajada ni en un punto arbitrario del ciclo) - mirar el
+panel 1 de `graficar_captura.py` (señal cruda + sync superpuestos) y
+confirmar que el tramo justo después de cada reinicio se ve como un barrido
+limpio ascendente. Si en cambio se ve una bajada ahí, el sync del generador
+está desfasado medio ciclo respecto de lo asumido, y hay que correrlo (ese
+caso puntual todavía no está cubierto).
+
 ## Estado del banco — 2026-09-01
 
 | | Valor | Dónde vive |

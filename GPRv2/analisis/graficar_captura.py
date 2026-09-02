@@ -4,15 +4,22 @@ GPRv2 - Mira una captura: señal cruda y efecto del remuestreo
 
 Dos paneles:
 
-  1. La señal de batido con el sync superpuesto, para ver que el recorte en
-     rampas es el correcto.
-  2. El espectro promediado sobre todas las rampas, con y sin remuestreo,
-     en eje de FRECUENCIA. Sin corregir, cada blanco se desparrama sobre
-     todo el rango de frecuencias instantáneas que barre; corregido, se
-     junta en un tono. Ese es el efecto que se quiere ver.
+  1. La señal de batido con el sync superpuesto, cruda (sin recortar) -
+     para verificar A OJO que el recorte en rampas da bien. El generador de
+     laboratorio es una triangular real: mirá que el tramo justo después de
+     cada reinicio del sync se vea como un barrido limpio ascendente (no
+     una bajada ni algo raro) - si el sync viene una vez por ciclo
+     completo vas a ver también la bajada (que se usa invertida, ver
+     extraer_rampas() en correccion_no_linealidad.py).
+  2. El espectro promediado sobre todas las rampas de subida (incluida la
+     bajada ya invertida, si el generador la entrega), con y sin
+     remuestreo, en eje de FRECUENCIA. Sin corregir, cada blanco se
+     desparrama sobre todo el rango de frecuencias instantáneas que barre;
+     corregido, se junta en un tono. Ese es el efecto que se quiere ver.
 
-El recorte en rampas sale de la tercera columna del CSV (muestras desde el
-último flanco de sync), no de cortar a ciegas cada T_SWEEP.
+El recorte sale de la columna de sync del CSV (muestras desde el último
+flanco), no de cortar a ciegas cada T_SWEEP. No se asume si el sync marca
+una rampa sola o el ciclo completo - extraer_rampas() lo mide y decide.
 
 Uso
 ---
@@ -24,10 +31,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from correccion_no_linealidad import (
-    T_SWEEP, cargar_curva_vco, eje_theta, remuestrear,
+    T_SWEEP, cargar_curva_vco, eje_theta, remuestrear, extraer_rampas,
 )
 
-FS       = 4000.0   # sps de la salida diezmada de adquisicion.ino (SPS_SALIDA)
+FS       = 6000.0   # sps de la salida diezmada de adquisicion.ino (SPS_SALIDA)
 RAMPAS   = 3        # cuántas dibujar en el panel de arriba
 # Recorte del eje del espectro. None = hasta Nyquist, que es lo sano: una
 # constante fija esconde los picos en silencio si despues se acorta la rampa.
@@ -51,31 +58,33 @@ VCO_CSV  = os.path.join(AQUI, "..", "..", "VCO", "Caracteristica VCO.csv")
 def main():
     d = np.loadtxt(CAPTURA, delimiter=",")
     beat, sync = d[:, 0], d[:, 1]   # adquisicion.ino emite L,sync
-
-    # Cada reinicio del contador de sync es el principio de una rampa.
-    ini = np.where(np.diff(sync) < 0)[0] + 1
     n = int(round(T_SWEEP * FS))
-    ini = ini[ini + n <= len(beat)]
 
     # Chequeo de salud, para diagnosticar sin tener que abrir el CSV.
-    largos = np.diff(np.where(np.diff(sync) < 0)[0] + 1)
-    print(f"{len(d)} muestras = {len(d)/FS:.2f} s, {len(ini)} rampas de {n}")
+    ini_bruto = np.where(np.diff(sync) < 0)[0] + 1
+    largos = np.diff(ini_bruto)
+    print(f"{len(d)} muestras = {len(d)/FS:.2f} s, {len(ini_bruto)} reinicios de sync")
     print(f"  nivel L    {beat.std():9.0f} cuentas rms "
           f"({beat.std()/8388608*1500:7.1f} mVrms)   satura: "
           f"{(np.abs(beat) > 8300000).sum()} muestras")
     print(f"  sync       {sync.min():.0f} a {sync.max():.0f}, "
           f"{(sync < 0).sum()} negativos")
-    print(f"  largo rampa {largos.min()} a {largos.max()} "
-          f"(deberian ser todos {n})")
+    if len(largos):
+        print(f"  entre reinicios: {largos.min()} a {largos.max()} muestras "
+              f"({n} = una subida sola, {2*n} = ciclo subida+bajada)")
 
     curva = cargar_curva_vco(VCO_CSV)
     t = np.linspace(0, T_SWEEP, n, endpoint=False)
     _, theta, alpha0 = eje_theta(curva, t)
 
+    rampas, _ = extraer_rampas(beat, sync, n)
+    if not rampas:
+        raise SystemExit("No se encontró ninguna rampa - revisá el sync.")
+
     nfft = RELLENO * n
     sin_c, con_c = [], []
-    for k in ini:
-        v = beat[k:k+n] - beat[k:k+n].mean()
+    for v_cruda in rampas:
+        v = v_cruda - v_cruda.mean()
         freq, esp = espectro(v, FS, nfft)
         th, corr = remuestrear(theta, v, n)
         _, esp_c = espectro(corr, n / (th[-1] - th[0]), nfft)
@@ -88,18 +97,20 @@ def main():
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 7))
 
-    m = ini[0] + RAMPAS * n
-    tt = np.arange(ini[0], m) / FS * 1e3
-    ax1.plot(tt, beat[ini[0]:m], lw=0.9, color="tab:blue", label="batido (L)")
+    inicio = ini_bruto[0] if len(ini_bruto) else 0
+    m = inicio + RAMPAS * n
+    tt = np.arange(inicio, m) / FS * 1e3
+    ax1.plot(tt, beat[inicio:m], lw=0.9, color="tab:blue", label="batido (L)")
     ax1.set_xlabel("t [ms]")
     ax1.set_ylabel("cuentas del ADC", color="tab:blue")
     ax1.tick_params(axis="y", labelcolor="tab:blue")
 
     axs = ax1.twinx()
-    axs.plot(tt, sync[ini[0]:m], lw=1.2, color="tab:red", label="sync")
+    axs.plot(tt, sync[inicio:m], lw=1.2, color="tab:red", label="sync")
     axs.set_ylabel("muestras desde el flanco", color="tab:red")
     axs.tick_params(axis="y", labelcolor="tab:red")
-    ax1.set_title(f"Señal y sync ({RAMPAS} rampas de {T_SWEEP*1e3:.0f} ms)")
+    ax1.set_title(f"Señal y sync cruda ({RAMPAS * T_SWEEP*1e3:.0f} ms - "
+                  f"verificar que arranca en subida)")
 
     ax2.plot(freq, 20*np.log10(E1/ref + 1e-12), lw=1.2,
              label="sin remuestreo", color="tab:orange")
@@ -109,7 +120,7 @@ def main():
     ax2.set_ylim(-40, 5)
     ax2.set_xlabel("Frecuencia de batido [Hz]")
     ax2.set_ylabel("dB rel. al pico corregido")
-    ax2.set_title(f"Espectro promediado sobre {len(ini)} rampas")
+    ax2.set_title(f"Espectro promediado sobre {len(rampas)} rampas")
     ax2.grid(alpha=0.3)
     ax2.legend()
 

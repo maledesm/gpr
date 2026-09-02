@@ -40,13 +40,17 @@
 #define PIN_DIN   7
 #define PIN_SYNC 10   // <- sync del generador, por divisor 10k/15k (3.00 V)
 
-#define FS_DEF        16000
+#define FS_DEF        48000   // uno de los "exactos" del PLL (16/32/48 kHz)
 #define FS_MIN         8000   // minimo absoluto del PCM1808
 #define FS_MAX        96000   // maximo absoluto del PCM1808
-// Muestras/s que salen por serie, con cualquier fs. 4000 da Nyquist en
-// 2000 Hz, contra los 1096 Hz del blanco lejano a 10 ms de rampa, y unos
-// 52 kB/s con dos columnas: comodo frente al techo del CDC.
-#define SPS_SALIDA     4000
+// Muestras/s que salen por serie, con cualquier fs. Elegido para las
+// mediciones reales de laboratorio con rampa de 20 ms (ver GPRv2/CLAUDE.md):
+// 6000 da Nyquist en 3000 Hz (el blanco a 5 m da 1732 Hz, con margen), 120
+// muestras por rampa, y ~78 kB/s con dos columnas - comodo frente al techo
+// de ~100 kB/s del CDC y lejos de los ~128 kB/s donde ya empieza a desbordar.
+// Tiene que dividir a FS_DEF exacto (48000/6000=8) o "dec" trunca y la
+// salida real no coincide con este numero.
+#define SPS_SALIDA     6000
 #define BLOCK_FRAMES    256
 #define WARMUP_MS       150
 

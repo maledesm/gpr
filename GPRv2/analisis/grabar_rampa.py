@@ -3,22 +3,17 @@ GPRv2 - Graba muestras por serie a CSV
 ========================================
 
 Abre el puerto del ESP32-C3 (adquisicion.ino), manda 'run', graba
-DURACION_S segundos de muestras "L,R" y las guarda en GPRv2/datos/,
-listas para correccion_no_linealidad.py (una sola ventana) o
-waterfall.py (varias ventanas seguidas) - ambos toman la primera
-columna, L.
+DURACION_S segundos de muestras "L,sync" y las guarda en GPRv2/datos/,
+listas para correccion_no_linealidad.py, graficar_captura.py o
+waterfall.py.
 
-DURACION_S por default alcanza para varias ventanas de T_SWEEP: sirve
-tanto para una prueba rapida (correccion_no_linealidad.py igual solo usa
-la primera ventana) como para grabar un rato moviendo un blanco a mano y
-mirar el resultado en waterfall.py.
+DURACION_S por default alcanza para varias rampas: sirve tanto para una
+prueba rapida como para grabar un rato moviendo un blanco a mano y mirar
+el resultado en waterfall.py.
 
-OJO: adquisicion.ino todavia no lee el sync del generador (paso 1 del
-roadmap en GPRv2/CONTEXTO.md), asi que esto graba tiempo continuo
-cualquiera, no rampas de subida alineadas una por una. Cada ventana de
-T_SWEEP sigue siendo valida en si misma (el blanco esta quieto en esos
-50 ms), pero el corte entre ventanas puede caer a mitad de una rampa real
-y mezclar dos. Con sync esto se prolija solo.
+adquisicion.ino ya lee el sync del generador (columna 'sync' del CSV:
+muestras desde el ultimo flanco) - graficar_captura.py y waterfall.py
+cortan por ahi, no a ciegas cada T_SWEEP.
 
 Uso
 ---
@@ -34,7 +29,6 @@ from serial.tools import list_ports
 PUERTO = "auto"      # "auto" o algo como "COM5"
 BAUD = 115200
 
-T_SWEEP = 50e-3       # tiene que coincidir con T_SWEEP de correccion_no_linealidad.py
 DURACION_S = 5.0      # cuanto grabar en total (da tiempo a mover un blanco a mano)
 MARGEN_S = 0.3        # de mas, para no perder el principio por el warm-up del puerto
 

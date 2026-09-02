@@ -30,12 +30,15 @@ Dos modos, elegís abajo en MODO:
                   sin corrección. No necesita hardware: valida que el
                   remuestreo funciona contra blancos de distancia conocida.
 
-    "csv"       - lee una captura real de UNA rampa de subida (columnas de
-                  muestras del ADC) y aplica la misma corrección.
+    "csv"       - lee una captura real y corrige la primera rampa de subida
+                  que encuentra usando la columna de sync (ver
+                  extraer_rampas() más abajo - el generador de laboratorio
+                  es una triangular real, y la bajada se invierte antes de
+                  poder usarla, si aparece).
 
-                  adquisicion.ino manda la salida ya diezmada a 4000
+                  adquisicion.ino manda la salida ya diezmada a 6000
                   muestras/s fijas (ver SPS_SALIDA en el .ino), no la fs
-                  real del ADC. Con T_sweep = 10 ms eso da 40 muestras por
+                  real del ADC. Con T_sweep = 20 ms eso da 120 muestras por
                   rampa, y alcanza: el ancho de bin de la FFT vale c/(2·BW)
                   cualquiera sea fs, o sea que el diezmado NO cuesta
                   resolución. Lo que fs fija es el alcance no ambiguo.
@@ -56,20 +59,24 @@ import matplotlib.pyplot as plt
 MODO = "sintetico"   # "sintetico" | "csv"
 
 # Solo se usa si MODO == "csv": el CSV que graba grabar_rampa.py en
-# GPRv2/datos/ (primera columna = canal L, sin encabezado). Si tiene varias
-# ventanas seguidas, acá se analiza solo la primera.
+# GPRv2/datos/ ("L,sync", sin encabezado). Si tiene varias rampas seguidas,
+# acá se analiza solo la primera (ver extraer_rampas()).
 CSV_ENTRADA = os.path.join("..", "datos", "captura.csv")
-FS_CSV      = 4000.0   # sps de la salida diezmada de adquisicion.ino
+FS_CSV      = 6000.0   # sps de la salida diezmada de adquisicion.ino
 
 # ─── Parámetros de la rampa hacia el VCO ─────────────────────────────────
 # AJUSTAR cuando se mida la salida real del generador de laboratorio: esto
 # asume que V(t) es una rampa lineal genuina de V_MIN a V_MAX en T_SWEEP.
 
 VCO_CSV  = os.path.join("..", "..", "VCO", "Caracteristica VCO.csv")
-# 10 ms es lo que emite el banco de casa (GPRv2/firmware/generador_chirp).
-# Con 50 ms el batido de un blanco a 0,6 m cae en 83 Hz; a 10 ms se va a
-# 416 Hz, bien arriba del corte de 19 Hz del pasabajos post-mezclador.
-T_SWEEP  = 10e-3          # s, rampa de subida (ver GPRv2/CLAUDE.md)
+# 20 ms: punto medio elegido para las primeras mediciones reales de
+# laboratorio (no es lo que emite el banco casero de Martin, que sigue en
+# 10 ms - ver GPRv2/CLAUDE.md). Con 50 ms el acoplamiento directo TX->RX a
+# 0,15 m da 20,8 Hz, pegado al corte de 19 Hz del pasabajos post-mezclador;
+# con 10 ms sobra margen pero quedan la mitad de muestras por rampa para el
+# remuestreo. A 20 ms el mismo acoplamiento da 52 Hz (3x el corte, comodo) y
+# hay el doble de muestras que a 10 ms para la misma FS_CSV.
+T_SWEEP  = 20e-3          # s, rampa de subida (ver GPRv2/CLAUDE.md)
 V_MIN    = 0.0            # V
 V_MAX    = 3.00           # V  -> con la curva medida da BW = 1039 MHz
 
@@ -127,6 +134,51 @@ def perfil_distancia(señal, fs, alpha0):
     return rango, espectro
 
 
+def extraer_rampas(beat, sync, n, tol=0.1):
+    """
+    Devuelve (rampas, indices): cada rampa es un array de largo n, ya
+    orientada como una SUBIDA (la bajada de una triangular llega invertida
+    en el tiempo, lista para aplicarle el mismo mapa theta que a una
+    subida). 'indices' es la muestra donde empieza cada una, para poder
+    ubicarlas en el tiempo real de la captura.
+
+    El generador de laboratorio es una triangular real (CONTEXTO.md §2), y
+    no se sabe de antemano si el sync marca el principio de cada rampa de
+    subida (una vez por rampa) o el principio de cada ciclo completo
+    subida+bajada (una vez cada dos rampas) - depende del generador
+    concreto y hay que verlo en el osciloscopio para saber cual es. Esta
+    función no asume ninguna de las dos: mide la distancia real entre
+    reinicios de 'sync' y decide segmento por segmento.
+      - distancia ~= n       -> una sola subida entre reinicios (se usa tal cual).
+      - distancia ~= 2*n     -> ciclo completo: la primera mitad es la
+                                subida (se usa tal cual) y la segunda es la
+                                bajada (se invierte con [::-1] antes de
+                                usarla - el batido de una bajada simétrica,
+                                leído al revés, es igual al de una subida).
+      - cualquier otro valor -> se descarta (sync irregular o perdido).
+    """
+    ini = np.where(np.diff(sync) < 0)[0] + 1
+    rampas, indices = [], []
+    un_lado = ciclo = descartadas = 0
+    for k, i in enumerate(ini):
+        siguiente = ini[k + 1] if k + 1 < len(ini) else len(beat)
+        gap = siguiente - i
+        if i + n > len(beat):
+            continue
+        if abs(gap - n) <= tol * n:
+            rampas.append(beat[i:i + n]); indices.append(i)
+            un_lado += 1
+        elif abs(gap - 2 * n) <= tol * n and i + 2 * n <= len(beat):
+            rampas.append(beat[i:i + n]); indices.append(i)
+            rampas.append(beat[i + n:i + 2 * n][::-1]); indices.append(i + n)
+            ciclo += 1
+        else:
+            descartadas += 1
+    print(f"  rampas: {un_lado} de subida sola, {ciclo} ciclos completos "
+          f"(subida+bajada invertida), {descartadas} descartadas por sync irregular")
+    return rampas, indices
+
+
 # ─── Modo sintético ───────────────────────────────────────────────────────
 
 def generar_beat_sintetico(curva_vco, t):
@@ -177,15 +229,18 @@ def correr_sintetico():
 
 def correr_csv():
     curva_vco = cargar_curva_vco(VCO_CSV)
-    crudo = pd.read_csv(CSV_ENTRADA, header=None).iloc[:, 0].to_numpy(dtype=float)
-    # El archivo puede tener varias ventanas seguidas (grabar_rampa.py con
-    # DURACION_S largo, para waterfall.py) - acá se analiza solo la primera.
+    d = pd.read_csv(CSV_ENTRADA, header=None).to_numpy(dtype=float)
+    beat_completo, sync = d[:, 0], d[:, 1]   # adquisicion.ino emite L,sync
     n = int(round(T_SWEEP * FS_CSV))
-    beat = crudo[:n]
     t = np.linspace(0, T_SWEEP, n, endpoint=False)
 
     f_t, theta, alpha0 = eje_theta(curva_vco, t)
-    print(f"Muestras leídas: {n}  (fs={FS_CSV} sps, T_sweep={T_SWEEP*1e3:.0f} ms)")
+    print(f"Muestras leídas: {len(beat_completo)}  (fs={FS_CSV} sps, T_sweep={T_SWEEP*1e3:.0f} ms, n={n})")
+
+    rampas, _ = extraer_rampas(beat_completo, sync, n)
+    if not rampas:
+        raise SystemExit("No se encontró ninguna rampa completa - revisá que el sync esté conectado.")
+    beat = rampas[0]
 
     rango_sin, esp_sin = perfil_distancia(beat, FS_CSV, alpha0)
 
