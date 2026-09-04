@@ -86,13 +86,47 @@ un hilo vacía el puerto y escribe `datos/captura.csv` y
 200 ms. Lo que se ve en vivo queda grabado, así que se puede volver a
 analizar después con los scripts de siempre.
 
-Cinco sliders: **rampas/col**, **ventana [s]**, **alcance [m]**, **piso** y
-**techo** en dB. Los tres primeros se mueven mientras corre y reagrupan TODO
-lo que hay en pantalla, no sólo lo que venga de ahí en más, porque se guardan
-los perfiles de a UNA rampa y el agrupado se rehace en cada refresco. Manda
-la ventana: la cantidad de columnas sale de ella y de rampas/col. Teclas: `e`
-alterna el eje y entre metros y Hz (el slider de alcance sigue en metros y se
-convierte solo), `a` autoescala el color, `+`/`-` ajustan rampas/col.
+La ventana tiene tres partes: los controles **todos a la izquierda**, en
+cuadros de texto (Enter para aplicar); arriba el radargrama **vertical**
+(distancia en x, tiempo en y, la fila más nueva abajo de todo); y abajo la
+**FFT de esa última fila**, compartiendo el eje x con el radargrama.
+
+Cuadros: `rampas/col`, `ventana [s]`, `alcance [m]`, `piso`/`techo` [dB],
+`ignorar < [m]` y `dist. real [m]`. Botones: `tomar punto`, `calibrar`,
+`borrar cal`. Teclas: `e` alterna el eje x entre metros y Hz (el alcance se
+tipea siempre en metros y se convierte solo), `a` autoescala el color.
+
+Los controles reagrupan TODO lo que hay en pantalla, no sólo lo que venga de
+ahí en más, porque se guardan los perfiles de a UNA rampa y el agrupado se
+rehace en cada refresco. Manda la ventana: la cantidad de filas sale de ella
+y de rampas/col.
+
+**El buffer de perfiles guarda el doble de lo que pide la ventana más larga.**
+Antes tiraba la mitad al llenarse, y con una ventana grande la pantalla
+colapsaba a la mitad del tiempo pedido y volvía a crecer, en ciclo, cada vez
+que se llenaba — se veía como que el radargrama "se reinicia mucho". Ahora al
+llenarse descarta sólo el excedente y siempre quedan `necesarios` perfiles, o
+sea una ventana máxima entera. Medido: 120 s pedidos dan 119,8 s constantes a
+lo largo de 2,5 vueltas de buffer.
+
+## La distancia del eje NO es de fiar sin calibrar
+
+Medido en el banco (2026-09-04): una placa a **1 m** aparecía en **4 m**.
+El eje crudo sale de `alpha0 = BW/T` con la BW nominal de la curva del VCO, y
+en el banco real no da.
+
+`vivo.py` calibra con dos blancos de distancia conocida y ajusta
+`d_real = a·d_crudo + b` (`a` corrige la pendiente, o sea la BW efectiva; `b`
+el retardo fijo de cables y electrónica). Queda en
+`datos/calibracion_distancia.json` y se carga sola.
+
+**Ojo con lo que la calibración tapa.** Un factor de 1,1 o 1,2 es retardo y
+tolerancias. Un factor de **4 no**: quiere decir que la BW efectiva del
+barrido es cuatro veces la nominal (implausible para este VCO), o que el
+tramo que se está tomando como rampa no es la rampa entera. La calibración lo
+hace *ver* bien igual, así que `_calibrar()` imprime la BW efectiva implicada
+y avisa si la pendiente se va lejos de 1. **Eso hay que perseguirlo en el
+hardware, no taparlo con el ajuste.**
 
 **El timer tiene que terminar en `draw_idle()`.** Mutar los artistas
 (`set_data`, `set_title`) no repinta por sí solo: sin esa llamada la pantalla

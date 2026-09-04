@@ -2,73 +2,88 @@
 GPRv2 - Radargrama en tiempo real
 ===================================
 
-Abre el puerto del ESP32-C3, manda 'run' y va dibujando el radargrama
-mientras las muestras llegan: distancia en y, tiempo en x, potencia en
-color. Es waterfall.py, pero sin tener que grabar primero y analizar
-despues. Sirve para apuntar la antena, mover un blanco a mano y ver la
-traza desplazarse, y para darse cuenta EN EL MOMENTO de que el nivel esta
-mal o de que el recorte de rampas se perdio.
+Abre el puerto del ESP32-C3, manda 'run' y va dibujando mientras las muestras
+llegan. Es waterfall.py sin tener que grabar primero y analizar despues.
 
-Todo lo que se muestra se graba igual a datos/captura.csv y
-datos/triangular.csv, asi que cualquier cosa que se vea en vivo se puede
-volver a analizar despues con waterfall.py o graficar_captura.py.
-OJO: sobrescribe la captura anterior, igual que grabar_rampa.py.
+La ventana tiene tres partes:
+
+    izquierda   todas las configuraciones, en cuadros de texto. Se tipea el
+                valor y se aprieta Enter.
+    arriba      el radargrama, que corre VERTICAL: distancia en x, tiempo en
+                y, la fila mas nueva abajo de todo y las viejas subiendo.
+    abajo       la FFT de la ultima fila del radargrama, con el mismo eje x,
+                para leer el perfil actual con numeros en vez de color.
+
+Todo lo que se muestra se graba a datos/captura.csv y datos/triangular.csv,
+asi que se puede volver a analizar despues con waterfall.py o
+graficar_captura.py. OJO: sobrescribe la captura anterior.
+
+Calibracion del eje de distancia
+--------------------------------
+El eje crudo sale de alpha0 = BW/T con la BW de la curva del VCO, y en el
+banco real no da: una placa a 1 m puede aparecer en 4 m. Por eso el eje se
+calibra con blancos de distancia conocida, con dos puntos:
+
+    1. poner la placa a una distancia, tipearla en "dist. real [m]",
+       apretar "tomar punto"
+    2. moverla a otra distancia bien distinta, repetir
+    3. apretar "calibrar"
+
+Eso ajusta d_real = a*d_crudo + b por minimos cuadrados: 'a' corrige la
+pendiente (o sea la BW efectiva, que evidentemente no es la nominal) y 'b'
+el retardo fijo de cables y electronica. Queda guardado en
+datos/calibracion_distancia.json y se carga solo la proxima vez.
+
+OJO CON LO QUE LA CALIBRACION TAPA. Un factor de escala de 1,1 o 1,2 es
+retardo y tolerancias. Un factor de 4 NO: quiere decir que la BW efectiva
+del barrido es cuatro veces la nominal, o que el tramo que se esta tratando
+como una rampa no es la rampa entera. La calibracion lo hace ver bien igual,
+asi que conviene mirar el numero de "BW efectiva" que imprime al calibrar y
+desconfiar si esta lejos de los 1039 MHz de la curva del VCO.
 
 Controles
 ---------
-    slider "rampas/col"      cuantas rampas se promedian en cada columna
-                             del radargrama. Mas rampas = menos ruido y
-                             menos resolucion temporal.
-    slider "ventana [s]"     cuantos segundos de historia se muestran. Es la
-                             ventana la que manda: la cantidad de columnas
-                             sale de ella y de rampas/col.
-    slider "alcance [m]"     tope del eje y. En modo Hz se convierte sola,
-                             asi la posicion del slider dice lo mismo en los
-                             dos modos.
-    sliders "piso" y "techo" limites de la escala de color, en dB respecto
-                             del pico de lo que se esta viendo.
-    +  /  -                  ajuste fino de rampas/col
-    e                        alterna el eje y entre distancia [m] y
-                             frecuencia de batido [Hz]
-    a                        autoescala el color a lo que hay en pantalla
-    q                        salir
-
-Los tres primeros sliders se pueden mover mientras corre y reagrupan TODO lo
-que hay en pantalla, no solo lo que venga de ahi en mas: se guardan los
-perfiles de a una rampa y el agrupado se rehace en cada refresco.
+    cuadros de texto (izquierda), Enter para aplicar:
+        rampas/col     cuantas rampas se promedian en cada fila
+        ventana [s]    cuanto tiempo se muestra
+        alcance [m]    tope del eje de distancia
+        piso / techo   escala de color, en dB respecto del pico en pantalla
+        ignorar < [m]  desde donde busca el pico para calibrar (el
+                       acoplamiento directo TX->RX vive cerca de cero y se
+                       lleva puesto cualquier argmax)
+        dist. real [m] la distancia verdadera del blanco, para calibrar
+    botones:  tomar punto | calibrar | borrar cal
+    e         alterna el eje entre distancia [m] y frecuencia de batido [Hz]
+    a         autoescala el color a lo que hay en pantalla
+    q         salir
 
 Como se sincroniza sin sync
 ---------------------------
-Igual que graficar_captura.py: los limites de rampa salen de la triangular
-que el ESP32 muestrea por GPIO3 (ver ajustar_triangular()). La diferencia es
-que aca el ajuste se REHACE cada REAJUSTE_S segundos sobre los ultimos
-VENTANA_AJUSTE_S de triangular.
+Los limites de rampa salen de la triangular que el ESP32 muestrea por GPIO3
+(ver ajustar_triangular()), y el ajuste se REHACE cada REAJUSTE_S segundos
+sobre los ultimos VENTANA_AJUSTE_S de triangular.
 
-Hace falta porque el error del ajuste se ACUMULA hacia adelante. Que el
-reloj del generador y el del ESP32 no sean el mismo no es el problema: una
+Hace falta porque el error del ajuste se ACUMULA hacia adelante. Que el reloj
+del generador y el del ESP32 no sean el mismo no es el problema: una
 diferencia constante de reloj hace que el C3 vea un periodo constante y
 distinto del nominal, y el ajuste lo mide igual de bien. El problema es que
 ese periodo medido tiene un error residual, y cada rampa se ubica
-multiplicando el periodo por su indice: el error crece lineal con el tiempo
-desde el ajuste.
+multiplicando el periodo por su indice: el error crece lineal con el tiempo.
 
-Medido sobre un stream sintetico con 200 ppm de deriva de reloj, comparando
-contra los vertices verdaderos:
+Medido sobre un stream sintetico con 200 ppm de deriva de reloj:
 
     con reajuste cada 2 s     9 us de error  = 0,05 % de la rampa
     sin reajuste, a los 60 s  1095 us        = 5,40 % de la rampa
 
-o sea que sin reajuste se degrada sola, y a los 10 minutos ya no serviria.
-Con reajuste el error no crece: se vuelve a anclar antes de que importe.
-
-Esto anda con sync o sin sync: las lineas '#v,...' de la triangular salen
-siempre. La columna de sync del CSV se graba pero no se usa aca.
+Esto anda con sync o sin sync: las lineas '#v,...' salen siempre. La columna
+de sync del CSV se graba pero no se usa aca.
 
 Uso
 ---
     python vivo.py
 """
 
+import json
 import os
 import re
 import threading
@@ -76,13 +91,13 @@ import time
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
+from matplotlib.widgets import Button, TextBox
 
 import serial
 from serial.tools import list_ports
 
 from correccion_no_linealidad import (
-    T_SWEEP, C, cargar_curva_vco, eje_theta, remuestrear,
+    T_SWEEP, C, V_MIN, V_MAX, cargar_curva_vco, eje_theta, remuestrear,
     ajustar_triangular, fs_theta,
 )
 
@@ -97,25 +112,26 @@ VENTANA_AJUSTE_S = 5.0    # cuanta triangular entra en cada reajuste
 REAJUSTE_S       = 2.0    # cada cuanto se rehace el ajuste de periodo y fase
 REFRESCO_MS      = 200    # cada cuanto se redibuja
 
-N_DEFECTO = 8        # rampas promediadas por columna al arrancar
+N_DEFECTO = 8        # rampas promediadas por fila al arrancar
 N_MAX     = 64
 # Relleno de ceros de la FFT de cada rampa. NO agrega resolucion: el ancho de
-# bin real vale c/(2*BW) = 14,4 cm y eso no lo cambia nada (ver GPRv2/
-# CLAUDE.md). Lo que hace es interpolar, y sin el la rampa de 120 muestras da
-# 61 bins para todo el eje - el radargrama sale en bandas gruesas y no se ve
-# la forma de los picos. Es el mismo RELLENO de graficar_captura.py.
+# bin real vale c/(2*BW) = 14,4 cm y eso solo lo cambia mas ancho de banda
+# (ver GPRv2/CLAUDE.md). Lo que hace es interpolar, y sin el la rampa de 120
+# muestras da 61 bins para todo el eje y sale en bandas gruesas.
 RELLENO   = 8
 VENTANA_DEF = 20.0   # s de historia que se muestran
 VENTANA_MAX = 120.0
 ALCANCE_DEF = 5.0    # m, tope del eje de distancia
-ALCANCE_MAX = 10.0
+IGNORAR_DEF = 0.3    # m, desde donde se busca el pico para calibrar
 PISO_DEF  = -40.0    # dB respecto del pico en pantalla
 TECHO_DEF = 0.0
+PROMEDIO_CAL_S = 2.0  # cuanto se promedia para tomar un punto de calibracion
 
 AQUI    = os.path.dirname(os.path.abspath(__file__))
 DATOS   = os.path.join(AQUI, "..", "datos")
 SALIDA  = os.path.join(DATOS, "captura.csv")
 SAL_TRI = os.path.join(DATOS, "triangular.csv")
+CAL_JSON = os.path.join(DATOS, "calibracion_distancia.json")
 VCO_CSV = os.path.join(AQUI, "..", "..", "VCO", "Caracteristica VCO.csv")
 
 # Las lineas cortadas por la mitad son normales (la primera del stream siempre,
@@ -241,13 +257,73 @@ def abrir_puerto():
     return ser
 
 
+# --- Calibracion del eje de distancia --------------------------------------
+
+class Calibracion:
+    """
+    Mapa afin d_real = a*d_crudo + b, ajustado con blancos de distancia
+    conocida. 'a' corrige la pendiente (la BW efectiva del barrido no es la
+    nominal) y 'b' el retardo fijo de cables y electronica.
+
+    Con dos puntos la recta pasa exacta por los dos; con mas, minimos
+    cuadrados. Se guarda en JSON para no tener que rehacerla cada vez.
+    """
+
+    def __init__(self):
+        self.a, self.b = 1.0, 0.0
+        self.puntos = []          # [(d_crudo, d_real), ...]
+
+    @property
+    def activa(self):
+        return self.a != 1.0 or self.b != 0.0
+
+    def aplicar(self, d):
+        return self.a * np.asarray(d) + self.b
+
+    def ajustar(self):
+        """Devuelve un texto con el resultado, o el motivo de no poder."""
+        if len(self.puntos) < 2:
+            return "faltan puntos (hacen falta 2)"
+        crudo = np.array([p[0] for p in self.puntos])
+        real = np.array([p[1] for p in self.puntos])
+        if np.ptp(crudo) < 1e-6:
+            return "los puntos estan a la misma distancia cruda"
+        self.a, self.b = np.polyfit(crudo, real, 1)
+        return f"a={self.a:.4f}  b={self.b:+.3f} m"
+
+    def borrar(self):
+        self.a, self.b = 1.0, 0.0
+        self.puntos = []
+
+    def guardar(self, path):
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({"a": self.a, "b": self.b, "puntos": self.puntos,
+                           "fecha": time.strftime("%Y-%m-%d %H:%M:%S")}, f,
+                          indent=2)
+        except OSError as e:
+            print(f"  [!] no pude guardar la calibracion: {e}")
+
+    def cargar(self, path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+            self.a = float(d["a"])
+            self.b = float(d["b"])
+            self.puntos = [tuple(p) for p in d.get("puntos", [])]
+            return d.get("fecha", "?")
+        except (OSError, ValueError, KeyError):
+            return None
+
+
 # --- El radargrama ---------------------------------------------------------
 
 class Vivo:
 
-    def __init__(self, lector, curva):
+    def __init__(self, lector, curva, cal=None):
         self.lec = lector
         self.curva = curva
+        self.cal = cal if cal is not None else Calibracion()
 
         # Cola de muestras de batido todavia sin trocear en rampas. 'base' es
         # el indice absoluto de beat[0]: se va tirando lo ya consumido para
@@ -265,17 +341,19 @@ class Vivo:
         # Los perfiles van a un buffer numpy preasignado y no a una lista: con
         # relleno x8 cada perfil son ~500 numeros y la ventana puede pedir
         # miles, asi que armar un array nuevo en cada refresco seria copiar
-        # decenas de MB cinco veces por segundo. Aca el agrupado trabaja sobre
-        # una vista.
+        # decenas de MB cinco veces por segundo.
         self.P = self.tp = None
         self.n_perf = 0
-        self.cap = 0
+        self.cap = self.necesarios = 0
 
         self.n_rampas = N_DEFECTO
         self.ventana = VENTANA_DEF
         self.alcance = ALCANCE_DEF
+        self.ignorar = IGNORAR_DEF
         self.en_metros = True
         self.piso, self.techo = PISO_DEF, TECHO_DEF
+        self.dist_real = 1.0
+        self.aviso = ""
 
     # --- datos ---
 
@@ -332,30 +410,39 @@ class Vivo:
     def _armar_ejes(self):
         n = self.n
         t = np.linspace(0, n / FS, n, endpoint=False)
-        _, self.theta, alpha0 = eje_theta(self.curva, t)
+        _, self.theta, self.alpha0 = eje_theta(self.curva, t)
         self.fs_th = fs_theta(self.theta, n)
         self.nfft = RELLENO * n
         self.ventana_fft = np.hanning(n)
         freqs = np.fft.rfftfreq(self.nfft, d=1.0 / self.fs_th)
         self.eje_hz = freqs
-        self.eje_m = freqs * C / (2.0 * alpha0)
-        # Capacidad del buffer de perfiles: lo que entra en la ventana mas
-        # larga que el slider puede pedir, con margen.
-        self.cap = int(VENTANA_MAX * 2 / self.T) + 200
+        self.eje_m_crudo = freqs * C / (2.0 * self.alpha0)
+
+        # Capacidad: el doble de lo que pide la ventana mas larga. Al llenarse
+        # se descarta SOLO el excedente y quedan 'necesarios' perfiles, o sea
+        # una ventana maxima entera. Antes se tiraba la mitad del buffer, y
+        # con una ventana grande la pantalla colapsaba y volvia a crecer en
+        # ciclo cada vez que se llenaba.
+        self.necesarios = int(VENTANA_MAX * 2 / self.T) + 10
+        self.cap = 2 * self.necesarios
         self.P = self.tp = None
         self.n_perf = 0
 
+    @property
+    def eje_m(self):
+        """Eje de distancia ya calibrado."""
+        return self.cal.aplicar(self.eje_m_crudo)
+
     def _guardar_perfil(self, esp, t):
         if self.P is None:
-            self.P = np.empty((self.cap, len(esp)))
+            # float32: son magnitudes para dibujar, no hace falta doble
+            # precision, y a 500 numeros por perfil la mitad de memoria se nota.
+            self.P = np.empty((self.cap, len(esp)), dtype=np.float32)
             self.tp = np.empty(self.cap)
         if self.n_perf == self.cap:
-            # Se compacta a la mitad de una, no fila por fila: una copia cada
-            # cap/2 perfiles en vez de una por perfil.
-            mitad = self.cap // 2
-            self.P[:mitad] = self.P[mitad:]
-            self.tp[:mitad] = self.tp[mitad:]
-            self.n_perf = mitad
+            self.P[:self.necesarios] = self.P[self.cap - self.necesarios:]
+            self.tp[:self.necesarios] = self.tp[self.cap - self.necesarios:]
+            self.n_perf = self.necesarios
         self.P[self.n_perf] = esp
         self.tp[self.n_perf] = t
         self.n_perf += 1
@@ -377,8 +464,7 @@ class Vivo:
             seg = seg - seg.mean()
             _, corr = remuestrear(self.theta, seg, self.n)
             # FFT propia y no perfil_distancia(), por el relleno de ceros: esa
-            # no rellena y con 120 muestras por rampa deja 61 bins para todo
-            # el eje. Los ejes en m y en Hz ya estan armados en _armar_ejes().
+            # no rellena y con 120 muestras por rampa deja 61 bins.
             esp = np.abs(np.fft.rfft(corr * self.ventana_fft, n=self.nfft))
             self._guardar_perfil(esp, fin / FS)
 
@@ -391,118 +477,234 @@ class Vivo:
             self.base += corte
 
     def matriz(self):
-        """Agrupa los perfiles de a n_rampas y devuelve (matriz_db, t0, t1).
+        """Agrupa los perfiles de a n_rampas.
 
-        El agrupado se rehace entero en cada refresco a partir de los perfiles
-        de a UNA rampa, asi mover el slider de rampas/columna o el de ventana
-        reagrupa todo lo que hay en pantalla en vez de valer solo de ahi en
-        mas.
+        Devuelve (db, span) con db de forma (filas, bins), la fila 0 la mas
+        VIEJA y la ultima la mas nueva, y span los segundos que abarca. El
+        agrupado se rehace entero en cada refresco a partir de los perfiles de
+        a UNA rampa, asi cambiar rampas/col o la ventana reagrupa todo lo que
+        hay en pantalla y no solo lo que venga de ahi en mas.
         """
-        # Se puede llamar antes de la calibracion (la tecla 'a', por ejemplo),
-        # y ahi todavia no hay ni periodo ni perfiles.
+        # Se puede llamar antes de la calibracion de la triangular (el boton
+        # de tomar punto, por ejemplo), y ahi no hay ni periodo ni perfiles.
         if self.T is None or not self.n_perf:
-            return None, 0, 0
+            return None, 0.0
         N = self.n_rampas
-        # Cuantos perfiles entran en la ventana pedida. Es la ventana la que
-        # manda: el numero de columnas sale de ella y de N, no al reves.
         caben = min(self.n_perf, int(round(self.ventana / (self.T / 2))))
-        cols = caben // N
-        if cols < 1:
-            return None, 0, 0
-        usadas = cols * N
+        filas = caben // N
+        if filas < 1:
+            return None, 0.0
+        usadas = filas * N
         P = self.P[self.n_perf - usadas:self.n_perf]        # vista, no copia
-        M = P.reshape(cols, N, P.shape[1]).mean(axis=1).T   # filas = rango
+        M = P.reshape(filas, N, P.shape[1]).mean(axis=1)
         db = 20 * np.log10(M / (M.max() + 1e-12) + 1e-12)
-        return db, self.tp[self.n_perf - usadas], self.tp[self.n_perf - 1]
+        return db, self.tp[self.n_perf - 1] - self.tp[self.n_perf - usadas]
+
+    def perfil_actual(self):
+        """Promedio de los ultimos PROMEDIO_CAL_S, para tomar puntos."""
+        if self.T is None or not self.n_perf:
+            return None
+        cuantos = max(1, min(self.n_perf,
+                             int(round(PROMEDIO_CAL_S / (self.T / 2)))))
+        return self.P[self.n_perf - cuantos:self.n_perf].mean(axis=0)
+
+    def pico_crudo(self):
+        """Distancia CRUDA del pico mas fuerte, salteando el acoplamiento.
+
+        Se saltea todo lo que este debajo de 'ignorar': el acoplamiento
+        directo TX->RX vive cerca de cero, es lo mas fuerte de la pantalla y
+        se lleva puesto cualquier argmax.
+        """
+        perfil = self.perfil_actual()
+        if perfil is None:
+            return None
+        # El umbral se tipea en el eje que se esta viendo (calibrado), asi que
+        # se convierte a crudo antes de comparar.
+        umbral = (self.ignorar - self.cal.b) / self.cal.a
+        sel = self.eje_m_crudo >= umbral
+        if not sel.any():
+            return None
+        i = np.argmax(np.where(sel, perfil, -np.inf))
+        return float(self.eje_m_crudo[i])
 
     # --- grafico ---
 
     def armar_figura(self):
-        self.fig, self.ax = plt.subplots(figsize=(11, 7))
-        self.fig.subplots_adjust(bottom=0.26, top=0.93)
-        self.im = self.ax.imshow(np.zeros((2, 2)), origin="lower",
+        self.fig = plt.figure(figsize=(12, 8))
+        self.ax = self.fig.add_axes([0.30, 0.40, 0.58, 0.52])    # radargrama
+        self.axf = self.fig.add_axes([0.30, 0.08, 0.58, 0.24],   # FFT
+                                     sharex=self.ax)
+        self.axc = self.fig.add_axes([0.90, 0.40, 0.015, 0.52])  # colorbar
+
+        self.im = self.ax.imshow(np.zeros((2, 2)), origin="upper",
                                  aspect="auto", cmap="viridis",
-                                 extent=(0, 1, 0, ALCANCE_DEF),
+                                 extent=(0, ALCANCE_DEF, 0, VENTANA_DEF),
                                  vmin=self.piso, vmax=self.techo)
-        self.ax.set_xlabel("Tiempo de captura [s]")
-        self.fig.colorbar(self.im, ax=self.ax, label="Potencia relativa [dB]")
+        self.ax.set_ylabel("Hace [s]")
+        self.ax.tick_params(labelbottom=False)   # el eje x lo rotula la FFT
+        self.fig.colorbar(self.im, cax=self.axc, label="Potencia relativa [dB]")
         self.txt = self.ax.text(0.5, 0.5, "esperando muestras...",
                                 transform=self.ax.transAxes, ha="center",
                                 va="center", fontsize=13, color="0.3")
 
-        # Dos columnas de sliders: los tres que cambian QUE se mide a la
-        # izquierda, los dos de escala de color a la derecha.
-        izq = [self.fig.add_axes([0.14, y, 0.28, 0.03])
-               for y in (0.145, 0.09, 0.035)]
-        der = [self.fig.add_axes([0.63, y, 0.28, 0.03])
-               for y in (0.145, 0.09)]
-        self.s_n = Slider(izq[0], "rampas/col", 1, N_MAX,
-                          valinit=self.n_rampas, valstep=1)
-        self.s_vent = Slider(izq[1], "ventana [s]", 1.0, VENTANA_MAX,
-                             valinit=self.ventana)
-        self.s_alc = Slider(izq[2], "alcance [m]", 0.2, ALCANCE_MAX,
-                            valinit=self.alcance)
-        self.s_piso = Slider(der[0], "piso [dB]", -90.0, -5.0,
-                             valinit=self.piso)
-        self.s_techo = Slider(der[1], "techo [dB]", -60.0, 5.0,
-                              valinit=self.techo)
-        self.s_n.on_changed(self._cambio_medida)
-        self.s_vent.on_changed(self._cambio_medida)
-        self.s_alc.on_changed(self._cambio_alcance)
-        self.s_piso.on_changed(self._cambio_color)
-        self.s_techo.on_changed(self._cambio_color)
+        (self.linea,) = self.axf.plot([], [], lw=1.2, color="tab:blue")
+        self.marca = self.axf.axvline(np.nan, color="tab:red", ls="--", lw=1.0)
+        self.axf.set_ylabel("dB rel. al pico")
+        self.axf.grid(alpha=0.3)
+        self.axf.set_ylim(self.piso, self.techo)
+
+        self._armar_controles()
+        self._poner_eje_x()
+
+    def _armar_controles(self):
+        """Columna de cuadros de texto y botones, toda a la izquierda."""
+        self.cajas = {}
+        campos = [
+            ("n_rampas", "rampas/col", lambda: f"{self.n_rampas:d}"),
+            ("ventana",  "ventana [s]", lambda: f"{self.ventana:g}"),
+            ("alcance",  "alcance [m]", lambda: f"{self.alcance:g}"),
+            ("piso",     "piso [dB]", lambda: f"{self.piso:g}"),
+            ("techo",    "techo [dB]", lambda: f"{self.techo:g}"),
+            ("ignorar",  "ignorar < [m]", lambda: f"{self.ignorar:g}"),
+            ("dist_real", "dist. real [m]", lambda: f"{self.dist_real:g}"),
+        ]
+        y = 0.90
+        for nombre, etiqueta, leer in campos:
+            ax = self.fig.add_axes([0.135, y, 0.075, 0.038])
+            caja = TextBox(ax, etiqueta + "  ", initial=leer())
+            caja.on_submit(lambda t, k=nombre: self._escribir(k, t))
+            self.cajas[nombre] = (caja, leer)
+            y -= 0.052
+
+        y -= 0.02
+        self.botones = []
+        for etiqueta, fn in (("tomar punto", self._tomar_punto),
+                             ("calibrar", self._calibrar),
+                             ("borrar cal", self._borrar_cal)):
+            ax = self.fig.add_axes([0.045, y, 0.165, 0.042])
+            b = Button(ax, etiqueta)
+            b.on_clicked(fn)
+            self.botones.append(b)          # hay que retenerlos o se mueren
+            y -= 0.055
+
+        self.estado = self.fig.text(0.03, y - 0.02, "", va="top", ha="left",
+                                    fontsize=8.5, family="monospace")
         self.fig.canvas.mpl_connect("key_press_event", self._tecla)
-        self._poner_eje_y()
 
-    def _cambio_medida(self, v):
-        self.n_rampas = int(self.s_n.val)
-        self.ventana = self.s_vent.val
+    def _escribir(self, campo, texto):
+        """Aplica un cuadro de texto. Si no se entiende, lo deja como estaba."""
+        try:
+            v = float(texto.replace(",", "."))
+        except ValueError:
+            self.aviso = f"'{texto}' no es un numero"
+            self._refrescar_cajas()
+            return
+        if campo == "n_rampas":
+            self.n_rampas = int(np.clip(v, 1, N_MAX))
+        elif campo == "ventana":
+            self.ventana = float(np.clip(v, 0.5, VENTANA_MAX))
+        elif campo == "alcance":
+            self.alcance = max(v, 0.05)
+        elif campo == "piso":
+            self.piso = v
+        elif campo == "techo":
+            self.techo = v
+        elif campo == "ignorar":
+            self.ignorar = v
+        elif campo == "dist_real":
+            self.dist_real = v
+        self.aviso = ""
+        self._refrescar_cajas()
+        self._poner_eje_x()
 
-    def _cambio_alcance(self, v):
-        self.alcance = self.s_alc.val
-        self._poner_eje_y()
+    def _refrescar_cajas(self):
+        """Deja los cuadros mostrando el valor que de verdad quedo."""
+        for caja, leer in self.cajas.values():
+            texto = leer()
+            if caja.text != texto:
+                caja.set_val(texto)
 
-    def _cambio_color(self, v):
-        self.piso, self.techo = self.s_piso.val, self.s_techo.val
+    def _tomar_punto(self, _=None):
+        d = self.pico_crudo()
+        if d is None:
+            self.aviso = "todavia no hay perfil"
+            return
+        self.cal.puntos.append((d, self.dist_real))
+        self.aviso = (f"punto {len(self.cal.puntos)}: crudo {d:.3f} m "
+                      f"-> real {self.dist_real:.3f} m")
+        print("  " + self.aviso)
+
+    def _calibrar(self, _=None):
+        msj = self.cal.ajustar()
+        self.aviso = msj
+        print(f"  calibracion: {msj}")
+        if self.cal.activa:
+            self.cal.guardar(CAL_JSON)
+            # La pendiente dice cuanto se equivoca la BW efectiva: d va como
+            # 1/alpha0, asi que la BW real es la nominal dividida por 'a'.
+            bw_nom = (self.curva(V_MAX) - self.curva(V_MIN)) / 1e6
+            print(f"  BW efectiva implicada: {bw_nom/self.cal.a:.0f} MHz "
+                  f"(la nominal de la curva del VCO es {bw_nom:.0f} MHz)")
+            if not 0.7 < self.cal.a < 1.4:
+                print("  [!] esa pendiente esta muy lejos de 1: la calibracion "
+                      "lo va a hacer ver bien, pero hay algo del banco que no "
+                      "es lo que creemos (BW real del barrido, o el tramo que "
+                      "se esta tomando como rampa).")
+        self._poner_eje_x()
+
+    def _borrar_cal(self, _=None):
+        self.cal.borrar()
+        try:
+            os.remove(CAL_JSON)
+        except OSError:
+            pass
+        self.aviso = "calibracion borrada, eje crudo"
+        self._poner_eje_x()
 
     def _tecla(self, ev):
-        if ev.key in ("+", "="):
-            self.s_n.set_val(min(N_MAX, self.n_rampas + 1))
-        elif ev.key == "-":
-            self.s_n.set_val(max(1, self.n_rampas - 1))
-        elif ev.key == "e":
+        # Mientras se tipea en un cuadro, las teclas son del cuadro.
+        if any(c.capturekeystrokes for c, _ in self.cajas.values()):
+            return
+        if ev.key == "e":
             self.en_metros = not self.en_metros
-            self._poner_eje_y()
+            self._poner_eje_x()
         elif ev.key == "a":
-            db, _, _ = self.matriz()
+            db, _ = self.matriz()
             if db is not None:
                 # El piso al percentil 60 y no al minimo: el minimo lo fija
                 # un solo bin y deja casi todo el rango de color sin usar.
-                self.s_piso.set_val(max(-90.0, float(np.percentile(db, 60))))
-                self.s_techo.set_val(min(5.0, float(db.max())))
+                # Redondeado, porque el numero va a parar a un cuadro de texto
+                # y "-33.7" se lee, "-33.69521484" no.
+                self.piso = round(float(np.percentile(db, 60)), 1)
+                self.techo = round(float(db.max()), 1)
+                self._refrescar_cajas()
 
-    def _poner_eje_y(self):
+    def _eje_x(self):
+        return self.eje_m if self.en_metros else self.eje_hz
+
+    def _poner_eje_x(self):
         if self.T is None:
-            self.ax.set_ylabel("Distancia [m]")
+            self.axf.set_xlabel("Distancia [m]")
             return
-        eje = self.eje_m if self.en_metros else self.eje_hz
-        # El slider de alcance esta siempre en metros, tambien cuando el eje
-        # se muestra en Hz: es la misma escala con otra unidad, y asi la
-        # posicion del slider quiere decir lo mismo en los dos modos.
-        tope = (self.alcance if self.en_metros
-                else self.alcance * self.eje_hz[-1] / self.eje_m[-1])
-        x0, x1, _, _ = self.im.get_extent()
-        self.im.set_extent((x0, x1, eje[0], eje[-1]))
-        self.ax.set_ylim(0, min(tope, eje[-1]))
-        self.ax.set_ylabel("Distancia [m]" if self.en_metros
-                           else "Frecuencia de batido [Hz]")
+        eje = self._eje_x()
+        if self.en_metros:
+            tope, etiqueta = self.alcance, "Distancia [m]"
+        else:
+            # El alcance se tipea siempre en metros: es la misma escala con
+            # otra unidad, asi el numero quiere decir lo mismo en los dos modos.
+            tope = np.interp(self.alcance, self.eje_m, self.eje_hz)
+            etiqueta = "Frecuencia de batido [Hz]"
+        self.axf.set_xlabel(etiqueta)
+        self.ax.set_xlim(eje[0], min(tope, eje[-1]))
+        _, _, y0, y1 = self.im.get_extent()
+        self.im.set_extent((eje[0], eje[-1], y0, y1))
 
     def actualizar(self, _=None):
         """Un refresco. Siempre termina pidiendo el redibujo.
 
         Sin el draw_idle() final la pantalla se queda congelada: mutar los
         artistas (set_data, set_title) NO repinta por si solo, y lo unico que
-        forzaba el repaint era mover un slider. Se ve como que el programa
+        forzaba el repaint era mover un control. Se ve como que el programa
         anda pero la imagen no avanza hasta que tocas algo.
         """
         try:
@@ -527,33 +729,79 @@ class Vivo:
             print(f"  triangular: periodo {self.T*1e3:.3f} ms "
                   f"({1/self.T:.3f} Hz), rampa {self.n} muestras")
             self.txt.set_visible(False)
-            self._poner_eje_y()
+            self._poner_eje_x()
         elif ahora - self.t_ajuste > REAJUSTE_S:
             self.t_ajuste = ahora
             self.ajustar(primera_vez=False)
 
         self.procesar()
-        db, ta, tb = self.matriz()
+        db, span = self.matriz()
+        self._poner_estado(ahora, db)
         if db is None:
             return
-        if tb <= ta:
-            tb = ta + 1e-3
-        eje = self.eje_m if self.en_metros else self.eje_hz
-        self.im.set_data(db)
-        self.im.set_extent((ta, tb, eje[0], eje[-1]))
+
+        eje = self._eje_x()
         lo, hi = min(self.piso, self.techo), max(self.piso, self.techo)
-        self.im.set_clim(lo, hi if hi > lo else lo + 1.0)
-        self.ax.set_xlim(ta, tb)
-        self.ax.set_title(
-            f"{ahora:.0f} s   |   {self.n_rampas} rampas/columna "
-            f"({self.n_rampas*self.T/2*1e3:.0f} ms)   |   rampa {self.n} "
-            f"muestras ({self.T/2*1e3:.2f} ms)   |   "
-            f"{self.lec.descartadas} lineas cortadas")
+        if hi <= lo:
+            hi = lo + 1.0
+
+        # origin="upper": la fila 0 del array (la mas VIEJA) va arriba, y la
+        # ultima (la mas nueva) abajo de todo, pegada al panel de la FFT.
+        self.im.set_data(db)
+        self.im.set_extent((eje[0], eje[-1], 0, max(span, 1e-3)))
+        self.im.set_clim(lo, hi)
+        self.ax.set_ylim(max(span, 1e-3), 0)
+
+        self.linea.set_data(eje, db[-1])
+        self.axf.set_ylim(lo, hi)
+        pico = self.pico_crudo()
+        if pico is not None:
+            x = (self.cal.aplicar(pico) if self.en_metros else
+                 np.interp(pico, self.eje_m_crudo, self.eje_hz))
+            self.marca.set_xdata([x, x])
+
+    def _poner_estado(self, ahora, db):
+        filas = 0 if db is None else db.shape[0]
+        pico = self.pico_crudo()
+        if self.cal.activa:
+            cal = f"d = {self.cal.a:.4f}*crudo {self.cal.b:+.3f}"
+        else:
+            cal = "sin calibrar (eje crudo)"
+        if pico is None:
+            lin_pico = "pico: -"
+        else:
+            lin_pico = (f"pico: {self.cal.aplicar(pico):.3f} m "
+                        f"(crudo {pico:.3f})")
+        self.estado.set_text(
+            f"{ahora:6.1f} s\n"
+            f"rampa {self.n} muestras\n"
+            f"  ({self.T/2*1e3:.2f} ms)\n"
+            f"filas en pantalla: {filas}\n"
+            f"cortadas: {self.lec.descartadas}\n"
+            f"\n"
+            f"calibracion:\n  {cal}\n"
+            f"puntos: {len(self.cal.puntos)}\n"
+            f"{lin_pico}\n"
+            f"\n{self.aviso}")
+        self.ax.set_title(f"Radargrama - {self.n_rampas} rampas/fila "
+                          f"({self.n_rampas*self.T/2*1e3:.0f} ms)", fontsize=10)
 
 
 def main():
     curva = cargar_curva_vco(VCO_CSV)
     os.makedirs(DATOS, exist_ok=True)
+
+    cal = Calibracion()
+    fecha = cal.cargar(CAL_JSON)
+    if fecha:
+        print(f"Calibracion de distancia cargada ({fecha}): "
+              f"d = {cal.a:.4f}*crudo {cal.b:+.3f} m")
+    else:
+        print("Sin calibracion de distancia: el eje esta CRUDO.\n"
+              "  Para calibrarlo: poner una placa a una distancia conocida,\n"
+              "  tipearla en 'dist. real [m]', 'tomar punto'; repetir a otra\n"
+              "  distancia bien distinta, y despues 'calibrar'.")
+
     ser = abrir_puerto()
     print(f"Grabando a {SALIDA} (y {SAL_TRI}). Sobrescribe lo anterior.")
 
@@ -561,7 +809,7 @@ def main():
          open(SAL_TRI, "w", encoding="utf-8", newline="\n") as f_tri:
         lec = Lector(ser, f_cap, f_tri)
         lec.start()
-        vivo = Vivo(lec, curva)
+        vivo = Vivo(lec, curva, cal)
         vivo.armar_figura()
         # El timer del canvas en vez de FuncAnimation: no hace falta guardar
         # cuadros ni blitear, solo llamar a actualizar() cada tanto.
