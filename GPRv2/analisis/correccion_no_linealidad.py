@@ -108,14 +108,124 @@ def eje_theta(curva_vco, t):
       f(t)      frecuencia real instantánea
       theta(t)  eje de tiempo deformado que linealiza el barrido
       alpha0    pendiente ideal (Hz/s) usada como referencia
+
+    La duración de la rampa sale de 't', NO de la constante T_SWEEP. Con un
+    generador de laboratorio la rampa dura lo que dura, no exactamente lo
+    nominal, y una discrepancia ahí escala alpha0 y corre todas las
+    distancias sin que nada avise. Los llamadores arman 't' con
+    linspace(0, T, n, endpoint=False), así que la duración real ya viene
+    adentro: T = t[-1] + paso.
     """
-    v_t = V_MIN + (V_MAX - V_MIN) * (t / T_SWEEP)
+    paso = t[1] - t[0]
+    T = t[-1] + paso
+    v_t = V_MIN + (V_MAX - V_MIN) * (t / T)
     f_t = curva_vco(v_t)
     g_t = f_t - f_t[0]
     bw  = curva_vco(V_MAX) - curva_vco(V_MIN)
-    alpha0 = bw / T_SWEEP
+    alpha0 = bw / T
     theta = g_t / alpha0
     return f_t, theta, alpha0
+
+
+def medir_rampa(sync, n_nominal, tol=0.2):
+    """
+    Largo real de una rampa de subida, en muestras, medido de la columna de
+    sync. Devuelve None si no hay suficientes reinicios para decidir.
+
+    No se puede saber de antemano si el generador marca una vez por rampa o
+    una vez por ciclo completo, así que se compara la mediana de las
+    distancias entre reinicios contra n_nominal y contra 2*n_nominal, y se
+    elige la más cercana. Se usa la mediana y no el promedio porque un
+    flanco perdido mete una distancia del doble o del triple, y la mediana
+    no se inmuta.
+    """
+    ini = np.where(np.diff(sync) < 0)[0] + 1
+    if len(ini) < 3:
+        return None
+    gap = np.median(np.diff(ini))
+    if abs(gap - n_nominal) <= abs(gap - 2 * n_nominal):
+        largo = gap
+    else:
+        largo = gap / 2
+    if abs(largo - n_nominal) > tol * n_nominal:
+        print(f"  [!] la rampa medida ({largo:.0f} muestras) difiere más del "
+              f"{tol:.0%} de la nominal ({n_nominal}): revisá T_SWEEP o el sync")
+        return None
+    return int(round(largo))
+
+
+def ajustar_triangular(idx, val, fs, T_nom, span=0.25):
+    """
+    Ajusta UN período y UNA fase a la triangular muestreada por el ADC.
+    Devuelve (T, t0): período completo (subida+bajada) en segundos, y el
+    instante del primer vértice de MÍNIMO, en segundos desde idx=0.
+
+    'idx' y 'val' son las columnas de triangular.csv: índice de muestra de
+    batido y valor crudo del ADC. 'T_nom' es el período de arranque de la
+    búsqueda, en segundos, y 'span' cuánto se busca alrededor (±25 % por
+    defecto; en tiempo real, cuando ya se conoce el período, conviene
+    achicarlo mucho para que el ajuste sea barato y no salte de armónico).
+
+    No se busca el vértice período por período. Con ~125 períodos en 5 s, el
+    brazo de palanca de esos 5 segundos da el período con mucha más precisión
+    que cualquier vértice individual, y de ahí salen todos los límites por
+    multiplicación.
+
+    El período se refina maximizando la magnitud del primer armónico, en dos
+    pasadas (gruesa y fina). La fase sale del argumento de ese mismo armónico:
+    una triangular con el mínimo en el origen es par, así que su primer
+    armónico es real y negativo, y el desfasaje respecto de eso ubica el
+    vértice.
+    """
+    t = np.asarray(idx, dtype=float) / fs
+    v = np.asarray(val, dtype=float)
+    v = v - v.mean()
+
+    def armonico(T):
+        return np.sum(v * np.exp(-2j * np.pi * t / T))
+
+    for lo, hi, pasos in ((1 - span, 1 + span, 600), (0.998, 1.002, 400)):
+        Ts = np.linspace(T_nom * lo, T_nom * hi, pasos)
+        T_nom = Ts[np.argmax([abs(armonico(T)) for T in Ts])]
+    T = T_nom
+
+    # Con v(t) = f((t-t0)/T) y f par (mínimo en el origen), sale
+    # S = N*c1*exp(-2i*pi*t0/T) con c1 real NEGATIVO, o sea
+    # arg(S) = -2*pi*t0/T + pi. Ojo con el signo: invertirlo devuelve T-t0 en
+    # vez de t0, y eso agarra la bajada creyendo que es la subida.
+    t0 = (np.pi - np.angle(armonico(T))) / (2 * np.pi) * T
+    return T, t0 % T
+
+
+def rampas_desde_triangular(beat, idx, val, fs, n_nominal, span=0.25):
+    """
+    Límites de rampa sacados de la triangular muestreada por el ADC, para
+    cuando el generador no da sync. Es ajustar_triangular() + el troceo.
+
+    Devuelve (rampas, indices, n): las rampas ya orientadas como subida, con
+    la bajada invertida en el tiempo como hace extraer_rampas().
+    """
+    T, t0 = ajustar_triangular(idx, val, fs, 2.0 * n_nominal / fs, span)
+
+    n = int(round(T * fs / 2))
+    rampas, indices, subidas = [], [], 0
+    k = 0
+    while True:
+        inicio = int(round((t0 + k * T) * fs))
+        if inicio + n > len(beat):
+            break
+        k += 1
+        if inicio < 0:
+            continue
+        rampas.append(beat[inicio:inicio + n])       # subida
+        indices.append(inicio)
+        subidas += 1
+        if inicio + 2 * n <= len(beat):              # bajada, invertida
+            rampas.append(beat[inicio + n:inicio + 2 * n][::-1])
+            indices.append(inicio + n)
+    print(f"  triangular: periodo {T*1e3:.3f} ms ({1/T:.3f} Hz), rampa {n} "
+          f"muestras, {subidas} subidas + {len(rampas)-subidas} bajadas")
+    return rampas, indices, n
 
 
 def remuestrear(theta, señal, n):
@@ -123,6 +233,21 @@ def remuestrear(theta, señal, n):
     theta_uniforme = np.linspace(theta[0], theta[-1], n)
     interp = interp1d(theta, señal, kind="cubic")
     return theta_uniforme, interp(theta_uniforme)
+
+
+def fs_theta(theta, n):
+    """
+    Sample rate efectiva de la señal remuestreada por remuestrear().
+
+    remuestrear() arma la grilla con linspace(theta[0], theta[-1], n), o sea
+    n puntos y n-1 pasos: el paso es (theta[-1]-theta[0])/(n-1). Usar
+    n/(theta[-1]-theta[0]) sobrestima la fs en un factor n/(n-1) (0,8 % con
+    122 muestras por rampa) y eso escala TODAS las distancias, igual que el
+    problema de T_SWEEP que documenta GPRv2/CLAUDE.md. Usar FS_CSV a secas
+    tampoco es exacto (+0,27 %): theta no termina en T, termina en
+    (f(t_ultimo)-f(0))/alpha0, y la curva del VCO no es lineal.
+    """
+    return (n - 1) / (theta[-1] - theta[0])
 
 
 def perfil_distancia(señal, fs, alpha0):
@@ -241,10 +366,15 @@ def correr_csv():
     d = pd.read_csv(CSV_ENTRADA, header=None).to_numpy(dtype=float)
     beat_completo, sync = d[:, 0], d[:, 1]   # adquisicion.ino emite L,sync
     n = int(round(T_SWEEP * FS_CSV))
-    t = np.linspace(0, T_SWEEP, n, endpoint=False)
+    medido = medir_rampa(sync, n)
+    if medido and medido != n:
+        print(f"  rampa medida: {medido} muestras en vez de {n}")
+        n = medido
+    t = np.linspace(0, n / FS_CSV, n, endpoint=False)
 
     f_t, theta, alpha0 = eje_theta(curva_vco, t)
-    print(f"Muestras leídas: {len(beat_completo)}  (fs={FS_CSV} sps, T_sweep={T_SWEEP*1e3:.0f} ms, n={n})")
+    print(f"Muestras leídas: {len(beat_completo)}  (fs={FS_CSV} sps, "
+          f"T_rampa={n/FS_CSV*1e3:.2f} ms, n={n})")
 
     rampas, _ = extraer_rampas(beat_completo, sync, n)
     if not rampas:

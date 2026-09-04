@@ -108,3 +108,7 @@ GPRv2/datos/*.csv
 # Configuracion local del grabador (es por maquina)
 adquisicion/config.json
 adquisicion_audio/config.json
+
+# El PWL para LTspice lo regenera GPRv2/analisis/generar_pwl_triangular.py
+# y son cientos de kB de texto: no tiene sentido versionarlo.
+GPRv2/datos/*.pwl

@@ -34,6 +34,137 @@ avisar antes de re-flashear con los valores del otro.
 **Antes de tocar estos parámetros**: fijate cuál de los dos bancos se está
 usando esa sesión, y avisá si los cambiás — el otro los necesita en su valor.
 
+## Se puede medir SIN sync: la triangular se muestrea por GPIO3
+
+El generador del laboratorio (Siglent SDG830) **no está dando sync** por el
+BNC `Sync Out/Ext Trig`, con `Utility → Sync → State: On` y todo. Sin
+resolver. Mientras tanto hay un camino alternativo, y funciona.
+
+`adquisicion.ino` lee el ADC de **GPIO3** una vez por bloque de DMA (~187
+lecturas/s = 7,5 por período de 40 ms) y emite `#v,<adc>,<indice>`, donde el
+índice es la muestra de batido a la que corresponde. La lectura se hace
+pegada al timestamp del bloque y se emite recién al final, para que el
+instante coincida con el de la última muestra del bloque.
+
+`grabar_rampa.py` separa esas líneas a `datos/triangular.csv` (`adc,indice`),
+así `captura.csv` no cambia de formato. Si no llega ninguna línea
+`#v,...` avisa (firmware viejo) y **borra el `triangular.csv` anterior**:
+dejarlo cortaría la captura de hoy con los vértices de ayer, en silencio.
+
+`graficar_captura.py` **y `waterfall.py`** usan el sync si `medir_rampa()`
+lo valida, y la triangular si no.
+
+`rampas_desde_triangular()` ajusta **un período y una fase a la captura
+entera**, no vértice por vértice: con ~125 períodos en 5 s, el brazo de
+palanca da el período con mucha más precisión. El período se refina
+maximizando el primer armónico y la fase sale de su argumento.
+
+**Cuidado con el signo de la fase.** Con `v(t) = f((t-t0)/T)` y `f` par,
+`arg(S) = -2π·t0/T + π`. Invertir ese signo devuelve `T-t0` en vez de `t0`,
+o sea agarra la BAJADA creyendo que es la subida, y no lo notás porque el
+período sale bien igual. Ya pasó una vez.
+
+Medido con triangulares sintéticas: el período sale exacto y el vértice con
+0 µs de error, degradando a 167 µs (una muestra a 6000 sps) con 120 cuentas
+de ruido de ADC sobre una triangular de 2048. Prueba de punta a punta con
+rampa 2 % más larga que la nominal y la captura arrancando fuera de un
+vértice: blancos a 1,20 y 2,40 m salieron en 1,226 y 2,435 m.
+
+**Hardware**: divisor 4k7/4k7 de la triangular a GPIO3. Baja los 3 V a 1,5,
+que cae en el medio del rango útil del ADC del C3 (~0 a 2,5 V); a 3 V pelados
+el ADC se vuelve no lineal cerca del riel.
+
+**El camino del sync sigue intacto.** `graficar_captura.py` usa el sync si la
+columna trae algo distinto de -1, y la triangular si no. Si el sync aparece,
+no hay nada que deshacer.
+
+## `vivo.py` - radargrama en tiempo real (`vivo.bat`)
+
+Agregado el 2026-09-04. Es `waterfall.py` pero dibujando mientras llega:
+un hilo vacía el puerto y escribe `datos/captura.csv` y
+`datos/triangular.csv`, y el hilo del gráfico trocea las rampas nuevas cada
+200 ms. Lo que se ve en vivo queda grabado, así que se puede volver a
+analizar después con los scripts de siempre.
+
+Slider de **rampas promediadas por columna**: se mueve mientras corre y el
+radargrama entero se reagrupa, sin perder nada, porque se guardan los
+perfiles de a UNA rampa y el agrupado se rehace en cada refresco. Sliders de
+**piso y techo** en dB, tecla `e` para alternar el eje y entre metros y Hz,
+`a` para autoescalar el color.
+
+**El ajuste de la triangular se rehace cada `REAJUSTE_S` (2 s).** No es por
+la deriva de reloj entre el generador y el ESP32: una diferencia constante
+de reloj le da al C3 un período constante, y el ajuste lo mide igual de
+bien. Es porque el período medido tiene un error residual y cada rampa se
+ubica multiplicando ese período por su índice, así que el error de los
+límites crece lineal con el tiempo desde el ajuste. Medido con 200 ppm de
+deriva contra los vértices verdaderos:
+
+| | error del límite de rampa |
+|---|---|
+| con reajuste cada 2 s | 9 µs = 0,05 % de la rampa |
+| sin reajuste, a los 60 s | 1095 µs = **5,40 %** |
+
+Probado de punta a punta contra un stream sintético (blanco a 1,20 m,
+triangular de 40,6 ms, 200 ppm de deriva, 60 s): el período sale con 1 ppm
+de error, los límites con menos de 0,1 muestra, y el pico se queda quieto en
+el bin correcto con cualquier valor del slider.
+
+## `fs_theta()`: la fs de la señal remuestreada no es `FS_CSV` ni `n/span`
+
+`remuestrear()` arma la grilla con `linspace(theta[0], theta[-1], n)`: son
+`n` puntos y `n-1` pasos. La fs efectiva es `(n-1)/(theta[-1]-theta[0])`, y
+eso es lo que devuelve `fs_theta()`. Las dos versiones que había escalaban
+todas las distancias, igual que el problema de `T_SWEEP` de la sección de
+abajo, sólo que menos:
+
+| | error de escala |
+|---|---|
+| `graficar_captura.py` usaba `n/(th[-1]-th[0])` | +0,83 % |
+| `waterfall.py` usaba `FS_CSV` | +0,27 % |
+
+`theta` no termina en `T` sino en `(f(t_ultimo)-f(0))/alpha0`, y la curva del
+VCO no es lineal, así que ninguna de las dos aproximaciones sale bien sola.
+
+## `eje_theta()` ya no lee `T_SWEEP`: saca la duración de su propio `t`
+
+Cambiado el 2026-09-04, antes de las primeras mediciones reales.
+
+`eje_theta()` calculaba `alpha0 = bw / T_SWEEP` leyendo la constante global,
+y `extraer_rampas()` cortaba siempre `n = round(T_SWEEP * FS)` muestras aunque
+midiera la distancia real entre reinicios de sync. Con un generador de
+laboratorio la rampa dura lo que dura, y esa diferencia escalaba `alpha0` y
+corría TODAS las distancias sin que nada avisara. La tolerancia del 10 % de
+`extraer_rampas()` se tragaba el error en silencio.
+
+Medido, con un blanco sintético a 1,20 m y `T_SWEEP` nominal de 20 ms:
+
+| rampa real | con la constante | con el largo medido |
+|---|---|---|
+| 20,00 ms | −0,8 % | −0,8 % |
+| 20,60 ms | **−3,8 %** | −0,8 % |
+| 21,60 ms | **−8,3 %** | −0,8 % |
+
+El error seguía uno a uno al desajuste. El −0,8 % que queda es cuantización
+del bin de la FFT, no del método.
+
+Ahora:
+
+- **`eje_theta(curva, t)` deduce `T` de `t`** (`T = t[-1] + paso`), no de la
+  global. Los llamadores ya armaban `t` con `linspace(0, T, n,
+  endpoint=False)`, así que la duración real siempre estuvo ahí adentro. Si
+  le pasás un `t` con `endpoint=True` te va a sobrestimar `T` en un paso.
+- **`medir_rampa(sync, n_nominal)`** (nueva) devuelve el largo real de la
+  rampa en muestras, de la mediana de las distancias entre reinicios.
+  Compara contra `n` y contra `2n` para no tener que saber si el generador
+  marca por rampa o por ciclo, igual que `extraer_rampas()`. Devuelve `None`
+  y avisa si la medición difiere más del 20 % de la nominal.
+- `graficar_captura.py`, `waterfall.py` y `correr_csv()` la usan y con eso
+  arman `t`. `correr_sintetico()` sigue con la nominal, que ahí es correcto.
+
+`T_SWEEP` pasa a ser sólo el valor **nominal**, para dimensionar y para
+detectar que algo está muy lejos de lo esperado. El que manda es el medido.
+
 ## El generador de laboratorio es TRIANGULAR, no diente de sierra - ya manejado
 
 Confirmado (2026-09-02): el generador real usa triangular, no diente de

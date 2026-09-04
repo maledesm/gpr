@@ -15,6 +15,12 @@
 //  o -1 si todavia no llego ninguno. Se ve como diente de sierra en el
 //  plotter y da la fase dentro de la rampa en cada muestra.
 //
+//  Ademas, una vez por bloque de DMA sale una linea "#v,<adc>,<indice>" con
+//  una lectura del ADC de la triangular que ataca al VCO (GPIO3, por divisor
+//  4k7/4k7). El indice es la muestra de batido a la que corresponde, para
+//  poder alinearlas. Sirve para recuperar los limites de rampa cuando el
+//  generador no da sync; con sync conectado es redundante pero no molesta.
+//
 //  El canal derecho se lee (el PCM1808 obliga a tramas estereo) pero no se
 //  emite: VINR esta al aire y esos bytes son caudal tirado.
 //  Las respuestas a los comandos van con '#' adelante.
@@ -39,6 +45,12 @@
 #define PIN_LRCK  6
 #define PIN_DIN   7
 #define PIN_SYNC 10   // <- sync del generador, por divisor 10k/15k (3.00 V)
+// <- triangular del generador, por divisor 4k7/4k7. Los 3 V se dividen a 1,5,
+// que cae en el medio del rango util del ADC del C3 (~0 a 2,5 V con la
+// atenuacion por defecto); a 3 V pelados el ADC se vuelve no lineal cerca del
+// riel. El divisor tambien baja la impedancia de fuente a 2,35 kohm, que es
+// lo que el ADC necesita ver para muestrear bien.
+#define PIN_TRI   3
 
 #define FS_DEF        48000   // uno de los "exactos" del PLL (16/32/48 kHz)
 #define FS_MIN         8000   // minimo absoluto del PCM1808
@@ -63,6 +75,7 @@ static bool     g_run = false;
 
 static int32_t  accL = 0;
 static uint32_t accN = 0;
+static uint32_t n_emitidas = 0;   // indice absoluto de muestra emitida
 
 // Microsegundos del ultimo flanco de subida del sync. Se guarda el instante
 // y no un contador de muestras porque el DMA entrega 256 tramas de golpe y
@@ -141,6 +154,7 @@ static bool i2sArrancar(uint32_t fs) {
   g_dec = fs / SPS_SALIDA;
   accL  = 0;
   accN  = 0;
+  n_emitidas = 0;
   return true;
 }
 
@@ -160,6 +174,7 @@ static void informar() {
 static void comando(const char *s) {
   if (!strcmp(s, "run")) {
     g_run = true;
+    n_emitidas = 0;
   } else if (!strcmp(s, "stop")) {
     g_run = false;
     Serial.println("# stop");
@@ -204,8 +219,16 @@ void setup() {
   Serial.begin(115200);
   delay(300);
   Serial.println("# GPRv2 adquisicion");
-  pinMode(PIN_SYNC, INPUT);   // el 15k del divisor ya lo mantiene abajo
+  // PULLDOWN, no INPUT a secas: con el pin al aire la rafaga de USB de cada
+  // bloque de DMA se acopla y dispara la ISR. Se ve clarisimo porque las
+  // distancias entre "flancos" salen todas multiplos de 32, que son las
+  // muestras que emite un bloque. Con el divisor conectado el pulldown
+  // interno (~45k) queda en paralelo con la pata de abajo: con 10k/15k la
+  // tension baja de 3,00 a 2,65 V, todavia sobre el umbral de 2,48 pero
+  // justo. Si el sync aparece, mejor 10k/22k, que con el pulldown da 2,98 V.
+  pinMode(PIN_SYNC, INPUT_PULLDOWN);
   attachInterrupt(PIN_SYNC, isrSync, RISING);
+  analogReadResolution(12);   // la atenuacion queda en la maxima por defecto
   if (i2sArrancar(FS_DEF)) informar();
   Serial.println("# comandos: run | stop | fs [Hz]");
 }
@@ -219,6 +242,13 @@ void loop() {
   if (i2s_channel_read(rx, buf, sizeof(buf), &bytes, 100) != ESP_OK) return;
   int64_t t_bloque = esp_timer_get_time();
   uint32_t frames = bytes / (2 * sizeof(int32_t));
+
+  // La triangular se lee ACA, pegada al timestamp del bloque, y se emite
+  // recien al final: asi el instante de la lectura coincide con el de la
+  // ultima muestra del bloque, que es la que se le adjudica. Emitirla antes
+  // de leerla costaria el tiempo de escribir el bloque entero por USB, que
+  // son ~1 ms, o sea un 3% del periodo de la triangular.
+  int tri = analogRead(PIN_TRI);
 
   // Copia del anillo. Si el indice no cambio entre antes y despues, no entro
   // ningun flanco mientras copiabamos y la foto es consistente. Hace falta
@@ -249,8 +279,16 @@ void loop() {
       }
       long desde = (ref == 0) ? -1 : (long)(((t_m - ref) * g_fs) / 1000000);
       Serial.printf("%ld,%ld\n", (long)(accL / (int32_t)g_dec), desde);
+      n_emitidas++;
     }
     accL = 0;
     accN = 0;
+  }
+
+  // La lectura de la triangular se emite recien aca, con el indice de la
+  // ultima muestra del bloque: se tomo pegada a t_bloque, que es justo el
+  // instante de esa muestra.
+  if (g_run && n_emitidas) {
+    Serial.printf("#v,%d,%lu\n", tri, (unsigned long)(n_emitidas - 1));
   }
 }
