@@ -36,7 +36,8 @@
 //      GPIO7 <- OUT  datos (DOUT)
 // ===========================================================================
 
-#include <Arduino.h>
+#include <Arduino.h>
+#include <string.h>   // memset, para reiniciar el filtro de diezmado
 #include "driver/i2s_std.h"
 #include "esp_timer.h"
 
@@ -76,6 +77,126 @@ static bool     g_run = false;
 static int32_t  accL = 0;
 static uint32_t accN = 0;
 static uint32_t n_emitidas = 0;   // indice absoluto de muestra emitida
+
+// ---------------------------------------------------------------------------
+//  Diezmado con filtro antialias
+//
+//  Antes se diezmaba promediando 'dec' muestras. Como filtro antialias eso es
+//  muy pobre: a 48 kHz y dec 8, un tono de 5 kHz se pliega sobre 1 kHz de la
+//  salida atenuado apenas 14 dB, y uno de 4,5 kHz sobre 1,5 kHz atenuado 10.
+//  Todo lo que haya entre 3 y 24 kHz entra casi sin tocarse. Medido sobre el
+//  banco (2026-09-04) hay energia hasta el Nyquist mismo, que es la firma de
+//  que algo se esta plegando.
+//
+//  En su lugar va una cascada de filtros de SEMIBANDA, uno por cada division
+//  por dos: 48k -> 24k -> 12k -> 6k. Semibanda quiere decir que corta justo en
+//  la mitad de su Nyquist y que la mitad de los coeficientes son cero exactos
+//  (14 de 31 aca), asi que sale barato. Y como cada etapa solo calcula la
+//  mitad de las salidas, el costo total es ~1,3 M multiplicaciones por segundo
+//  a 48 kHz: alrededor del 7 % del micro.
+//
+//  Rechazo de alias medido (simulando esta misma aritmetica entera):
+//
+//      f de salida    promedio de 8    esta cascada
+//         500 Hz         -20,7 dB        -90,5 dB
+//        1000 Hz         -14,2 dB        -87,4 dB
+//        2000 Hz          -7,6 dB        -71,1 dB
+//
+//  Arriba de 2400 Hz el rechazo se degrada (es la transicion de la ultima
+//  etapa, simetrica alrededor de 3000): la banda limpia es 0 a 2400 Hz, que
+//  con 347 Hz por metro son 6,9 m. El rizado en la banda util es 0,004 dB.
+//
+//  Coeficientes en Q30 (x 2^30). La suma da 2^30 EXACTO para que la ganancia
+//  en continua sea 1 y el nivel no cambie.
+// ---------------------------------------------------------------------------
+
+#define HB_TAPS 31
+#define HB_Q    30
+static const int32_t HB[HB_TAPS] = {
+    -135143,         0,   1143002,         0,  -4050661,         0,
+   10527053,         0, -23184129,         0,  47232807,         0,
+  -99955210,         0, 336873039, 536840308, 336873039,         0,
+  -99955210,         0,  47232807,         0, -23184129,         0,
+   10527053,         0,  -4050661,         0,   1143002,         0,
+    -135143
+};
+
+typedef struct {
+  int32_t z[HB_TAPS];
+  uint8_t idx;     // proxima posicion a escribir = la mas vieja
+  uint8_t fase;    // se emite una salida cada dos entradas
+} etapa_t;
+
+#define MAX_ETAPAS 5
+static etapa_t  g_etapa[MAX_ETAPAS];
+static uint8_t  g_n_etapas = 0;   // 0 = sin FIR, se usa el promedio de antes
+static uint32_t g_retardo  = 0;   // retardo del filtro, en muestras de salida
+
+// Empuja una muestra en una etapa. Devuelve true (y deja el resultado en *y)
+// una vez cada dos.
+static inline bool hbEmpujar(etapa_t *e, int32_t x, int32_t *y) {
+  e->z[e->idx] = x;
+  if (++e->idx == HB_TAPS) e->idx = 0;
+  e->fase ^= 1;
+  if (e->fase) return false;
+
+  // La muestra mas vieja es la que esta en idx (la que se va a pisar), y le
+  // toca el ultimo coeficiente. De ahi se camina hacia adelante en el tiempo.
+  int64_t acc = 0;
+  uint8_t k = e->idx;
+  for (int8_t j = HB_TAPS - 1; j >= 0; j--) {
+    if (HB[j]) acc += (int64_t)e->z[k] * HB[j];   // la mitad son cero
+    if (++k == HB_TAPS) k = 0;
+  }
+  // No desborda: la muestra es de 24 bits (2^23) y la suma de |coef| ronda
+  // 2^30, o sea el acumulador queda cerca de 2^53 contra los 2^63 del int64.
+  *y = (int32_t)(acc >> HB_Q);
+  return true;
+}
+
+static void filtroReiniciar(uint32_t dec) {
+  memset(g_etapa, 0, sizeof(g_etapa));
+  accL = 0;
+  accN = 0;
+
+  // Una etapa por cada division por dos. Si dec no es potencia de dos no hay
+  // cascada posible y se cae al promedio de antes, avisando.
+  uint32_t d = dec;
+  g_n_etapas = 0;
+  while ((d & 1) == 0 && d > 1 && g_n_etapas < MAX_ETAPAS) {
+    d >>= 1;
+    g_n_etapas++;
+  }
+  if (d != 1) g_n_etapas = 0;
+
+  // Retardo de grupo. Cada etapa retrasa HB_TAPS/2 muestras DE SU PROPIA
+  // entrada, o sea 15, 30, 60... referidas a la entrada de 48 kHz: en total
+  // 15*(dec-1). En muestras de salida son 15*(dec-1)/dec, 13 para dec 8.
+  // Hay que informarlo porque la lectura de la triangular se toma en tiempo
+  // real y la de batido sale retrasada: sin corregirlo, los limites de rampa
+  // quedan corridos 2,2 ms, que es el 11 % de una rampa de 20 ms.
+  g_retardo = g_n_etapas
+            ? ((HB_TAPS / 2) * (dec - 1) + dec / 2) / dec
+            : 0;
+}
+
+// Mete una muestra cruda y devuelve true cuando sale una diezmada.
+static inline bool diezmar(int32_t x, int32_t *y) {
+  if (g_n_etapas == 0) {
+    accL += x;
+    if (++accN < g_dec) return false;
+    *y = accL / (int32_t)g_dec;
+    accL = 0;
+    accN = 0;
+    return true;
+  }
+  int32_t v = x;
+  for (uint8_t e = 0; e < g_n_etapas; e++) {
+    if (!hbEmpujar(&g_etapa[e], v, &v)) return false;
+  }
+  *y = v;
+  return true;
+}
 
 // Microsegundos del ultimo flanco de subida del sync. Se guarda el instante
 // y no un contador de muestras porque el DMA entrega 256 tramas de golpe y
@@ -152,8 +273,7 @@ static bool i2sArrancar(uint32_t fs) {
 
   g_fs  = fs;
   g_dec = fs / SPS_SALIDA;
-  accL  = 0;
-  accN  = 0;
+  filtroReiniciar(g_dec);
   n_emitidas = 0;
   return true;
 }
@@ -164,6 +284,19 @@ static void informar() {
   Serial.printf("# fs = %lu Hz, dec = %lu, salida = %lu sps\n",
                 (unsigned long)g_fs, (unsigned long)g_dec,
                 (unsigned long)(g_fs / g_dec));
+  // El retardo lo tiene que saber la PC: vivo.py lleva su propio contador de
+  // filas y le suma esto para ubicar la triangular. Se emite siempre, y en
+  // 0 cuando no hay filtro, asi el que lo lee no necesita saber cual es cual.
+  Serial.printf("# retardo = %lu muestras\n", (unsigned long)g_retardo);
+  if (g_n_etapas) {
+    Serial.printf("# antialias: %u etapas de semibanda, banda limpia 0 a "
+                  "%lu Hz\n", g_n_etapas,
+                  (unsigned long)(g_fs / g_dec * 2 / 5));
+  } else {
+    Serial.printf("# aviso: dec = %lu no es potencia de 2, se diezma "
+                  "promediando y el alias entra casi sin atenuar\n",
+                  (unsigned long)g_dec);
+  }
   // 16/32/48 kHz salen exactas del divisor fraccionario del PLL de 160 MHz;
   // el resto tiene error, chico pero no nulo.
   if (g_fs != 16000 && g_fs != 32000 && g_fs != 48000) {
@@ -263,10 +396,9 @@ void loop() {
 
   for (uint32_t i = 0; i < frames; i++) {
     // 24 bits alineados al MSB dentro de 32 -> el shift aritmetico da el
-    // valor con signo. El acumulador no desborda: dec llega como mucho a 48
-    // (fs 96k), y 48 * 2^23 entra holgado en int32.
-    accL += buf[2 * i] >> 8;
-    if (++accN < g_dec) continue;
+    // valor con signo.
+    int32_t muestra;
+    if (!diezmar(buf[2 * i] >> 8, &muestra)) continue;
 
     if (g_run) {
       int64_t t_m = t_bloque - (int64_t)(frames - 1 - i) * 1000000 / g_fs;
@@ -278,17 +410,18 @@ void loop() {
         if (c != 0 && c <= t_m) { ref = c; break; }
       }
       long desde = (ref == 0) ? -1 : (long)(((t_m - ref) * g_fs) / 1000000);
-      Serial.printf("%ld,%ld\n", (long)(accL / (int32_t)g_dec), desde);
+      Serial.printf("%ld,%ld\n", (long)muestra, desde);
       n_emitidas++;
     }
-    accL = 0;
-    accN = 0;
   }
 
-  // La lectura de la triangular se emite recien aca, con el indice de la
-  // ultima muestra del bloque: se tomo pegada a t_bloque, que es justo el
-  // instante de esa muestra.
+  // La lectura de la triangular se emite recien aca. Se tomo pegada a
+  // t_bloque, o sea AHORA, pero la muestra de batido que sale ahora
+  // corresponde a un instante g_retardo muestras anterior, por el filtro de
+  // diezmado. La que de verdad coincide con esta lectura todavia no salio:
+  // es la n_emitidas-1+g_retardo, y ese es el indice que se informa.
   if (g_run && n_emitidas) {
-    Serial.printf("#v,%d,%lu\n", tri, (unsigned long)(n_emitidas - 1));
+    Serial.printf("#v,%d,%lu\n", tri,
+                  (unsigned long)(n_emitidas - 1 + g_retardo));
   }
 }

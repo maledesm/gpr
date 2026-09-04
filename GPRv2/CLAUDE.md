@@ -218,6 +218,79 @@ banco, `!! TRIANGULAR RECORTADA 2%` con todo bien). Con la triangular
 entrando sin dividir el recorte fue del 18 %, así que 5 % separa bien los dos
 casos.
 
+## El diezmado del firmware ahora filtra (y por eso informa un retardo)
+
+Cambiado el 2026-09-04. Antes se diezmaba **promediando `dec` muestras**, que
+como filtro antialias es muy pobre: a 48 kHz con `dec` 8, un tono de 5 kHz se
+plegaba sobre 1 kHz de la salida atenuado apenas 14 dB, y uno de 4,5 kHz
+sobre 1,5 kHz atenuado 10. Todo lo que hubiera entre 3 y 24 kHz entraba casi
+sin tocarse. En la captura del banco hay energía hasta el Nyquist mismo, que
+es justamente la firma de que algo se está plegando.
+
+Ahora va una **cascada de filtros de semibanda**, uno por cada división por
+dos (48k → 24k → 12k → 6k). Semibanda quiere decir que corta en la mitad de
+su Nyquist y que la mitad de los coeficientes son cero exactos (14 de 31), y
+cada etapa calcula sólo la mitad de las salidas: ~1,3 M multiplicaciones por
+segundo, alrededor del 7 % del micro.
+
+| f de salida | promedio de 8 | cascada |
+|---|---|---|
+| 500 Hz | −20,7 dB | **−90,5 dB** |
+| 1000 Hz | −14,2 dB | **−87,4 dB** |
+| 2000 Hz | −7,6 dB | **−71,1 dB** |
+
+Arriba de 2400 Hz el rechazo se degrada — es la transición de la última
+etapa, simétrica alrededor de 3000. **La banda limpia es 0 a 2400 Hz**, que
+con 347 Hz por metro son 6,9 m. El rizado en la banda útil es 0,004 dB y la
+ganancia en continua es exactamente 1 (los coeficientes son Q30 y suman 2³⁰
+exacto; el sobrante se le da al tap del centro).
+
+`dec` tiene que ser **potencia de 2**. Si no lo es se cae al promedio de
+antes y lo avisa por serie. Con `dec` 8 son 3 etapas, con `dec` 4 (el banco de
+Martin) son 2.
+
+**El filtro retrasa, y eso hay que compensarlo.** Cada etapa retrasa 15
+muestras de su propia entrada, o sea 15·(dec−1) referidas a 48 kHz: 13
+muestras de salida con `dec` 8. La lectura de la triangular se toma en tiempo
+real, pero la muestra de batido que sale en ese instante corresponde a un
+momento anterior. Sin corregirlo, los límites de rampa quedan corridos 2,2 ms
+= **11 % de una rampa de 20 ms**.
+
+- El firmware ya lo compensa en el índice que emite en las líneas `#v,...`.
+- Y lo informa con una línea **`# retardo = N muestras`**, que `vivo.py`
+  parsea porque lleva su propio contador de filas en vez de usar el índice de
+  la placa. Firmware viejo que no la emite → 0, que ahí es lo correcto.
+
+**Verificado compilando el código del `.ino` con gcc** y comparándolo contra
+una referencia en Python: da **bit a bit** lo mismo, no desborda el `int64`,
+la continua sale con ganancia 1,000000 y los tonos que antes se colaban caen
+a −77/−95 dB.
+
+## Cambiar el Tprf del generador ya no obliga a tocar `T_SWEEP`
+
+`buscar_periodo()` (en `correccion_no_linealidad.py`) encuentra el período de
+cero con una FFT de las lecturas de la triangular, y `ajustar_triangular()`
+refina desde ahí. Lo usan `vivo.py` en su primer ajuste y
+`rampas_desde_triangular()`, así que `graficar_captura.py` y `waterfall.py`
+también se adaptan solos.
+
+Medido con `T_SWEEP` en 20 ms y el generador en otra cosa:
+
+| Tprf real | error del período final |
+|---|---|
+| 20 / 40 / 60 ms | +1 ppm |
+| 80 / 100 ms | +11 ppm |
+| 160 ms | −19 ppm |
+
+`T_SWEEP` queda sólo como red de seguridad, para cuando la búsqueda no
+encuentra nada. **El piso es ~12 ms de Tprf**: las lecturas de la triangular
+salen a una por bloque de DMA (187,5/s) y ése es su Nyquist.
+
+Lo que sí hay que revisar al cambiar el Tprf: la **calibración de distancia**
+guardada, porque el `alpha0` cambia, y el **alcance no ambiguo** (duplicar el
+Tprf divide por dos los Hz por metro, así que entra el doble de distancia en
+la misma banda).
+
 ## La distancia del eje NO es de fiar sin calibrar
 
 Medido en el banco (2026-09-04): una placa a **1 m** aparecía en **4 m**.

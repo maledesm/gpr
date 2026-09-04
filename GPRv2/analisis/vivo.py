@@ -134,7 +134,7 @@ from serial.tools import list_ports
 
 from correccion_no_linealidad import (
     T_SWEEP, C, V_MIN, V_MAX, cargar_curva_vco, eje_theta, remuestrear,
-    ajustar_triangular, fs_theta,
+    ajustar_triangular, buscar_periodo, fs_theta,
 )
 
 PUERTO = "auto"      # "auto" o algo como "COM5"
@@ -197,6 +197,9 @@ VCO_CSV = os.path.join(AQUI, "..", "..", "VCO", "Caracteristica VCO.csv")
 # y a ~85 kB/s el CDC parte alguna): se filtran aca y se cuentan.
 RE_MUESTRA = re.compile(r"^-?\d+,-?\d+$")
 RE_TRI = re.compile(r"^\d+,\d+$")
+# La placa informa el retardo de grupo de su filtro de diezmado con una
+# linea "# retardo = N muestras". Ver el comentario de self.retardo.
+RE_RETARDO = re.compile(r"^#\s*retardo\s*=\s*(\d+)")
 
 
 # --- Lectura del puerto ----------------------------------------------------
@@ -223,6 +226,13 @@ class Lector(threading.Thread):
         self.n_filas = 0         # filas escritas = indice absoluto de muestra
         self.descartadas = 0
         self.parar = False
+        # Retardo de grupo del filtro de diezmado de la placa, en muestras de
+        # salida. La lectura de la triangular se toma en tiempo real pero la
+        # muestra de batido que sale en ese momento corresponde a un instante
+        # anterior, asi que hay que adelantar el indice. La placa lo informa
+        # al arrancar; si no lo informa (firmware viejo, que promediaba) vale
+        # 0, que ahi es lo correcto.
+        self.retardo = 0
 
     def run(self):
         resto = b""
@@ -257,14 +267,17 @@ class Lector(threading.Thread):
                 # usa el propio contador de filas: si se perdio una linea
                 # de muestra, el indice de la placa ya no apunta a la fila
                 # correcta del CSV, y el contador propio si.
-                fila = self.n_filas - 1
+                fila = self.n_filas - 1 + self.retardo
                 if fila < 0:
                     continue
                 adc = int(linea[3:].split(",")[0])
                 tri.append((fila, adc))
                 txt_tri.append(f"{adc},{fila}")
             elif linea.startswith("#"):
-                continue                    # respuestas a comandos
+                m = RE_RETARDO.match(linea)
+                if m:
+                    self.retardo = int(m.group(1))
+                continue                    # el resto son respuestas a comandos
             elif RE_MUESTRA.match(linea):
                 beat.append(int(linea.split(",", 1)[0]))
                 txt_cap.append(linea)
@@ -471,8 +484,17 @@ class Vivo:
         # La primera vez se busca ancho alrededor del nominal; despues ya se
         # sabe donde esta y se busca angosto, que es mas barato y no puede
         # saltar a un armonico vecino.
-        T_ini = 2.0 * T_SWEEP if primera_vez else self.T
-        span = 0.25 if primera_vez else 0.01
+        if primera_vez:
+            # El periodo se BUSCA, no se asume: asi cambiar el Tprf del
+            # generador no obliga a tocar T_SWEEP para medir en vivo. Si la
+            # busqueda no encuentra nada se cae al nominal, que es lo que
+            # hacia antes.
+            T_ini = buscar_periodo(self.tri_fila, self.tri_adc, FS)
+            if T_ini is None:
+                T_ini = 2.0 * T_SWEEP
+            span = 0.10
+        else:
+            T_ini, span = self.T, 0.01
         T, t0 = ajustar_triangular(self.tri_fila, self.tri_adc, FS, T_ini, span)
 
         if primera_vez:

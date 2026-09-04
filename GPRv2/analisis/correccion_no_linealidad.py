@@ -154,6 +154,44 @@ def medir_rampa(sync, n_nominal, tol=0.2):
     return int(round(largo))
 
 
+def buscar_periodo(idx, val, fs, t_min=12e-3, t_max=200e-3):
+    """
+    Estimación GRUESA del período de la triangular, sin saber cuánto vale.
+
+    ajustar_triangular() refina alrededor de un valor que ya se conoce; ésta
+    es la que lo encuentra de cero, para no tener que tocar T_SWEEP cada vez
+    que se cambia el Tprf del generador.
+
+    Es una FFT sobre las lecturas del ADC. Llegan a paso fijo (una por bloque
+    de DMA), así que ya están uniformemente muestreadas; si se perdió alguna
+    línea el paso se rompe, y por eso se interpola a una grilla pareja antes.
+
+    El máximo se busca sobre el PRIMER armónico. No hay riesgo de engancharse
+    en un múltiplo: en 2T una triangular simétrica no tiene nada (sólo tiene
+    armónicos impares) y en 3T tiene 1/9 de la amplitud.
+
+    `t_min` no puede bajar de 2/187,5 s ~ 11 ms: es el Nyquist de las lecturas
+    de la triangular, que salen a una por bloque de DMA.
+    """
+    idx = np.asarray(idx, dtype=float)
+    val = np.asarray(val, dtype=float)
+    if len(idx) < 32:
+        return None
+    paso = np.median(np.diff(idx))
+    if paso <= 0:
+        return None
+    g = np.arange(idx[0], idx[-1], paso)
+    v = np.interp(g, idx, val)
+    v = v - v.mean()
+    fs_g = fs / paso
+    V = np.abs(np.fft.rfft(v * np.hanning(len(v))))
+    f = np.fft.rfftfreq(len(v), 1.0 / fs_g)
+    ok = (f >= 1.0 / t_max) & (f <= 1.0 / t_min) & (f > 0)
+    if not ok.any():
+        return None
+    return 1.0 / f[ok][np.argmax(V[ok])]
+
+
 def ajustar_triangular(idx, val, fs, T_nom, span=0.25):
     """
     Ajusta UN período y UNA fase a la triangular muestreada por el ADC.
@@ -204,8 +242,18 @@ def rampas_desde_triangular(beat, idx, val, fs, n_nominal, span=0.25):
 
     Devuelve (rampas, indices, n): las rampas ya orientadas como subida, con
     la bajada invertida en el tiempo como hace extraer_rampas().
+
+    El período se BUSCA con buscar_periodo() y sólo se cae a `n_nominal` si la
+    búsqueda no encuentra nada. Así, cambiar el Tprf del generador no obliga a
+    tocar T_SWEEP para volver a analizar: la constante queda sólo como red de
+    seguridad.
     """
-    T, t0 = ajustar_triangular(idx, val, fs, 2.0 * n_nominal / fs, span)
+    T_ini = buscar_periodo(idx, val, fs)
+    if T_ini is None:
+        T_ini, span = 2.0 * n_nominal / fs, span
+    else:
+        span = 0.10
+    T, t0 = ajustar_triangular(idx, val, fs, T_ini, span)
 
     n = int(round(T * fs / 2))
     rampas, indices, subidas = [], [], 0
