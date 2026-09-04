@@ -16,18 +16,26 @@ OJO: sobrescribe la captura anterior, igual que grabar_rampa.py.
 
 Controles
 ---------
-    slider "rampas/columna"  cuantas rampas se promedian en cada columna
+    slider "rampas/col"      cuantas rampas se promedian en cada columna
                              del radargrama. Mas rampas = menos ruido y
-                             menos resolucion temporal. Se puede mover
-                             mientras corre: el radargrama entero se
-                             reagrupa con el valor nuevo, sin perder nada.
+                             menos resolucion temporal.
+    slider "ventana [s]"     cuantos segundos de historia se muestran. Es la
+                             ventana la que manda: la cantidad de columnas
+                             sale de ella y de rampas/col.
+    slider "alcance [m]"     tope del eje y. En modo Hz se convierte sola,
+                             asi la posicion del slider dice lo mismo en los
+                             dos modos.
     sliders "piso" y "techo" limites de la escala de color, en dB respecto
                              del pico de lo que se esta viendo.
-    +  /  -                  ajuste fino de rampas/columna
+    +  /  -                  ajuste fino de rampas/col
     e                        alterna el eje y entre distancia [m] y
                              frecuencia de batido [Hz]
     a                        autoescala el color a lo que hay en pantalla
     q                        salir
+
+Los tres primeros sliders se pueden mover mientras corre y reagrupan TODO lo
+que hay en pantalla, no solo lo que venga de ahi en mas: se guardan los
+perfiles de a una rampa y el agrupado se rehace en cada refresco.
 
 Como se sincroniza sin sync
 ---------------------------
@@ -74,7 +82,7 @@ import serial
 from serial.tools import list_ports
 
 from correccion_no_linealidad import (
-    T_SWEEP, C, cargar_curva_vco, eje_theta, remuestrear, perfil_distancia,
+    T_SWEEP, C, cargar_curva_vco, eje_theta, remuestrear,
     ajustar_triangular, fs_theta,
 )
 
@@ -91,8 +99,16 @@ REFRESCO_MS      = 200    # cada cuanto se redibuja
 
 N_DEFECTO = 8        # rampas promediadas por columna al arrancar
 N_MAX     = 64
-COLUMNAS  = 300      # ancho del radargrama, en columnas
-D_MAX     = 5.0      # m, recorte del eje de distancia
+# Relleno de ceros de la FFT de cada rampa. NO agrega resolucion: el ancho de
+# bin real vale c/(2*BW) = 14,4 cm y eso no lo cambia nada (ver GPRv2/
+# CLAUDE.md). Lo que hace es interpolar, y sin el la rampa de 120 muestras da
+# 61 bins para todo el eje - el radargrama sale en bandas gruesas y no se ve
+# la forma de los picos. Es el mismo RELLENO de graficar_captura.py.
+RELLENO   = 8
+VENTANA_DEF = 20.0   # s de historia que se muestran
+VENTANA_MAX = 120.0
+ALCANCE_DEF = 5.0    # m, tope del eje de distancia
+ALCANCE_MAX = 10.0
 PISO_DEF  = -40.0    # dB respecto del pico en pantalla
 TECHO_DEF = 0.0
 
@@ -246,8 +262,18 @@ class Vivo:
         self.k = 0                 # indice de la proxima rampa a procesar
         self.t_ajuste = 0.0
 
-        self.perfiles, self.t_perf = [], []
+        # Los perfiles van a un buffer numpy preasignado y no a una lista: con
+        # relleno x8 cada perfil son ~500 numeros y la ventana puede pedir
+        # miles, asi que armar un array nuevo en cada refresco seria copiar
+        # decenas de MB cinco veces por segundo. Aca el agrupado trabaja sobre
+        # una vista.
+        self.P = self.tp = None
+        self.n_perf = 0
+        self.cap = 0
+
         self.n_rampas = N_DEFECTO
+        self.ventana = VENTANA_DEF
+        self.alcance = ALCANCE_DEF
         self.en_metros = True
         self.piso, self.techo = PISO_DEF, TECHO_DEF
 
@@ -296,9 +322,8 @@ class Vivo:
         # todos el mismo largo.
         if abs(T * FS / 2 - self.n) > 0.6:
             self.n = int(round(T * FS / 2))
-            self._armar_ejes()
-            self.perfiles.clear()      # cambio el largo: no se pueden mezclar
-            self.t_perf.clear()
+            self._armar_ejes()         # tambien vacia el buffer de perfiles:
+                                       # cambio el largo y no se pueden mezclar
             print(f"  [!] la rampa cambio a {self.n} muestras, se reinicia "
                   f"el radargrama")
         self.T, self.t0, self.k = T, t0, max(k, 0)
@@ -309,9 +334,31 @@ class Vivo:
         t = np.linspace(0, n / FS, n, endpoint=False)
         _, self.theta, alpha0 = eje_theta(self.curva, t)
         self.fs_th = fs_theta(self.theta, n)
-        freqs = np.fft.rfftfreq(n, d=1.0 / self.fs_th)
+        self.nfft = RELLENO * n
+        self.ventana_fft = np.hanning(n)
+        freqs = np.fft.rfftfreq(self.nfft, d=1.0 / self.fs_th)
         self.eje_hz = freqs
         self.eje_m = freqs * C / (2.0 * alpha0)
+        # Capacidad del buffer de perfiles: lo que entra en la ventana mas
+        # larga que el slider puede pedir, con margen.
+        self.cap = int(VENTANA_MAX * 2 / self.T) + 200
+        self.P = self.tp = None
+        self.n_perf = 0
+
+    def _guardar_perfil(self, esp, t):
+        if self.P is None:
+            self.P = np.empty((self.cap, len(esp)))
+            self.tp = np.empty(self.cap)
+        if self.n_perf == self.cap:
+            # Se compacta a la mitad de una, no fila por fila: una copia cada
+            # cap/2 perfiles en vez de una por perfil.
+            mitad = self.cap // 2
+            self.P[:mitad] = self.P[mitad:]
+            self.tp[:mitad] = self.tp[mitad:]
+            self.n_perf = mitad
+        self.P[self.n_perf] = esp
+        self.tp[self.n_perf] = t
+        self.n_perf += 1
 
     def procesar(self):
         """Trocea todas las rampas completas que hayan llegado."""
@@ -329,11 +376,11 @@ class Vivo:
                 seg = seg[::-1]         # la bajada, leida al reves, es una subida
             seg = seg - seg.mean()
             _, corr = remuestrear(self.theta, seg, self.n)
-            # alpha0 = 1: perfil_distancia() solo tiene que devolver el
-            # espectro, los ejes en m y en Hz ya estan armados en _armar_ejes().
-            _, esp = perfil_distancia(corr, self.fs_th, 1.0)
-            self.perfiles.append(esp)
-            self.t_perf.append(fin / FS)
+            # FFT propia y no perfil_distancia(), por el relleno de ceros: esa
+            # no rellena y con 120 muestras por rampa deja 61 bins para todo
+            # el eje. Los ejes en m y en Hz ya estan armados en _armar_ejes().
+            esp = np.abs(np.fft.rfft(corr * self.ventana_fft, n=self.nfft))
+            self._guardar_perfil(esp, fin / FS)
 
         # Tirar lo ya consumido, dejando un margen por si un reajuste corre
         # los limites un poco para atras.
@@ -342,31 +389,40 @@ class Vivo:
         if corte:
             self.beat = self.beat[corte:]
             self.base += corte
-        tope = COLUMNAS * N_MAX
-        if len(self.perfiles) > tope + 500:
-            del self.perfiles[:len(self.perfiles) - tope]
-            del self.t_perf[:len(self.t_perf) - tope]
 
     def matriz(self):
-        """Agrupa los perfiles de a n_rampas y devuelve (matriz_db, t0, t1)."""
+        """Agrupa los perfiles de a n_rampas y devuelve (matriz_db, t0, t1).
+
+        El agrupado se rehace entero en cada refresco a partir de los perfiles
+        de a UNA rampa, asi mover el slider de rampas/columna o el de ventana
+        reagrupa todo lo que hay en pantalla en vez de valer solo de ahi en
+        mas.
+        """
+        # Se puede llamar antes de la calibracion (la tecla 'a', por ejemplo),
+        # y ahi todavia no hay ni periodo ni perfiles.
+        if self.T is None or not self.n_perf:
+            return None, 0, 0
         N = self.n_rampas
-        cols = min(COLUMNAS, len(self.perfiles) // N)
+        # Cuantos perfiles entran en la ventana pedida. Es la ventana la que
+        # manda: el numero de columnas sale de ella y de N, no al reves.
+        caben = min(self.n_perf, int(round(self.ventana / (self.T / 2))))
+        cols = caben // N
         if cols < 1:
             return None, 0, 0
         usadas = cols * N
-        P = np.asarray(self.perfiles[-usadas:])
+        P = self.P[self.n_perf - usadas:self.n_perf]        # vista, no copia
         M = P.reshape(cols, N, P.shape[1]).mean(axis=1).T   # filas = rango
         db = 20 * np.log10(M / (M.max() + 1e-12) + 1e-12)
-        return db, self.t_perf[-usadas], self.t_perf[-1]
+        return db, self.tp[self.n_perf - usadas], self.tp[self.n_perf - 1]
 
     # --- grafico ---
 
     def armar_figura(self):
-        self.fig, self.ax = plt.subplots(figsize=(11, 6.5))
-        self.fig.subplots_adjust(bottom=0.28, top=0.93)
+        self.fig, self.ax = plt.subplots(figsize=(11, 7))
+        self.fig.subplots_adjust(bottom=0.26, top=0.93)
         self.im = self.ax.imshow(np.zeros((2, 2)), origin="lower",
                                  aspect="auto", cmap="viridis",
-                                 extent=(0, 1, 0, D_MAX),
+                                 extent=(0, 1, 0, ALCANCE_DEF),
                                  vmin=self.piso, vmax=self.techo)
         self.ax.set_xlabel("Tiempo de captura [s]")
         self.fig.colorbar(self.im, ax=self.ax, label="Potencia relativa [dB]")
@@ -374,22 +430,37 @@ class Vivo:
                                 transform=self.ax.transAxes, ha="center",
                                 va="center", fontsize=13, color="0.3")
 
-        ejes = [self.fig.add_axes([0.13, y, 0.62, 0.03])
-                for y in (0.145, 0.09, 0.035)]
-        self.s_n = Slider(ejes[0], "rampas/columna", 1, N_MAX,
+        # Dos columnas de sliders: los tres que cambian QUE se mide a la
+        # izquierda, los dos de escala de color a la derecha.
+        izq = [self.fig.add_axes([0.14, y, 0.28, 0.03])
+               for y in (0.145, 0.09, 0.035)]
+        der = [self.fig.add_axes([0.63, y, 0.28, 0.03])
+               for y in (0.145, 0.09)]
+        self.s_n = Slider(izq[0], "rampas/col", 1, N_MAX,
                           valinit=self.n_rampas, valstep=1)
-        self.s_piso = Slider(ejes[1], "piso [dB]", -90.0, -5.0,
+        self.s_vent = Slider(izq[1], "ventana [s]", 1.0, VENTANA_MAX,
+                             valinit=self.ventana)
+        self.s_alc = Slider(izq[2], "alcance [m]", 0.2, ALCANCE_MAX,
+                            valinit=self.alcance)
+        self.s_piso = Slider(der[0], "piso [dB]", -90.0, -5.0,
                              valinit=self.piso)
-        self.s_techo = Slider(ejes[2], "techo [dB]", -60.0, 5.0,
+        self.s_techo = Slider(der[1], "techo [dB]", -60.0, 5.0,
                               valinit=self.techo)
-        self.s_n.on_changed(self._cambio_n)
+        self.s_n.on_changed(self._cambio_medida)
+        self.s_vent.on_changed(self._cambio_medida)
+        self.s_alc.on_changed(self._cambio_alcance)
         self.s_piso.on_changed(self._cambio_color)
         self.s_techo.on_changed(self._cambio_color)
         self.fig.canvas.mpl_connect("key_press_event", self._tecla)
         self._poner_eje_y()
 
-    def _cambio_n(self, v):
-        self.n_rampas = int(v)
+    def _cambio_medida(self, v):
+        self.n_rampas = int(self.s_n.val)
+        self.ventana = self.s_vent.val
+
+    def _cambio_alcance(self, v):
+        self.alcance = self.s_alc.val
+        self._poner_eje_y()
 
     def _cambio_color(self, v):
         self.piso, self.techo = self.s_piso.val, self.s_techo.val
@@ -415,8 +486,11 @@ class Vivo:
             self.ax.set_ylabel("Distancia [m]")
             return
         eje = self.eje_m if self.en_metros else self.eje_hz
-        tope = (D_MAX if self.en_metros
-                else D_MAX * self.eje_hz[-1] / self.eje_m[-1])
+        # El slider de alcance esta siempre en metros, tambien cuando el eje
+        # se muestra en Hz: es la misma escala con otra unidad, y asi la
+        # posicion del slider quiere decir lo mismo en los dos modos.
+        tope = (self.alcance if self.en_metros
+                else self.alcance * self.eje_hz[-1] / self.eje_m[-1])
         x0, x1, _, _ = self.im.get_extent()
         self.im.set_extent((x0, x1, eje[0], eje[-1]))
         self.ax.set_ylim(0, min(tope, eje[-1]))
@@ -424,6 +498,19 @@ class Vivo:
                            else "Frecuencia de batido [Hz]")
 
     def actualizar(self, _=None):
+        """Un refresco. Siempre termina pidiendo el redibujo.
+
+        Sin el draw_idle() final la pantalla se queda congelada: mutar los
+        artistas (set_data, set_title) NO repinta por si solo, y lo unico que
+        forzaba el repaint era mover un slider. Se ve como que el programa
+        anda pero la imagen no avanza hasta que tocas algo.
+        """
+        try:
+            self._actualizar()
+        finally:
+            self.fig.canvas.draw_idle()
+
+    def _actualizar(self):
         self.drenar()
         ahora = self.n_total / FS
 
