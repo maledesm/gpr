@@ -86,15 +86,35 @@ un hilo vacía el puerto y escribe `datos/captura.csv` y
 200 ms. Lo que se ve en vivo queda grabado, así que se puede volver a
 analizar después con los scripts de siempre.
 
-La ventana tiene tres partes: los controles **todos a la izquierda**, en
-cuadros de texto (Enter para aplicar); arriba el radargrama **vertical**
-(distancia en x, tiempo en y, la fila más nueva abajo de todo); y abajo la
-**FFT de esa última fila**, compartiendo el eje x con el radargrama.
+La ventana tiene cuatro zonas: los controles **todos a la izquierda**, en
+cuadros de texto (Enter para aplicar) y botones; en el centro el radargrama
+**vertical** (distancia en x, tiempo en y, la fila más nueva abajo de todo)
+y debajo la **FFT de esa última fila** compartiendo el eje x; y a la derecha
+el **cuadro de información de la captura** y, abajo, la **triangular
+plegada**.
 
 Cuadros: `rampas/col`, `ventana [s]`, `alcance [m]`, `piso`/`techo` [dB],
-`ignorar < [m]` y `dist. real [m]`. Botones: `tomar punto`, `calibrar`,
-`borrar cal`. Teclas: `e` alterna el eje x entre metros y Hz (el alcance se
-tipea siempre en metros y se convierte solo), `a` autoescala el color.
+`ignorar < [m]` y `dist. real [m]`. Botones: `eje: m <-> Hz`, `tomar punto`,
+`calibrar`, `borrar cal`. Teclas: `e` (lo mismo que el botón de eje) y `a`
+(autoescala el color). El alcance se tipea siempre en metros y se convierte
+solo al pasar a Hz.
+
+**La traza roja del radargrama** marca el pico de cada fila. Una fila cuyo
+pico no se despega `TRAZA_MIN_DB` (3 dB) de la mediana de esa fila sale
+`NaN` y la línea se corta: con la escala de dB automática, cualquier fila de
+puro ruido igual tiene un máximo, y unirlos dibujaría un blanco que no
+existe. Probado con un blanco sintético alejándose de 1 a 3 m: la traza lo
+sigue en las 250 filas.
+
+**El eje de distancia arranca siempre en 0**, no en `eje[0]`: con una
+calibración de offset negativo el eje crudo empieza en un número negativo, y
+arrancar ahí movería el cero de lugar cada vez que se recalibra.
+
+**La triangular se dibuja PLEGADA en fase**, no como serie de tiempo. A ~188
+lecturas/s son 7,5 puntos por período, que sueltos parecen ruido; plegando
+los últimos `VENTANA_AJUSTE_S` se ven ~940 puntos sobre un período y la forma
+(y cualquier recorte) salta a la vista. Es además la misma vista sobre la que
+`ajustar_triangular()` hace el ajuste.
 
 Los controles reagrupan TODO lo que hay en pantalla, no sólo lo que venga de
 ahí en más, porque se guardan los perfiles de a UNA rampa y el agrupado se
@@ -144,10 +164,14 @@ que no sesga la fase del ajuste: el período salió 39,999 ms contra 40,00
 nominal. Los límites de rampa de esas capturas son buenos.
 
 **`Vivo.saturacion()` se queda.** Encontró una resistencia suelta a partir
-del histograma, que es exactamente para lo que está: avisa por consola al
-arrancar y muestra `!! TRIANGULAR RECORTADA` en el panel de estado mientras
-más del 2 % del ciclo esté en un riel. Con el divisor puesto, GPIO3 ve 1,5 V
-de pico = ~2450 cuentas, con margen de sobra.
+del histograma, que es exactamente para lo que está. Con el divisor puesto,
+GPIO3 ve 1,5 V de pico = ~2450 cuentas, con margen de sobra.
+
+El umbral de aviso es `UMBRAL_SAT` = **5 %**, no 2 %: con la triangular sana
+el vértice de abajo roza el cero y el 2 % saltaba sin motivo (se vio en el
+banco, `!! TRIANGULAR RECORTADA 2%` con todo bien). Con la triangular
+entrando sin dividir el recorte fue del 18 %, así que 5 % separa bien los dos
+casos.
 
 ## La distancia del eje NO es de fiar sin calibrar
 

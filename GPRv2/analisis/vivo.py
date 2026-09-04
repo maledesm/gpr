@@ -8,11 +8,17 @@ llegan. Es waterfall.py sin tener que grabar primero y analizar despues.
 La ventana tiene tres partes:
 
     izquierda   todas las configuraciones, en cuadros de texto. Se tipea el
-                valor y se aprieta Enter.
-    arriba      el radargrama, que corre VERTICAL: distancia en x, tiempo en
-                y, la fila mas nueva abajo de todo y las viejas subiendo.
-    abajo       la FFT de la ultima fila del radargrama, con el mismo eje x,
-                para leer el perfil actual con numeros en vez de color.
+                valor y se aprieta Enter, y los botones.
+    centro      arriba el radargrama, que corre VERTICAL: distancia en x,
+                tiempo en y, la fila mas nueva abajo de todo y las viejas
+                subiendo, con una traza roja siguiendo el pico fila por fila.
+                Abajo, la FFT de la ultima fila, con el mismo eje x.
+    derecha     arriba el cuadro de informacion de la captura (Tprf, rampa,
+                barrido, tensiones medidas de la triangular, resolucion).
+                Abajo, la triangular plegada en un periodo.
+
+El eje de distancia arranca SIEMPRE en 0: es la referencia, y con una
+calibracion de offset negativo el eje crudo empieza en un numero negativo.
 
 Todo lo que se muestra se graba a datos/captura.csv y datos/triangular.csv,
 asi que se puede volver a analizar despues con waterfall.py o
@@ -52,8 +58,8 @@ Controles
                        acoplamiento directo TX->RX vive cerca de cero y se
                        lleva puesto cualquier argmax)
         dist. real [m] la distancia verdadera del blanco, para calibrar
-    botones:  tomar punto | calibrar | borrar cal
-    e         alterna el eje entre distancia [m] y frecuencia de batido [Hz]
+    botones:  eje: m <-> Hz | tomar punto | calibrar | borrar cal
+    e         lo mismo que el boton de eje
     a         autoescala el color a lo que hay en pantalla
     q         salir
 
@@ -126,6 +132,19 @@ IGNORAR_DEF = 0.3    # m, desde donde se busca el pico para calibrar
 PISO_DEF  = -40.0    # dB respecto del pico en pantalla
 TECHO_DEF = 0.0
 PROMEDIO_CAL_S = 2.0  # cuanto se promedia para tomar un punto de calibracion
+# Cuanto tiene que despegarse el pico de una fila del fondo de esa fila para
+# que la traza roja lo marque. Sin esto la traza une los maximos de filas de
+# puro ruido y dibuja un blanco que no existe.
+TRAZA_MIN_DB = 3.0
+# Fraccion del ciclo pegada a un riel a partir de la cual se avisa. 2 % era
+# demasiado sensible: con la triangular sana el vertice de abajo roza el cero
+# y saltaba la alarma sin motivo. Con la triangular entrando sin dividir el
+# recorte fue del 18 %, asi que 5 % separa bien los dos casos.
+UMBRAL_SAT = 0.05
+# El ADC del C3 a 12 bits con la atenuacion por defecto llega a ~2,5 V, y el
+# divisor 4k7/4k7 le da la mitad de lo que sale del generador.
+ADC_FS_V = 2.5
+DIVISOR = 2.0
 
 AQUI    = os.path.dirname(os.path.abspath(__file__))
 DATOS   = os.path.join(AQUI, "..", "datos")
@@ -553,11 +572,13 @@ class Vivo:
     # --- grafico ---
 
     def armar_figura(self):
-        self.fig = plt.figure(figsize=(12, 8))
-        self.ax = self.fig.add_axes([0.30, 0.40, 0.58, 0.52])    # radargrama
-        self.axf = self.fig.add_axes([0.30, 0.08, 0.58, 0.24],   # FFT
+        self.fig = plt.figure(figsize=(14, 8))
+        self.ax = self.fig.add_axes([0.265, 0.42, 0.455, 0.50])   # radargrama
+        self.axf = self.fig.add_axes([0.265, 0.08, 0.455, 0.26],  # FFT
                                      sharex=self.ax)
-        self.axc = self.fig.add_axes([0.90, 0.40, 0.015, 0.52])  # colorbar
+        self.axc = self.fig.add_axes([0.732, 0.42, 0.011, 0.50])  # colorbar
+        self.axi = self.fig.add_axes([0.795, 0.42, 0.195, 0.50])  # info
+        self.axt = self.fig.add_axes([0.795, 0.08, 0.195, 0.20])  # triangular
 
         self.im = self.ax.imshow(np.zeros((2, 2)), origin="upper",
                                  aspect="auto", cmap="viridis",
@@ -569,12 +590,38 @@ class Vivo:
         self.txt = self.ax.text(0.5, 0.5, "esperando muestras...",
                                 transform=self.ax.transAxes, ha="center",
                                 va="center", fontsize=13, color="0.3")
+        # Traza del blanco: el pico de cada fila, para seguirlo mientras se
+        # mueve. Va sobre el radargrama, que es donde esta la historia.
+        (self.traza,) = self.ax.plot([], [], color="red", lw=1.2, alpha=0.9,
+                                     marker=".", ms=3, label="pico por fila")
 
         (self.linea,) = self.axf.plot([], [], lw=1.2, color="tab:blue")
         self.marca = self.axf.axvline(np.nan, color="tab:red", ls="--", lw=1.0)
         self.axf.set_ylabel("dB rel. al pico")
         self.axf.grid(alpha=0.3)
         self.axf.set_ylim(self.piso, self.techo)
+
+        # Cuadro de informacion: es un axes sin ticks, o sea un rectangulo con
+        # marco, y adentro un bloque de texto monoespaciado.
+        self.axi.set_xticks([]); self.axi.set_yticks([])
+        self.axi.set_title("Captura", fontsize=9)
+        # 7,2 pt y no 8: son 31 lineas y a 8 pt la ultima se sale del marco.
+        self.info = self.axi.text(0.04, 0.975, "", transform=self.axi.transAxes,
+                                  va="top", ha="left", fontsize=7.2,
+                                  family="monospace")
+
+        # Cuadrito de la triangular. Se dibuja PLEGADA en fase y no como serie
+        # de tiempo: a ~188 lecturas/s son 7,5 puntos por periodo, que sueltos
+        # parecen ruido. Plegando los ultimos VENTANA_AJUSTE_S se ven ~940
+        # puntos sobre un periodo y la forma (y cualquier recorte) salta a la
+        # vista. Es ademas la misma vista sobre la que se ajusta el periodo.
+        self.axt.set_xticks([]); self.axt.set_yticks([])
+        self.axt.set_title("Triangular (plegada)", fontsize=9)
+        (self.tri_pts,) = self.axt.plot([], [], ".", ms=1.5, alpha=0.4,
+                                        color="tab:red")
+        self.axt.axhline(4095, color="k", ls="--", lw=0.8)
+        self.axt.axhline(0, color="k", ls="--", lw=0.8)
+        self.axt.set_ylim(-250, 4345)
 
         self._armar_controles()
         self._poner_eje_x()
@@ -601,7 +648,8 @@ class Vivo:
 
         y -= 0.02
         self.botones = []
-        for etiqueta, fn in (("tomar punto", self._tomar_punto),
+        for etiqueta, fn in (("eje: m <-> Hz", self._cambiar_eje),
+                             ("tomar punto", self._tomar_punto),
                              ("calibrar", self._calibrar),
                              ("borrar cal", self._borrar_cal)):
             ax = self.fig.add_axes([0.045, y, 0.165, 0.042])
@@ -646,6 +694,10 @@ class Vivo:
             texto = leer()
             if caja.text != texto:
                 caja.set_val(texto)
+
+    def _cambiar_eje(self, _=None):
+        self.en_metros = not self.en_metros
+        self._poner_eje_x()
 
     def _tomar_punto(self, _=None):
         d = self.pico_crudo()
@@ -718,7 +770,10 @@ class Vivo:
             tope = np.interp(self.alcance, self.eje_m, self.eje_hz)
             etiqueta = "Frecuencia de batido [Hz]"
         self.axf.set_xlabel(etiqueta)
-        self.ax.set_xlim(eje[0], min(tope, eje[-1]))
+        # Siempre desde 0, no desde eje[0]: con calibracion 'b' negativo el eje
+        # crudo arranca en un numero negativo, y arrancar el grafico ahi mueve
+        # el cero de lugar cada vez que se recalibra. El cero es la referencia.
+        self.ax.set_xlim(0.0, min(tope, eje[-1]))
         _, _, y0, y1 = self.im.get_extent()
         self.im.set_extent((eje[0], eje[-1], y0, y1))
 
@@ -752,7 +807,7 @@ class Vivo:
             print(f"  triangular: periodo {self.T*1e3:.3f} ms "
                   f"({1/self.T:.3f} Hz), rampa {self.n} muestras")
             sat = self.saturacion()
-            if sat > 0.02:
+            if sat > UMBRAL_SAT:
                 print(f"  [!] la triangular llega RECORTADA: {sat*100:.0f} % "
                       f"del ciclo pegado a un riel del ADC. La rampa de "
                       f"tension no es la que asume el codigo, asi que las "
@@ -792,35 +847,120 @@ class Vivo:
                  np.interp(pico, self.eje_m_crudo, self.eje_hz))
             self.marca.set_xdata([x, x])
 
+        xs, ys = self.traza_picos(db, span)
+        self.traza.set_data(xs, ys)
+        self._dibujar_triangular()
+
+    def traza_picos(self, db, span):
+        """Posicion del pico fila por fila, para seguir el blanco.
+
+        Devuelve (x, y) listos para dibujar sobre el radargrama. Las filas
+        donde el pico no se despega del fondo salen NaN, asi la linea se corta
+        en vez de inventar una posicion: con la escala de dB automatica,
+        cualquier fila de puro ruido igual tiene un maximo, y unir esos
+        maximos daria una traza que parece un blanco moviendose y no es nada.
+        """
+        umbral = (self.ignorar - self.cal.b) / self.cal.a
+        sel = self.eje_m_crudo >= umbral
+        if not sel.any():
+            return [], []
+        campo = np.where(sel, db, -np.inf)
+        i = np.argmax(campo, axis=1)
+        alto = campo[np.arange(len(i)), i]
+        fondo = np.median(db[:, sel], axis=1)
+        eje = self._eje_x()
+        x = np.where(alto - fondo >= TRAZA_MIN_DB, eje[i], np.nan)
+        # Fila 0 = la mas vieja = arriba de todo (origin="upper").
+        filas = db.shape[0]
+        y = span * (filas - 0.5 - np.arange(filas)) / filas
+        return x, y
+
+    def _dibujar_triangular(self):
+        """El cuadrito de la triangular, plegada en fase sobre un periodo."""
+        if not self.tri_fila:
+            return
+        idx = np.asarray(self.tri_fila, dtype=float)
+        val = np.asarray(self.tri_adc, dtype=float)
+        fase = ((idx / FS - self.t0) % self.T) / self.T
+        self.tri_pts.set_data(fase * self.T * 1e3, val)
+        self.axt.set_xlim(0, self.T * 1e3)
+
+    def _volts(self):
+        """(min, max) de la triangular en V del generador, y si esta pegada.
+
+        El ADC del C3 con la atenuacion por defecto llega a ~ADC_FS_V, y el
+        divisor 4k7/4k7 le da la mitad de lo que sale del generador. Es una
+        medicion floja (el ADC comprime cerca del riel) pero alcanza para
+        darse cuenta de que la amplitud no es la que uno cree - que fue
+        exactamente el problema del 2026-09-04.
+        """
+        if not self.tri_adc:
+            return None, None
+        a = np.asarray(self.tri_adc, dtype=float) / 4095 * ADC_FS_V * DIVISOR
+        return a.min(), a.max()
+
     def _poner_estado(self, ahora, db):
         filas = 0 if db is None else db.shape[0]
         pico = self.pico_crudo()
         if self.cal.activa:
-            cal = f"d = {self.cal.a:.4f}*crudo {self.cal.b:+.3f}"
+            cal = f"d = {self.cal.a:.4f}*crudo\n      {self.cal.b:+.3f} m"
         else:
-            cal = "sin calibrar (eje crudo)"
-        if pico is None:
-            lin_pico = "pico: -"
-        else:
-            lin_pico = (f"pico: {self.cal.aplicar(pico):.3f} m "
-                        f"(crudo {pico:.3f})")
-        sat = self.saturacion()
-        lin_sat = ("triangular OK" if sat <= 0.02 else
-                   f"!! TRIANGULAR RECORTADA\n   {sat*100:.0f}% en el riel")
+            cal = "sin calibrar (crudo)"
+        lin_pico = ("pico: -" if pico is None else
+                    f"pico: {self.cal.aplicar(pico):.3f} m\n"
+                    f"      (crudo {pico:.3f})")
         self.estado.set_text(
-            f"{ahora:6.1f} s\n"
-            f"rampa {self.n} muestras\n"
-            f"  ({self.T/2*1e3:.2f} ms)\n"
-            f"filas en pantalla: {filas}\n"
-            f"cortadas: {self.lec.descartadas}\n"
-            f"{lin_sat}\n"
-            f"\n"
             f"calibracion:\n  {cal}\n"
             f"puntos: {len(self.cal.puntos)}\n"
             f"{lin_pico}\n"
             f"\n{self.aviso}")
         self.ax.set_title(f"Radargrama - {self.n_rampas} rampas/fila "
                           f"({self.n_rampas*self.T/2*1e3:.0f} ms)", fontsize=10)
+
+        # --- el cuadro de la derecha ---
+        sat = self.saturacion()
+        vmin, vmax = self._volts()
+        bw = self.curva(V_MAX) - self.curva(V_MIN)
+        alpha0 = bw / (self.T / 2)
+        # Resolucion en distancia: c/(2*BW), y no la depende de fs (ver
+        # GPRv2/CLAUDE.md). Alcance no ambiguo: el Nyquist del eje de batido.
+        res = C / (2 * bw)
+        d_nyq = (self.fs_th / 2) * C / (2 * alpha0)
+        lin_sat = ("OK" if sat <= UMBRAL_SAT else
+                   f"RECORTADA ({sat*100:.0f}%)")
+        self.info.set_text(
+            f"corriendo    {ahora/60:6.1f} min\n"
+            f"muestras     {self.lec.n_filas:9d}\n"
+            f"cortadas     {self.lec.descartadas:9d}\n"
+            f"\n"
+            f"-- rampa --\n"
+            f"Tprf (ciclo) {self.T*1e3:8.3f} ms\n"
+            f"  = {1/self.T:.3f} Hz\n"
+            f"rampa        {self.T/2*1e3:8.3f} ms\n"
+            f"             {self.n:6d} muestras\n"
+            f"fs salida    {FS:8.0f} sps\n"
+            f"fs en theta  {self.fs_th:8.1f} sps\n"
+            f"\n"
+            f"-- barrido --\n"
+            f"BW (curva)   {bw/1e6:8.1f} MHz\n"
+            f"V_MIN..V_MAX {V_MIN:.2f}..{V_MAX:.2f} V\n"
+            f"alpha0     {alpha0/1e12:8.4f} THz/s\n"
+            f"bin         {res*100:8.1f} cm\n"
+            f"no ambiguo  {d_nyq:8.2f} m\n"
+            f"  ({alpha0*2/C:.0f} Hz por metro)\n"
+            f"\n"
+            f"-- triangular --\n"
+            f"medida GPIO3 x{DIVISOR:.0f}\n"
+            + (f"  {vmin:5.2f} a {vmax:5.2f} V\n" if vmin is not None
+               else "  -\n") +
+            f"  pico a pico {(vmax-vmin) if vmin is not None else 0:5.2f} V\n"
+            f"riel del ADC {lin_sat}\n"
+            f"lecturas/s   {len(self.tri_fila)/VENTANA_AJUSTE_S:8.0f}\n"
+            f"\n"
+            f"-- pantalla --\n"
+            f"filas        {filas:9d}\n"
+            f"rampas/fila  {self.n_rampas:9d}\n"
+            f"por fila     {self.n_rampas*self.T/2*1e3:6.0f} ms")
 
 
 def main():
