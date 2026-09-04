@@ -99,6 +99,51 @@ Cuadros: `rampas/col`, `ventana [s]`, `alcance [m]`, `piso`/`techo` [dB],
 (autoescala el color). El alcance se tipea siempre en metros y se convierte
 solo al pasar a Hz.
 
+### Fondo y puerta de detección
+
+Agregado el 2026-09-04, porque sin blanco el programa igual informaba una
+distancia: al normalizar al máximo de la pantalla, el eco fijo de la sala
+sube a 0 dB y aparece un pico donde no hay nada.
+
+Con la sala vacía, **`medir fondo`** promedia `FONDO_S` (3 s) y guarda ese
+perfil. A partir de ahí:
+
+1. **Se resta** de lo que se mide, así los ecos fijos salen de la pantalla.
+   Es resta en amplitud con piso en cero: lo que se guarda son magnitudes de
+   FFT, no complejos, o sea que no hay cancelación coherente posible.
+2. **La referencia de dB pasa a ser fija** (el pico del fondo) en vez del
+   máximo de la pantalla. Esto es lo que arregla la distancia inventada, y de
+   paso hace que la escala de color quiera decir siempre lo mismo.
+3. **Puerta de energía**: sólo si la energía medida supera a la del fondo por
+   `margen` dB (cuadro de texto, 6 dB por defecto) se declara que hay blanco.
+   Si no, `pico_crudo()` devuelve `None`, la marca de la FFT se va del gráfico
+   y la traza roja se corta.
+
+**La energía de la puerta se calcula sobre la señal CRUDA**, no sobre la que
+ya tiene el fondo restado: "la energía medida supera a la del fondo por un
+margen" es literalmente eso. Restando primero, el cociente daría casi cero
+siempre y no sería comparable con nada.
+
+Los 6 dB de `MARGEN_DEF` quieren decir que el blanco tiene que aportar unas
+3 veces la energía de todo el fondo. El panel muestra la energía actual en
+vivo, así que ajustarlo es mirar el número y tipear.
+
+Medido sobre una escena sintética con un eco fijo en 2,0 m y una placa que
+aparece a los 40 s en 1,20 m:
+
+| | sin fondo medido | con fondo medido |
+|---|---|---|
+| sala vacía | informa **1,997 m** (el eco) | `sin blanco`, +0,02 dB, traza 0/187 |
+| con la placa | — | `HAY BLANCO`, +6,8 dB, pico **1,205 m** |
+
+**Medir el fondo mueve `piso` y `techo`** a `PISO_FONDO`/`TECHO_FONDO`
+(−20/+20). Cambia el significado del 0 dB, así que los límites viejos
+recortaban el pico y parecía un error; `borrar fondo` los devuelve.
+
+Cambiar `ignorar < [m]` recalcula la energía y la referencia del fondo sobre
+la zona nueva (`_recalcular_fondo()`): si no, la puerta compararía dos zonas
+distintas.
+
 **La traza roja del radargrama** marca el pico de cada fila. Una fila cuyo
 pico no se despega `TRAZA_MIN_DB` (3 dB) de la mediana de esa fila sale
 `NaN` y la línea se corta: con la escala de dB automática, cualquier fila de

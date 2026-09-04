@@ -54,14 +54,44 @@ Controles
         ventana [s]    cuanto tiempo se muestra
         alcance [m]    tope del eje de distancia
         piso / techo   escala de color, en dB respecto del pico en pantalla
-        ignorar < [m]  desde donde busca el pico para calibrar (el
-                       acoplamiento directo TX->RX vive cerca de cero y se
-                       lleva puesto cualquier argmax)
+        ignorar < [m]  desde donde se busca el pico (el acoplamiento directo
+                       TX->RX vive cerca de cero y se lleva puesto cualquier
+                       argmax)
+        margen [dB]    cuanto tiene que superar la energia medida a la del
+                       fondo para declarar que hay un blanco
         dist. real [m] la distancia verdadera del blanco, para calibrar
-    botones:  eje: m <-> Hz | tomar punto | calibrar | borrar cal
+    botones:  eje: m <-> Hz | medir fondo | borrar fondo |
+              tomar punto | calibrar | borrar cal
     e         lo mismo que el boton de eje
     a         autoescala el color a lo que hay en pantalla
     q         salir
+
+Fondo y puerta de deteccion
+---------------------------
+Con la sala vacia, "medir fondo" promedia FONDO_S segundos y guarda ese
+perfil. A partir de ahi pasan tres cosas:
+
+  - se RESTA de lo que se mide, asi los ecos fijos de la sala salen de la
+    pantalla. Es resta en amplitud con piso en cero: lo que se guarda son
+    magnitudes de FFT, no complejos, o sea que no hay cancelacion coherente
+    posible.
+
+  - la referencia de dB pasa a ser FIJA, el pico del fondo, en vez del maximo
+    de lo que hay en pantalla. Esto es lo que arregla la distancia inventada:
+    normalizando al maximo, sin ningun blanco el propio fondo sube a 0 dB y
+    aparece un pico donde no hay nada.
+
+  - se compara la energia medida contra la del fondo, y solo si la supera por
+    'margen' dB se declara que hay blanco y se informa una distancia. Sin
+    blanco, pico_crudo() devuelve None, la marca de la FFT se va del grafico
+    y la traza roja del radargrama se corta.
+
+La energia de la puerta se calcula sobre la senal CRUDA, no sobre la que ya
+tiene el fondo restado: "la energia medida supera a la del fondo por un
+margen" es literalmente eso. Restando primero, el cociente daria casi cero
+siempre y no seria comparable con nada.
+
+Sin fondo medido nada de esto actua y el programa se comporta como antes.
 
 Como se sincroniza sin sync
 ---------------------------
@@ -131,7 +161,17 @@ ALCANCE_DEF = 5.0    # m, tope del eje de distancia
 IGNORAR_DEF = 0.3    # m, desde donde se busca el pico para calibrar
 PISO_DEF  = -40.0    # dB respecto del pico en pantalla
 TECHO_DEF = 0.0
+# Con fondo medido, 0 dB pasa a ser el pico del FONDO y un blanco queda muy
+# por arriba, asi que los limites de arriba dejan de servir y se ponen estos.
+PISO_FONDO  = -20.0
+TECHO_FONDO = 20.0
 PROMEDIO_CAL_S = 2.0  # cuanto se promedia para tomar un punto de calibracion
+FONDO_S = 3.0         # cuanto se promedia al medir el fondo (mas que un punto:
+                      # el fondo se mide una vez y conviene que sea firme)
+# Cuanto tiene que superar la energia medida a la del fondo para declarar que
+# hay un blanco. 6 dB es el doble de amplitud: pasa cualquier blanco que valga
+# la pena y no pasa la deriva del fondo. Se puede cambiar desde la ventana.
+MARGEN_DEF = 6.0
 # Cuanto tiene que despegarse el pico de una fila del fondo de esa fila para
 # que la traza roja lo marque. Sin esto la traza une los maximos de filas de
 # puro ruido y dibuja un blanco que no existe.
@@ -369,10 +409,20 @@ class Vivo:
         self.ventana = VENTANA_DEF
         self.alcance = ALCANCE_DEF
         self.ignorar = IGNORAR_DEF
+        self.margen = MARGEN_DEF
         self.en_metros = True
         self.piso, self.techo = PISO_DEF, TECHO_DEF
         self.dist_real = 1.0
         self.aviso = ""
+
+        # Fondo: el perfil de la sala sin ningun blanco. Se resta de lo que se
+        # mide, y su energia es la referencia contra la que se decide si hay
+        # algo. Sin fondo medido, todo esto queda desactivado y el programa se
+        # comporta como antes (normalizando al maximo de la pantalla).
+        self.fondo = None          # perfil promedio del fondo
+        self.fondo_ref = 1.0       # referencia FIJA de dB
+        self.fondo_energia = 0.0   # energia del fondo en la zona util
+        self.energia_db = None     # energia de cada fila contra el fondo
 
     # --- datos ---
 
@@ -539,35 +589,123 @@ class Vivo:
         usadas = filas * N
         P = self.P[self.n_perf - usadas:self.n_perf]        # vista, no copia
         M = P.reshape(filas, N, P.shape[1]).mean(axis=1)
-        db = 20 * np.log10(M / (M.max() + 1e-12) + 1e-12)
+
+        sel = self._zona_util()
+        if self.fondo is None:
+            # Sin fondo medido: como siempre, 0 dB es el maximo de la pantalla.
+            self.energia_db = None
+            db = 20 * np.log10(M / (M.max() + 1e-12) + 1e-12)
+        else:
+            # La puerta se decide con la energia CRUDA contra la del fondo,
+            # que es literalmente "la energia medida supera a la del fondo por
+            # un margen". Restar primero y comparar despues daria casi cero
+            # siempre y no seria comparable con nada.
+            e = (M[:, sel] ** 2).sum(axis=1)
+            self.energia_db = 10 * np.log10(e / (self.fondo_energia + 1e-30)
+                                            + 1e-30)
+            # El fondo se resta en amplitud, con piso en cero: lo que se
+            # guarda son magnitudes de FFT, no complejos, asi que no hay
+            # cancelacion coherente posible. Alcanza para sacar de la pantalla
+            # los ecos fijos de la sala.
+            M = np.maximum(M - self.fondo, 0.0)
+            # Referencia FIJA, la del fondo, y no el maximo de la pantalla:
+            # normalizar al maximo hace que sin blanco el propio fondo suba a
+            # 0 dB y aparezca un blanco donde no hay nada. Con referencia fija
+            # la escala de color quiere decir siempre lo mismo.
+            db = 20 * np.log10(M / self.fondo_ref + 1e-12)
         return db, self.tp[self.n_perf - 1] - self.tp[self.n_perf - usadas]
 
-    def perfil_actual(self):
-        """Promedio de los ultimos PROMEDIO_CAL_S, para tomar puntos."""
+    def _zona_util(self):
+        """Mascara de bins por encima de 'ignorar'.
+
+        El umbral se tipea en el eje que se esta viendo (calibrado), asi que
+        se convierte a crudo antes de comparar. Todo lo que queda afuera es el
+        acoplamiento directo TX->RX, que vive cerca de cero, es lo mas fuerte
+        de la pantalla y se lleva puesto cualquier argmax.
+        """
+        return self.eje_m_crudo >= (self.ignorar - self.cal.b) / self.cal.a
+
+    def perfil_actual(self, crudo=False):
+        """Promedio de los ultimos PROMEDIO_CAL_S. Con el fondo ya restado,
+        salvo que se pida crudo (que es lo que hace falta para medirlo)."""
         if self.T is None or not self.n_perf:
             return None
         cuantos = max(1, min(self.n_perf,
                              int(round(PROMEDIO_CAL_S / (self.T / 2)))))
-        return self.P[self.n_perf - cuantos:self.n_perf].mean(axis=0)
+        p = self.P[self.n_perf - cuantos:self.n_perf].mean(axis=0)
+        if crudo or self.fondo is None:
+            return p
+        return np.maximum(p - self.fondo, 0.0)
+
+    def hay_blanco(self):
+        """Si la energia actual supera a la del fondo por 'margen' dB.
+
+        Sin fondo medido devuelve True: no hay contra que comparar, y el
+        programa se comporta como antes de que existiera esto.
+        """
+        if self.fondo is None:
+            return True
+        p = self.perfil_actual(crudo=True)
+        if p is None:
+            return False
+        sel = self._zona_util()
+        e = float((p[sel] ** 2).sum())
+        return 10 * np.log10(e / (self.fondo_energia + 1e-30) + 1e-30) \
+            >= self.margen
+
+    def energia_actual_db(self):
+        """Cuanto supera la energia de ahora a la del fondo, en dB."""
+        if self.fondo is None:
+            return None
+        p = self.perfil_actual(crudo=True)
+        if p is None:
+            return None
+        sel = self._zona_util()
+        e = float((p[sel] ** 2).sum())
+        return 10 * np.log10(e / (self.fondo_energia + 1e-30) + 1e-30)
 
     def pico_crudo(self):
-        """Distancia CRUDA del pico mas fuerte, salteando el acoplamiento.
+        """Distancia CRUDA del pico, o None si no hay blanco que valga.
 
-        Se saltea todo lo que este debajo de 'ignorar': el acoplamiento
-        directo TX->RX vive cerca de cero, es lo mas fuerte de la pantalla y
-        se lleva puesto cualquier argmax.
+        Devuelve None cuando la energia no supera al fondo por el margen: sin
+        eso, con la sala vacia el argmax devolvia igual una distancia, que es
+        justo el numero inventado que hay que evitar.
         """
+        if not self.hay_blanco():
+            return None
         perfil = self.perfil_actual()
         if perfil is None:
             return None
-        # El umbral se tipea en el eje que se esta viendo (calibrado), asi que
-        # se convierte a crudo antes de comparar.
-        umbral = (self.ignorar - self.cal.b) / self.cal.a
-        sel = self.eje_m_crudo >= umbral
+        sel = self._zona_util()
         if not sel.any():
             return None
         i = np.argmax(np.where(sel, perfil, -np.inf))
         return float(self.eje_m_crudo[i])
+
+    def medir_fondo(self):
+        """Guarda el perfil de la sala vacia como fondo. Devuelve un aviso."""
+        if self.T is None or not self.n_perf:
+            return "todavia no hay perfil"
+        cuantos = max(1, min(self.n_perf,
+                             int(round(FONDO_S / (self.T / 2)))))
+        self.fondo = self.P[self.n_perf - cuantos:self.n_perf].mean(axis=0)
+        sel = self._zona_util()
+        self.fondo_energia = float((self.fondo[sel] ** 2).sum())
+        # La referencia de dB es el pico del fondo en la zona util: 0 dB pasa
+        # a querer decir "tan fuerte como lo mas fuerte que hay sin blanco".
+        self.fondo_ref = float(max(self.fondo[sel].max(), 1e-12))
+        # Medir el fondo cambia el SIGNIFICADO del 0 dB: deja de ser el maximo
+        # de la pantalla y pasa a ser el pico del fondo, asi que un blanco
+        # puede estar muy por encima. Con el techo en 0 el pico sale recortado
+        # y parece un error, cuando en realidad la escala quedo vieja.
+        self.piso, self.techo = PISO_FONDO, TECHO_FONDO
+        return f"fondo medido sobre {cuantos} rampas"
+
+    def borrar_fondo(self):
+        self.fondo = None
+        self.fondo_energia = 0.0
+        self.fondo_ref = 1.0
+        self.energia_db = None
 
     # --- grafico ---
 
@@ -597,7 +735,7 @@ class Vivo:
 
         (self.linea,) = self.axf.plot([], [], lw=1.2, color="tab:blue")
         self.marca = self.axf.axvline(np.nan, color="tab:red", ls="--", lw=1.0)
-        self.axf.set_ylabel("dB rel. al pico")
+        self.axf.set_ylabel("dB")
         self.axf.grid(alpha=0.3)
         self.axf.set_ylim(self.piso, self.techo)
 
@@ -636,27 +774,30 @@ class Vivo:
             ("piso",     "piso [dB]", lambda: f"{self.piso:g}"),
             ("techo",    "techo [dB]", lambda: f"{self.techo:g}"),
             ("ignorar",  "ignorar < [m]", lambda: f"{self.ignorar:g}"),
+            ("margen",   "margen [dB]", lambda: f"{self.margen:g}"),
             ("dist_real", "dist. real [m]", lambda: f"{self.dist_real:g}"),
         ]
-        y = 0.90
+        y = 0.915
         for nombre, etiqueta, leer in campos:
-            ax = self.fig.add_axes([0.135, y, 0.075, 0.038])
+            ax = self.fig.add_axes([0.135, y, 0.075, 0.034])
             caja = TextBox(ax, etiqueta + "  ", initial=leer())
             caja.on_submit(lambda t, k=nombre: self._escribir(k, t))
             self.cajas[nombre] = (caja, leer)
-            y -= 0.052
+            y -= 0.046
 
-        y -= 0.02
+        y -= 0.015
         self.botones = []
         for etiqueta, fn in (("eje: m <-> Hz", self._cambiar_eje),
+                             ("medir fondo", self._medir_fondo),
+                             ("borrar fondo", self._borrar_fondo),
                              ("tomar punto", self._tomar_punto),
                              ("calibrar", self._calibrar),
                              ("borrar cal", self._borrar_cal)):
-            ax = self.fig.add_axes([0.045, y, 0.165, 0.042])
+            ax = self.fig.add_axes([0.045, y, 0.165, 0.036])
             b = Button(ax, etiqueta)
             b.on_clicked(fn)
             self.botones.append(b)          # hay que retenerlos o se mueren
-            y -= 0.055
+            y -= 0.046
 
         self.estado = self.fig.text(0.03, y - 0.02, "", va="top", ha="left",
                                     fontsize=8.5, family="monospace")
@@ -682,6 +823,13 @@ class Vivo:
             self.techo = v
         elif campo == "ignorar":
             self.ignorar = v
+            # La zona util cambio, asi que la energia del fondo ya no es
+            # comparable con la de ahora: hay que recalcularla sobre la zona
+            # nueva. Sin esto la puerta queda decidiendo con dos zonas
+            # distintas y da cualquier cosa.
+            self._recalcular_fondo()
+        elif campo == "margen":
+            self.margen = v
         elif campo == "dist_real":
             self.dist_real = v
         self.aviso = ""
@@ -695,9 +843,30 @@ class Vivo:
             if caja.text != texto:
                 caja.set_val(texto)
 
+    def _recalcular_fondo(self):
+        """Rehace energia y referencia del fondo sobre la zona util de ahora."""
+        if self.fondo is None:
+            return
+        sel = self._zona_util()
+        if not sel.any():
+            return
+        self.fondo_energia = float((self.fondo[sel] ** 2).sum())
+        self.fondo_ref = float(max(self.fondo[sel].max(), 1e-12))
+
     def _cambiar_eje(self, _=None):
         self.en_metros = not self.en_metros
         self._poner_eje_x()
+
+    def _medir_fondo(self, _=None):
+        self.aviso = self.medir_fondo()
+        self._refrescar_cajas()      # medir_fondo() mueve piso y techo
+        print("  " + self.aviso)
+
+    def _borrar_fondo(self, _=None):
+        self.borrar_fondo()
+        self.piso, self.techo = PISO_DEF, TECHO_DEF
+        self._refrescar_cajas()
+        self.aviso = "fondo borrado"
 
     def _tomar_punto(self, _=None):
         d = self.pico_crudo()
@@ -841,11 +1010,17 @@ class Vivo:
 
         self.linea.set_data(eje, db[-1])
         self.axf.set_ylim(lo, hi)
+        self.axf.set_ylabel("dB sobre el fondo" if self.fondo is not None
+                            else "dB rel. al pico")
         pico = self.pico_crudo()
+        # Sin blanco, pico_crudo() devuelve None y la marca se va del grafico
+        # en vez de quedarse clavada donde estaba el ultimo: dejarla puesta es
+        # exactamente el numero inventado que se quiere evitar.
+        x = np.nan
         if pico is not None:
             x = (self.cal.aplicar(pico) if self.en_metros else
                  np.interp(pico, self.eje_m_crudo, self.eje_hz))
-            self.marca.set_xdata([x, x])
+        self.marca.set_xdata([x, x])
 
         xs, ys = self.traza_picos(db, span)
         self.traza.set_data(xs, ys)
@@ -860,16 +1035,21 @@ class Vivo:
         cualquier fila de puro ruido igual tiene un maximo, y unir esos
         maximos daria una traza que parece un blanco moviendose y no es nada.
         """
-        umbral = (self.ignorar - self.cal.b) / self.cal.a
-        sel = self.eje_m_crudo >= umbral
+        sel = self._zona_util()
         if not sel.any():
             return [], []
         campo = np.where(sel, db, -np.inf)
         i = np.argmax(campo, axis=1)
         alto = campo[np.arange(len(i)), i]
         fondo = np.median(db[:, sel], axis=1)
+        vale = alto - fondo >= TRAZA_MIN_DB
+        # Con fondo medido manda ademas la puerta de energia, fila por fila:
+        # una fila sin blanco no marca nada aunque su maximo local sobresalga
+        # del ruido de esa misma fila.
+        if self.energia_db is not None:
+            vale &= self.energia_db >= self.margen
         eje = self._eje_x()
-        x = np.where(alto - fondo >= TRAZA_MIN_DB, eje[i], np.nan)
+        x = np.where(vale, eje[i], np.nan)
         # Fila 0 = la mas vieja = arriba de todo (origin="upper").
         filas = db.shape[0]
         y = span * (filas - 0.5 - np.arange(filas)) / filas
@@ -906,13 +1086,22 @@ class Vivo:
             cal = f"d = {self.cal.a:.4f}*crudo\n      {self.cal.b:+.3f} m"
         else:
             cal = "sin calibrar (crudo)"
+        e_db = self.energia_actual_db()
+        if self.fondo is None:
+            lin_fondo = "fondo: sin medir\n  (normaliza al maximo)"
+        else:
+            lin_fondo = (f"fondo: medido\n"
+                         f"energia: {e_db:+6.1f} dB\n"
+                         f"margen:  {self.margen:+6.1f} dB\n"
+                         f"  -> {'HAY BLANCO' if self.hay_blanco() else 'sin blanco'}")
         lin_pico = ("pico: -" if pico is None else
                     f"pico: {self.cal.aplicar(pico):.3f} m\n"
                     f"      (crudo {pico:.3f})")
         self.estado.set_text(
-            f"calibracion:\n  {cal}\n"
-            f"puntos: {len(self.cal.puntos)}\n"
+            f"{lin_fondo}\n"
             f"{lin_pico}\n"
+            f"\ncalibracion:\n  {cal}\n"
+            f"puntos: {len(self.cal.puntos)}\n"
             f"\n{self.aviso}")
         self.ax.set_title(f"Radargrama - {self.n_rampas} rampas/fila "
                           f"({self.n_rampas*self.T/2*1e3:.0f} ms)", fontsize=10)
@@ -956,6 +1145,12 @@ class Vivo:
             f"  pico a pico {(vmax-vmin) if vmin is not None else 0:5.2f} V\n"
             f"riel del ADC {lin_sat}\n"
             f"lecturas/s   {len(self.tri_fila)/VENTANA_AJUSTE_S:8.0f}\n"
+            f"\n"
+            f"-- fondo --\n"
+            + ("sin medir\n" if self.fondo is None else
+               f"energia   {self.energia_actual_db():+8.1f} dB\n"
+               f"margen    {self.margen:+8.1f} dB\n"
+               f"blanco    {'SI' if self.hay_blanco() else 'no':>8}\n") +
             f"\n"
             f"-- pantalla --\n"
             f"filas        {filas:9d}\n"
