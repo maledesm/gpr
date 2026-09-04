@@ -109,6 +109,46 @@ llenarse descarta sólo el excedente y siempre quedan `necesarios` perfiles, o
 sea una ventana máxima entera. Medido: 120 s pedidos dan 119,8 s constantes a
 lo largo de 2,5 vueltas de buffer.
 
+## ⚠️ La triangular llega RECORTADA: el eje de distancia está mal por eso
+
+Medido el 2026-09-04 sobre `datos/triangular.csv` (123 s de captura real):
+
+| | |
+|---|---|
+| ciclo pegado a 4095 (riel del ADC) | **16 %** |
+| amplitud real, extrapolando la subida | **~5,4 V pico a pico** |
+| lo que asume el código (`V_MIN`..`V_MAX`) | 3,00 V |
+| pendiente real / asumida | **≥ 1,8×** |
+
+El histograma de la triangular, que en una triangular limpia sale plano,
+tiene la última barra 2,7× más alta que las demás. Plegando en fase se ve
+subir lineal, tocar 4095 a los ~17,5 ms y quedarse pegada hasta los ~22,5.
+
+**Por qué importa más de lo que parece.** `eje_theta()` asume
+`v(t) = V_MIN + (V_MAX−V_MIN)·t/T` a lo largo de TODA la rampa. Si la
+triangular es más grande, pasan dos cosas, y la segunda es la peor:
+
+1. `alpha0` real es mayor que el asumido, y **todas las distancias salen
+   escaladas**. Eso solo, se arreglaría calibrando.
+2. El mapa θ queda aplicado sobre una `v(t)` equivocada, así que **el
+   remuestreo corrige mal y los picos se ensucian**. Eso NO se arregla
+   calibrando el eje: la calibración lo hace *ver* bien y tapa el problema.
+
+**Primero arreglar el generador, después calibrar.** La causa más probable
+de un factor 2 justo es el generador configurado para carga de **50 Ω**
+manejando una entrada de alta impedancia: entrega el doble de lo que muestra
+el panel. En el Siglent, `Utility → Output Setup → Load: HighZ`.
+
+`vivo.py` ahora mide esto solo (`Vivo.saturacion()`): avisa por consola al
+arrancar y muestra `!! TRIANGULAR RECORTADA` en el panel de estado mientras
+más del 2 % del ciclo esté en un riel.
+
+**El 1,8× medido no explica el 4× observado a ojo.** El número en volts
+depende de dónde satura el ADC del C3 (se asumió 2,5 V) y el ADC comprime
+cerca del riel, así que 1,8 es un piso, no una medición fina. Lo que sí es
+inequívoco es que la triangular se sale del rango. Hay que arreglar eso y
+volver a medir antes de sacar conclusiones sobre lo que quede.
+
 ## La distancia del eje NO es de fiar sin calibrar
 
 Medido en el banco (2026-09-04): una placa a **1 m** aparecía en **4 m**.

@@ -372,6 +372,29 @@ class Vivo:
             self.tri_fila.pop(0)
             self.tri_adc.pop(0)
 
+    def saturacion(self):
+        """Fraccion de la triangular que llega pegada a un riel del ADC.
+
+        Es el chequeo mas importante del banco y por eso esta a la vista. Si
+        la triangular se sale del rango, la rampa de tension NO es la que el
+        codigo asume (V_MIN a V_MAX a lo largo de toda la rampa): el VCO
+        recorre su rango en una fraccion del tiempo, el alpha0 real es mayor
+        que el asumido y TODAS las distancias salen mas grandes. Y peor: el
+        mapa theta de eje_theta() queda aplicado sobre una v(t) equivocada,
+        asi que no es un error de escala que se arregle calibrando el eje,
+        los picos se ensucian.
+
+        Medido el 2026-09-04 sobre datos/triangular.csv: 16 % del ciclo
+        pegado a 4095, triangular de ~5,4 V pico a pico en vez de 3. La causa
+        mas probable de un factor 2 justo es el generador configurado para
+        carga de 50 ohm manejando una entrada de alta impedancia, que
+        duplica la amplitud respecto de lo que muestra el panel.
+        """
+        if not self.tri_adc:
+            return 0.0
+        a = np.asarray(self.tri_adc)
+        return float(((a >= 4090) | (a <= 5)).mean())
+
     def ajustar(self, primera_vez):
         """Rehace el ajuste de periodo y fase de la triangular."""
         if len(self.tri_fila) < 20:
@@ -728,6 +751,15 @@ class Vivo:
                 return
             print(f"  triangular: periodo {self.T*1e3:.3f} ms "
                   f"({1/self.T:.3f} Hz), rampa {self.n} muestras")
+            sat = self.saturacion()
+            if sat > 0.02:
+                print(f"  [!] la triangular llega RECORTADA: {sat*100:.0f} % "
+                      f"del ciclo pegado a un riel del ADC. La rampa de "
+                      f"tension no es la que asume el codigo, asi que las "
+                      f"distancias salen escaladas Y los picos ensuciados. "
+                      f"Bajale la amplitud al generador (y fijate que este en "
+                      f"carga HighZ y no 50 ohm) ANTES de calibrar el eje: "
+                      f"calibrar sobre esto tapa el problema, no lo arregla.")
             self.txt.set_visible(False)
             self._poner_eje_x()
         elif ahora - self.t_ajuste > REAJUSTE_S:
@@ -772,12 +804,16 @@ class Vivo:
         else:
             lin_pico = (f"pico: {self.cal.aplicar(pico):.3f} m "
                         f"(crudo {pico:.3f})")
+        sat = self.saturacion()
+        lin_sat = ("triangular OK" if sat <= 0.02 else
+                   f"!! TRIANGULAR RECORTADA\n   {sat*100:.0f}% en el riel")
         self.estado.set_text(
             f"{ahora:6.1f} s\n"
             f"rampa {self.n} muestras\n"
             f"  ({self.T/2*1e3:.2f} ms)\n"
             f"filas en pantalla: {filas}\n"
             f"cortadas: {self.lec.descartadas}\n"
+            f"{lin_sat}\n"
             f"\n"
             f"calibracion:\n  {cal}\n"
             f"puntos: {len(self.cal.puntos)}\n"

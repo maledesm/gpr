@@ -116,3 +116,6 @@ GPRv2/datos/*.pwl
 # La calibracion de distancia es de un banco y un dia concretos: si la de hoy
 # es la buena, conservala con  git add -f GPRv2/datos/calibracion_distancia.json
 GPRv2/datos/calibracion_distancia.json
+
+# La figura del diagnostico de la triangular recortada (2026-09-04)
+triangular_recortada.png
