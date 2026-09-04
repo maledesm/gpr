@@ -111,6 +111,14 @@ constantes del banco, no del algoritmo.
 - **Las rutas de `correccion_no_linealidad.py` y `waterfall.py` son relativas
   al directorio actual**, no al archivo: sólo corren parados en
   `GPRv2/analisis/`. Los archivos nuevos usan `os.path.dirname(__file__)`.
+- **No abras el puerto del ESP32-C3 con DTR/RTS afirmados.** pyserial los
+  afirma a los dos por defecto en `serial.Serial(puerto, ...)`, y en el USB
+  nativo del C3 esa combinacion es la de reset: el chip se reinicia, el USB se
+  re-enumera y el handle queda invalido. El `open()` parece andar y el `write()`
+  posterior falla con `WriteFile failed (PermissionError(13, 'El dispositivo no
+  reconoce el comando.', None, 22))`. Hay que construir el `Serial()` vacio,
+  poner `dtr = False` y `rts = False`, y recien ahi `open()` - como hace
+  `grabar_rampa.py`.
 - **`pandas` hace falta** y no venía en el venv `gpr-win`. Ya está instalado.
 - **No cambies el interpolador de `remuestrear()` buscando SNR.** Medido sobre
   señal limpia, el error contra el resultado analítico es el mismo para

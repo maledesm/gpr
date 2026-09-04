@@ -60,11 +60,22 @@ def main():
                               "Si no, poné el puerto a mano en PUERTO.")
         print(f"Puerto detectado: {puerto}")
 
-    ser = serial.Serial(puerto, BAUD, timeout=0.2)
-    time.sleep(2.0)   # el ESP32-C3 resetea al abrir el puerto USB
+    # Sin tocar DTR/RTS: pyserial los afirma a los dos al abrir, y en el USB
+    # nativo del ESP32-C3 esa combinacion es justo la que resetea el chip. El
+    # USB se re-enumera, el handle viejo queda invalido y el write de 'run'
+    # falla con "El dispositivo no reconoce el comando".
+    ser = serial.Serial()
+    ser.port = puerto
+    ser.baudrate = BAUD
+    ser.timeout = 0.2
+    ser.dtr = False
+    ser.rts = False
+    ser.open()
+    time.sleep(0.5)   # que se asiente el puerto
     ser.reset_input_buffer()
     ser.write(b"run\n")
 
+    print(f"Grabando {DURACION_S:.0f} s...")
     lineas = []
     t0 = time.time()
     while time.time() - t0 < DURACION_S + MARGEN_S:
@@ -74,6 +85,10 @@ def main():
 
     ser.write(b"stop\n")
     ser.close()
+
+    if not lineas:
+        raise SystemExit("No llego ninguna muestra. Revisa que la placa este "
+                          "enchufada y que el Monitor Serie del IDE este cerrado.")
 
     os.makedirs(DATOS, exist_ok=True)
     with open(SALIDA, "w", encoding="utf-8") as f:

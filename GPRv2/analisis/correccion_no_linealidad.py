@@ -156,21 +156,30 @@ def extraer_rampas(beat, sync, n, tol=0.1):
                                 usarla - el batido de una bajada simétrica,
                                 leído al revés, es igual al de una subida).
       - cualquier otro valor -> se descarta (sync irregular o perdido).
+
+    El ÚLTIMO reinicio del archivo, si no hay uno siguiente para medir la
+    distancia real, se mide contra el final del archivo: si eso da ~n o ~2n
+    se trata igual que cualquier otro (el archivo simplemente terminó justo
+    ahí, sin nada raro). Si no da ninguno de los dos, no hay forma de saber
+    si la grabación cortó a mitad de una bajada o si se perdió un flanco de
+    sync - se descarta ese tramo por las dudas, no se arriesga una subida
+    mezclada con datos de otra rampa.
     """
     ini = np.where(np.diff(sync) < 0)[0] + 1
     rampas, indices = [], []
     un_lado = ciclo = descartadas = 0
     for k, i in enumerate(ini):
-        siguiente = ini[k + 1] if k + 1 < len(ini) else len(beat)
-        gap = siguiente - i
         if i + n > len(beat):
             continue
+        siguiente = ini[k + 1] if k + 1 < len(ini) else len(beat)
+        gap = siguiente - i
         if abs(gap - n) <= tol * n:
             rampas.append(beat[i:i + n]); indices.append(i)
             un_lado += 1
-        elif abs(gap - 2 * n) <= tol * n and i + 2 * n <= len(beat):
+        elif abs(gap - 2 * n) <= tol * n:
             rampas.append(beat[i:i + n]); indices.append(i)
-            rampas.append(beat[i + n:i + 2 * n][::-1]); indices.append(i + n)
+            if i + 2 * n <= len(beat):
+                rampas.append(beat[i + n:i + 2 * n][::-1]); indices.append(i + n)
             ciclo += 1
         else:
             descartadas += 1
