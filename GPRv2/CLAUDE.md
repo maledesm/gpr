@@ -86,11 +86,31 @@ un hilo vacía el puerto y escribe `datos/captura.csv` y
 200 ms. Lo que se ve en vivo queda grabado, así que se puede volver a
 analizar después con los scripts de siempre.
 
-Slider de **rampas promediadas por columna**: se mueve mientras corre y el
-radargrama entero se reagrupa, sin perder nada, porque se guardan los
-perfiles de a UNA rampa y el agrupado se rehace en cada refresco. Sliders de
-**piso y techo** en dB, tecla `e` para alternar el eje y entre metros y Hz,
-`a` para autoescalar el color.
+Cinco sliders: **rampas/col**, **ventana [s]**, **alcance [m]**, **piso** y
+**techo** en dB. Los tres primeros se mueven mientras corre y reagrupan TODO
+lo que hay en pantalla, no sólo lo que venga de ahí en más, porque se guardan
+los perfiles de a UNA rampa y el agrupado se rehace en cada refresco. Manda
+la ventana: la cantidad de columnas sale de ella y de rampas/col. Teclas: `e`
+alterna el eje y entre metros y Hz (el slider de alcance sigue en metros y se
+convierte solo), `a` autoescala el color, `+`/`-` ajustan rampas/col.
+
+**El timer tiene que terminar en `draw_idle()`.** Mutar los artistas
+(`set_data`, `set_title`) no repinta por sí solo: sin esa llamada la pantalla
+se queda congelada y lo único que la despierta es mover un slider, así que
+parece que el programa anda pero la imagen no avanza. Está en un `finally`
+para que una excepción adentro del refresco no congele la ventana para
+siempre.
+
+**La FFT de cada rampa va con relleno ×8**, igual que `graficar_captura.py`.
+Sin relleno, 120 muestras por rampa dan 61 bins para todo el eje y el
+radargrama sale en bandas gruesas. El relleno **no agrega resolución** — el
+ancho de bin real vale `c/(2·BW)` = 14,4 cm y eso no lo cambia nada, sólo más
+ancho de banda del VCO — pero interpola y deja ver la forma de los picos.
+
+Los perfiles van a un buffer numpy preasignado, no a una lista: con relleno
+×8 son ~500 números por perfil y la ventana puede pedir miles, así que armar
+un array nuevo en cada refresco sería copiar decenas de MB cinco veces por
+segundo.
 
 **El ajuste de la triangular se rehace cada `REAJUSTE_S` (2 s).** No es por
 la deriva de reloj entre el generador y el ESP32: una diferencia constante
