@@ -109,45 +109,45 @@ llenarse descarta sólo el excedente y siempre quedan `necesarios` perfiles, o
 sea una ventana máxima entera. Medido: 120 s pedidos dan 119,8 s constantes a
 lo largo de 2,5 vueltas de buffer.
 
-## ⚠️ La triangular llega RECORTADA: el eje de distancia está mal por eso
+## La triangular se vio recortada: era el divisor desconectado
 
-Medido el 2026-09-04 sobre `datos/triangular.csv` (123 s de captura real):
+**Resuelto el 2026-09-04.** Se había soltado una resistencia del divisor
+4k7/4k7, así que GPIO3 veía la triangular ENTERA en vez de la mitad. El ADC
+del C3 llega a ~2,5 V, la triangular es de 3 V, y todo lo que pasaba de 2,5
+se aplastaba contra 4095.
+
+Los números cierran solos:
 
 | | |
 |---|---|
-| ciclo pegado a 4095 (riel del ADC) | **16 %** |
-| amplitud real, extrapolando la subida | **~5,4 V pico a pico** |
-| lo que asume el código (`V_MIN`..`V_MAX`) | 3,00 V |
-| pendiente real / asumida | **≥ 1,8×** |
+| saturación predicha para 3,0 V entrando sin dividir | 16,7 % |
+| saturación medida sobre `datos/triangular.csv` | 18,1 % |
+| amplitud del generador recalculada sin divisor | 2,70 Vpp |
+| pendiente real / la que asume el código | 0,90× |
 
-El histograma de la triangular, que en una triangular limpia sale plano,
-tiene la última barra 2,7× más alta que las demás. Plegando en fase se ve
-subir lineal, tocar 4095 a los ~17,5 ms y quedarse pegada hasta los ~22,5.
+O sea el generador daba sus ~3 V, el barrido es el que creemos y `alpha0`
+está bien. El 0,90 es la incertidumbre de dónde satura exactamente el ADC
+(se asumió 2,5 V), no un error real.
 
-**Por qué importa más de lo que parece.** `eje_theta()` asume
-`v(t) = V_MIN + (V_MAX−V_MIN)·t/T` a lo largo de TODA la rampa. Si la
-triangular es más grande, pasan dos cosas, y la segunda es la peor:
+**Ojo con lo que esto NO explica.** Durante un rato la hipótesis fue que la
+triangular era de 5,4 Vpp y que eso escalaba las distancias 1,8×. Era falsa:
+salía de calcular los volts asumiendo el divisor que justamente no estaba.
+**El error de distancia (una placa a 1 m leída en 4 m) sigue sin explicación.**
+No es la BW (medida, 1 GHz), no es `T` (medido del ajuste, 40,00 ms) y no es
+la amplitud del barrido. Lo que queda por descartar es si lo que se veía en
+4 m era la placa o era otra cosa.
 
-1. `alpha0` real es mayor que el asumido, y **todas las distancias salen
-   escaladas**. Eso solo, se arreglaría calibrando.
-2. El mapa θ queda aplicado sobre una `v(t)` equivocada, así que **el
-   remuestreo corrige mal y los picos se ensucian**. Eso NO se arregla
-   calibrando el eje: la calibración lo hace *ver* bien y tapa el problema.
+**El recorte no arruinó las capturas viejas.** El divisor alimenta sólo el
+monitoreo de GPIO3; la señal de batido viene del PCM1808 por I2S y no pasa
+por ahí. Y el recorte de la triangular es simétrico respecto del mínimo, así
+que no sesga la fase del ajuste: el período salió 39,999 ms contra 40,00
+nominal. Los límites de rampa de esas capturas son buenos.
 
-**Primero arreglar el generador, después calibrar.** La causa más probable
-de un factor 2 justo es el generador configurado para carga de **50 Ω**
-manejando una entrada de alta impedancia: entrega el doble de lo que muestra
-el panel. En el Siglent, `Utility → Output Setup → Load: HighZ`.
-
-`vivo.py` ahora mide esto solo (`Vivo.saturacion()`): avisa por consola al
+**`Vivo.saturacion()` se queda.** Encontró una resistencia suelta a partir
+del histograma, que es exactamente para lo que está: avisa por consola al
 arrancar y muestra `!! TRIANGULAR RECORTADA` en el panel de estado mientras
-más del 2 % del ciclo esté en un riel.
-
-**El 1,8× medido no explica el 4× observado a ojo.** El número en volts
-depende de dónde satura el ADC del C3 (se asumió 2,5 V) y el ADC comprime
-cerca del riel, así que 1,8 es un piso, no una medición fina. Lo que sí es
-inequívoco es que la triangular se sale del rango. Hay que arreglar eso y
-volver a medir antes de sacar conclusiones sobre lo que quede.
+más del 2 % del ciclo esté en un riel. Con el divisor puesto, GPIO3 ve 1,5 V
+de pico = ~2450 cuentas, con margen de sobra.
 
 ## La distancia del eje NO es de fiar sin calibrar
 
@@ -161,12 +161,20 @@ el retardo fijo de cables y electrónica). Queda en
 `datos/calibracion_distancia.json` y se carga sola.
 
 **Ojo con lo que la calibración tapa.** Un factor de 1,1 o 1,2 es retardo y
-tolerancias. Un factor de **4 no**: quiere decir que la BW efectiva del
-barrido es cuatro veces la nominal (implausible para este VCO), o que el
-tramo que se está tomando como rampa no es la rampa entera. La calibración lo
-hace *ver* bien igual, así que `_calibrar()` imprime la BW efectiva implicada
-y avisa si la pendiente se va lejos de 1. **Eso hay que perseguirlo en el
-hardware, no taparlo con el ajuste.**
+tolerancias. Un factor de **4 no**, y a hoy no está explicado: no es la BW
+(medida, 1 GHz), no es `T` (medido, 40,00 ms) y no es la amplitud del barrido
+(verificada arriba). Por eso `_calibrar()` imprime la BW efectiva que implica
+la pendiente y avisa si se va lejos de 1: **es un dato de hardware, no un
+número de ajuste.**
+
+La medición que lo decide, con el panel de FFT nuevo: poner la placa a 1 m y
+anotar dónde cae el pico, moverla a 2 m y anotar de nuevo. La predicción es
+**346 Hz por metro** (`2·alpha0/c` con `alpha0 = 1039 MHz / 20 ms`). Si el
+pico se corre 346 Hz/m, el eje está bien y lo que se veía en 4 m era otra
+cosa (clutter, reflexión de la sala, un armónico). Si se corre ~4× eso,
+entonces sí `alpha0` está mal y hay que buscar por qué. Acordarse de poner
+`ignorar < [m]` por encima del acoplamiento directo TX->RX, que vive cerca de
+cero y se lleva puesto cualquier `argmax`.
 
 **El timer tiene que terminar en `draw_idle()`.** Mutar los artistas
 (`set_data`, `set_title`) no repinta por sí solo: sin esa llamada la pantalla
