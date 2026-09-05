@@ -101,6 +101,17 @@ Generador de funciones ──> amplificador ──> VCO ──> splitter ──�
   el capacitor de acople del módulo (`CS 10`, o sea 10 µF contra 60 kΩ → 0,27 Hz).
   Combinado ~1,2 Hz; medido en el banco 1,27 Hz.
 
+**Retardo de los cables** (medido 2026-09-05)
+- El mezclador ve la DIFERENCIA de retardo entre sus dos entradas, así que los
+  coaxiles de TX y RX se suman al retardo del blanco. Con **VF = 2/3, cada
+  metro de coaxil son 0,75 m de offset** en la distancia leída.
+- Con 3 m por antena: `D̃ = (3/2)·6 m = 9 m` → **offset de 4,5 m**. A `T_PRF`
+  40 ms eso agrega **1500 Hz** al batido, contra los 333 Hz que da un blanco
+  a 1 m.
+- Es un **offset puro**: la pendiente sigue siendo 1 y la resolución no se
+  toca. Se saca con un punto de calibración en `vivo.py`.
+- Derivación completa, diagramas y tablas: **`GPRv2/docs/retardo_cables.md`**.
+
 **Amplificador de RF y exposición** (agregado 2026-09-05)
 - Salida del PA: **+24 dBm = 251 mW**. Con antenas de 6 a 10 dBi eso da
   **1 a 2,5 W de EIRP**.

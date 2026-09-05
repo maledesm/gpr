@@ -329,6 +329,9 @@ la misma banda).
 
 ## El desvio de distancia son LOS CABLES, y es un offset, no una escala
 
+> La derivación completa, con diagramas de los dos caminos, las tablas y
+> cómo medirlo, está en **[`docs/retardo_cables.md`](docs/retardo_cables.md)**.
+
 Resuelto el 2026-09-05. Un FMCW **no mide la distancia al blanco**: mide la
 **diferencia de retardo entre las dos entradas del mezclador**.
 
