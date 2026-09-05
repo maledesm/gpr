@@ -387,32 +387,23 @@ en 3000 Hz entran 17,3 m aparentes, menos 4,2 de offset quedan 13 m útiles.
 Pero con Tprf 40 ms (346 Hz/m) entran 8,7 m aparentes y quedan sólo **4,5 m
 útiles**. Con estos cables, conviene el Tprf largo.
 
-## La distancia del eje NO es de fiar sin calibrar
+## La distancia del eje hay que calibrarla, pero ya se sabe por qué
 
-Medido en el banco (2026-09-04): una placa a **1 m** aparecía en **4 m**.
-El eje crudo sale de `alpha0 = BW/T` con la BW nominal de la curva del VCO, y
-en el banco real no da.
+**Resuelto.** Lo que durante dos días figuró acá como "una placa a 1 m
+aparece en 4 m, sin explicación" eran **dos cosas a la vez**, las dos
+resueltas el 2026-09-05 y documentadas arriba:
 
-`vivo.py` calibra con dos blancos de distancia conocida y ajusta
-`d_real = a·d_crudo + b` (`a` corrige la pendiente, o sea la BW efectiva; `b`
-el retardo fijo de cables y electrónica). Queda en
-`datos/calibracion_distancia.json` y se carga sola.
+1. El generador estaba en **Tprf 80 ms** y el ajuste se enganchaba en el
+   segundo armónico → `alpha0` salía el doble y las rampas se cortaban mal.
+2. El **retardo de los cables** suma un offset de ~4 m de distancia aparente.
 
-**Ojo con lo que la calibración tapa.** Un factor de 1,1 o 1,2 es retardo y
-tolerancias. Un factor de **4 no**, y a hoy no está explicado: no es la BW
-(medida, 1 GHz), no es `T` (medido, 40,00 ms) y no es la amplitud del barrido
-(verificada arriba). Por eso `_calibrar()` imprime la BW efectiva que implica
-la pendiente y avisa si se va lejos de 1: **es un dato de hardware, no un
-número de ajuste.**
+Lo que queda es la calibración, que ahora se sabe qué corrige: `vivo.py`
+ajusta `d_real = a·d_crudo + b`, con **`b` = el retardo eléctrico** y **`a`
+que tiene que dar ~1**. Un punto alcanza para el offset; dos o más sirven
+para verificar la pendiente.
 
-La medición que lo decide, con el panel de FFT nuevo: poner la placa a 1 m y
-anotar dónde cae el pico, moverla a 2 m y anotar de nuevo. La predicción es
-**346 Hz por metro** (`2·alpha0/c` con `alpha0 = 1039 MHz / 20 ms`). Si el
-pico se corre 346 Hz/m, el eje está bien y lo que se veía en 4 m era otra
-cosa (clutter, reflexión de la sala, un armónico). Si se corre ~4× eso,
-entonces sí `alpha0` está mal y hay que buscar por qué. Acordarse de poner
-`ignorar < [m]` por encima del acoplamiento directo TX->RX, que vive cerca de
-cero y se lleva puesto cualquier `argmax`.
+**Si la pendiente no da ~1, no son los cables.** Lo primero a revisar es que
+el `Tprf` del panel coincida con el del generador.
 
 **El timer tiene que terminar en `draw_idle()`.** Mutar los artistas
 (`set_data`, `set_title`) no repinta por sí solo: sin esa llamada la pantalla
