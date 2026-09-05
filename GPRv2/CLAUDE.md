@@ -218,6 +218,42 @@ banco, `!! TRIANGULAR RECORTADA 2%` con todo bien). Con la triangular
 entrando sin dividir el recorte fue del 18 %, así que 5 % separa bien los dos
 casos.
 
+## ⚠️ EL GENERADOR ESTABA EN Tprf = 80 ms, no 40. Todo lo medido hasta ahora no vale
+
+Encontrado el 2026-09-05, releyendo `datos/triangular.csv` de la corrida del
+2026-09-04. **Se lee directo en las muestras crudas**, sin ajustar nada: los
+mínimos de la triangular caen en 5354,50 / 5434,50 / 5514,50 ms, separados
+**80,00 ms exactos**. Los máximos igual (5397,17 y 5477,17).
+
+**Por qué no se notó.** `ajustar_triangular()` buscaba ±25 % alrededor de
+`2·T_SWEEP` = 40 ms, o sea entre 30 y 50 ms. El período verdadero, 80 ms,
+quedaba afuera, así que el ajuste se enganchó en el **segundo armónico** y
+devolvió 39,999 ms — un número precioso, estable y completamente falso. El
+panel de `vivo.py` lo mostraba con tres decimales.
+
+**Qué arrastró.** Se cortaban rampas de 20 ms sobre rampas reales de 40:
+
+- la mitad de los segmentos cruzaban un vértice, donde el batido cambia de
+  signo;
+- el mapa θ, que asume el barrido completo de `V_MIN` a `V_MAX`, se aplicaba
+  a media rampa;
+- `alpha0` salía el doble de lo real (0,0520 contra 0,0260 THz/s), o sea
+  346 Hz/m en vez de **173 Hz/m**.
+
+Reprocesando la misma captura con el período correcto, la **coherencia entre
+rampas pasa de 0,298 a 0,616** de promedio (máximo 0,953). Ésa es la medida
+de que ahora los segmentos sí repiten: es el doble de señal repetible.
+
+**Ya está arreglado**: `buscar_periodo()` encuentra los 80,0 ms de cero, y lo
+usan `vivo.py` y `rampas_desde_triangular()`. Pero **hay que volver a medir**:
+ninguna conclusión sacada de las capturas anteriores sobre distancias,
+armónicos o niveles se sostiene.
+
+**Lección para no repetirla.** Un ajuste que busca alrededor de un nominal
+puede enganchar un armónico y devolver un número estable y preciso que es
+mentira. Cuando el período se pueda medir sin suponer nada — y acá se podía,
+mirando cuatro muestras crudas — hay que medirlo.
+
 ## El diezmado del firmware ahora filtra (y por eso informa un retardo)
 
 Cambiado el 2026-09-04. Antes se diezmaba **promediando `dec` muestras**, que

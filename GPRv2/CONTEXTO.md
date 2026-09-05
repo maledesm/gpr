@@ -101,6 +101,31 @@ Generador de funciones ──> amplificador ──> VCO ──> splitter ──�
   el capacitor de acople del módulo (`CS 10`, o sea 10 µF contra 60 kΩ → 0,27 Hz).
   Combinado ~1,2 Hz; medido en el banco 1,27 Hz.
 
+**Amplificador de RF y exposición** (agregado 2026-09-05)
+- Salida del PA: **+24 dBm = 251 mW**. Con antenas de 6 a 10 dBi eso da
+  **1 a 2,5 W de EIRP**.
+- Densidad de potencia (campo lejano, `S = EIRP/4πr²`), caso de 8 dBi:
+
+  | 20 cm | 30 cm | 50 cm | 1 m |
+  |---|---|---|---|
+  | 3,15 W/m² | 1,40 | 0,50 | 0,13 |
+
+- Límite público general (FCC MPE / ICNIRP): **6,3 W/m²** en 943 MHz,
+  10 W/m² arriba de 1,5 GHz. Ocupacional 5× más.
+- **Se supera el límite público dentro de los 11 a 18 cm** de la antena,
+  según la ganancia. Verificado por dos caminos: la fórmula de campo lejano y
+  repartir los 251 mW sobre la apertura efectiva (19,7 W/m² pegado a la
+  antena, mismo orden).
+- **Regla del banco: no quedarse a menos de 50 cm del frente de la antena
+  transmitiendo.** Deja un factor 8 a 20 de margen. Pasar caminando no es
+  problema: los límites promedian sobre 30 minutos.
+- Entre 25 y 57 cm todavía es campo cercano (`2D²/λ`), así que la fórmula
+  sobrestima. Los números son cota superior; para un dato firme hace falta un
+  medidor de campo.
+- **Interferencia**: 251 mW barriendo 943-1982 MHz pisa GSM 900, GSM 1800 y
+  UMTS/LTE banda 1 y 3. Usar sólo adentro, apuntando a tierra o a una pared
+  interior, y no dejarlo transmitiendo sin medir.
+
 **Filtro pasabajos post-mezclador**
 - ⚠️ Tiene **corte inferior en 19 Hz**, mucho más alto que el del PCM1808. **Ese
   es el corte real de la cadena.** Limita cuán lento se puede barrer: con rampas
