@@ -327,6 +327,66 @@ guardada, porque el `alpha0` cambia, y el **alcance no ambiguo** (duplicar el
 Tprf divide por dos los Hz por metro, así que entra el doble de distancia en
 la misma banda).
 
+## El desvio de distancia son LOS CABLES, y es un offset, no una escala
+
+Resuelto el 2026-09-05. Un FMCW **no mide la distancia al blanco**: mide la
+**diferencia de retardo entre las dos entradas del mezclador**.
+
+```
+f_beat = alpha0 * (tau_blanco + tau_cables)
+```
+
+El camino de RX lleva el cable a la antena TX, el aire, el cable de vuelta
+desde la antena RX y el LNA. El del LO lleva un cable corto. Esa diferencia
+se suma al retardo del blanco.
+
+**Y el cable pesa muchísimo más de lo que uno espera.** Un metro de coaxil de
+VF 0,66 son 5,05 ns, y el radar lo lee como **0,76 m de distancia aparente**
+(`c·τ/2`, sin el factor 2 del ida y vuelta, porque el cable se recorre una
+sola vez):
+
+| cable | VF | ns/m | distancia aparente por metro |
+|---|---|---|---|
+| RG-58 / RG-174 | 0,66 | 5,05 | **0,76 m** |
+| semirrígido PTFE | 0,70 | 4,76 | 0,71 m |
+| RG-8X espuma | 0,78 | 4,27 | 0,64 m |
+
+Con **3 m por antena** y uno corto al LO, el neto son ~5 m de cable = **3,8 m
+de offset**. Medido en el banco: con Tprf 80 ms (173 Hz/m) una placa a 1 m
+daba **más de 800 Hz**, o sea 4,6 m aparentes → offset 3,6 m → 4,8 m de
+coaxil neto. Cierra.
+
+Y explica lo que se veía: **"se acerca y baja, se aleja y sube" funciona
+perfecto** aunque el número absoluto esté lejos. El radar mide bien, sólo que
+desde otro origen.
+
+Confirmación sobre los datos: reprocesada con el período correcto de 80 ms,
+la captura del 2026-09-04 tiene el pico dominante en **5,31 m**, que menos el
+offset de ~4,17 m da **1,14 m** — la placa, que estaba a ~1 m.
+
+**Cómo tratarlo**, de mejor a peor:
+
+1. **Medirlo directo, sin blanco**: unir el cable de TX con el de RX por un
+   barrel (con atenuador, para no saturar el LNA/mezclador), salteando las
+   antenas y el aire. El batido que quede ES el offset, medido sin suponer
+   nada.
+2. **Un solo punto de calibración**: `Calibracion.ajustar()` con un punto
+   ajusta sólo el offset y deja la pendiente en 1, que es lo físicamente
+   correcto. Con dos o más ajusta las dos y sirve para **verificar** que la
+   pendiente da ~1.
+3. **Emparejar los cables**: agregarle al camino del LO tanto cable como
+   (TX + RX). Deja el offset en cero, pero son ~6 m de coaxil más y 4-5 dB de
+   pérdida en el LO, que el mezclador puede necesitar.
+
+**La pendiente ~1 es LA verificación de que todo lo demás está bien.** Si con
+dos puntos da lejos de 1, no son los cables: lo primero a revisar es el
+período de la triangular.
+
+**El offset cuesta alcance no ambiguo.** Con Tprf 80 ms (173 Hz/m) y Nyquist
+en 3000 Hz entran 17,3 m aparentes, menos 4,2 de offset quedan 13 m útiles.
+Pero con Tprf 40 ms (346 Hz/m) entran 8,7 m aparentes y quedan sólo **4,5 m
+útiles**. Con estos cables, conviene el Tprf largo.
+
 ## La distancia del eje NO es de fiar sin calibrar
 
 Medido en el banco (2026-09-04): una placa a **1 m** aparecía en **4 m**.

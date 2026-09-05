@@ -35,17 +35,32 @@ calibra con blancos de distancia conocida, con dos puntos:
     2. moverla a otra distancia bien distinta, repetir
     3. apretar "calibrar"
 
-Eso ajusta d_real = a*d_crudo + b por minimos cuadrados: 'a' corrige la
-pendiente (o sea la BW efectiva, que evidentemente no es la nominal) y 'b'
-el retardo fijo de cables y electronica. Queda guardado en
-datos/calibracion_distancia.json y se carga solo la proxima vez.
+Eso ajusta d_real = a*d_crudo + b. Con UN solo punto ajusta nada mas el
+offset y deja la pendiente en 1, que es lo correcto: el desvio es retardo
+electrico y eso es un offset puro. Con dos o mas ajusta las dos cosas por
+minimos cuadrados, lo que sirve para VERIFICAR que la pendiente da ~1. Queda
+en datos/calibracion_distancia.json y se carga solo la proxima vez.
 
-OJO CON LO QUE LA CALIBRACION TAPA. Un factor de escala de 1,1 o 1,2 es
-retardo y tolerancias. Un factor de 4 NO: quiere decir que la BW efectiva
-del barrido es cuatro veces la nominal, o que el tramo que se esta tratando
-como una rampa no es la rampa entera. La calibracion lo hace ver bien igual,
-asi que conviene mirar el numero de "BW efectiva" que imprime al calibrar y
-desconfiar si esta lejos de los 1039 MHz de la curva del VCO.
+DE DONDE SALE EL OFFSET. Un FMCW no mide la distancia al blanco: mide la
+DIFERENCIA de retardo entre las dos entradas del mezclador. El camino de RX
+lleva el cable a la antena TX, el aire, el cable de vuelta desde la antena RX
+y el LNA; el del LO lleva un cable corto. Esa diferencia se suma al retardo
+del blanco:
+
+    f_beat = alpha0 * (tau_blanco + tau_cables)
+
+Y el cable pesa mucho mas de lo que uno espera: un metro de coaxil de VF 0,66
+son 5,05 ns, que el radar lee como 0,76 m de distancia aparente. Con 3 m por
+antena y uno corto al LO, el neto son ~5 m de cable = 3,8 m de offset. Medido
+en el banco: con Tprf 80 ms (173 Hz/m) una placa a 1 m daba mas de 800 Hz, o
+sea 4,6 m aparentes.
+
+Por eso "se acerca y baja, se aleja y sube" funciona perfecto aunque el
+numero absoluto este lejos: el radar mide bien, solo que desde otro origen.
+
+QUE LA PENDIENTE DE ~1 ES LA VERIFICACION. Si con dos puntos da lejos de 1,
+no son los cables: lo primero a revisar es el periodo de la triangular, que
+el panel coincida con lo que dice el generador.
 
 Controles
 ---------
@@ -185,6 +200,10 @@ UMBRAL_SAT = 0.05
 # divisor 4k7/4k7 le da la mitad de lo que sale del generador.
 ADC_FS_V = 2.5
 DIVISOR = 2.0
+# Factor de velocidad del coaxil, solo para traducir el offset de la
+# calibracion a metros de cable y ver si el numero cierra. RG-58 y RG-174
+# son 0,66; espuma anda por 0,78.
+VF_COAX = 0.66
 
 AQUI    = os.path.dirname(os.path.abspath(__file__))
 DATOS   = os.path.join(AQUI, "..", "datos")
@@ -353,13 +372,23 @@ class Calibracion:
         return self.a * np.asarray(d) + self.b
 
     def ajustar(self):
-        """Devuelve un texto con el resultado, o el motivo de no poder."""
-        if len(self.puntos) < 2:
-            return "faltan puntos (hacen falta 2)"
+        """Devuelve un texto con el resultado, o el motivo de no poder.
+
+        Con UN punto ajusta solo el offset, dejando la pendiente en 1. No es
+        una concesion: el retardo de los cables es fisicamente un offset puro
+        (ver GPRv2/CLAUDE.md), y con la pendiente correcta un solo blanco de
+        distancia conocida alcanza. Con dos o mas se ajustan las dos cosas por
+        minimos cuadrados, que ademas sirve para VERIFICAR que la pendiente
+        de verdad da ~1.
+        """
+        if not self.puntos:
+            return "no hay ningun punto tomado"
         crudo = np.array([p[0] for p in self.puntos])
         real = np.array([p[1] for p in self.puntos])
-        if np.ptp(crudo) < 1e-6:
-            return "los puntos estan a la misma distancia cruda"
+        if len(self.puntos) == 1 or np.ptp(crudo) < 1e-6:
+            self.a = 1.0
+            self.b = float(real[0] - crudo[0])
+            return f"solo offset: b={self.b:+.3f} m (pendiente fija en 1)"
         self.a, self.b = np.polyfit(crudo, real, 1)
         return f"a={self.a:.4f}  b={self.b:+.3f} m"
 
@@ -906,16 +935,27 @@ class Vivo:
         print(f"  calibracion: {msj}")
         if self.cal.activa:
             self.cal.guardar(CAL_JSON)
+            # El offset es retardo electrico: cables, LNA, conectores. Un
+            # metro de coaxil de VF 0,66 son 5,05 ns, que el radar lee como
+            # 0,76 m de distancia aparente. Traducirlo a metros de cable
+            # deja ver enseguida si el numero es razonable o si hay otra cosa.
+            retardo_ns = -self.cal.b * 2 / C * 1e9
+            cable_m = -self.cal.b * 2 * VF_COAX
+            print(f"  offset {self.cal.b:+.3f} m = {retardo_ns:.1f} ns de "
+                  f"retardo electrico = {cable_m:.1f} m de coaxil (VF "
+                  f"{VF_COAX}) entre el camino de RX y el del LO")
             # La pendiente dice cuanto se equivoca la BW efectiva: d va como
             # 1/alpha0, asi que la BW real es la nominal dividida por 'a'.
             bw_nom = (self.curva(V_MAX) - self.curva(V_MIN)) / 1e6
-            print(f"  BW efectiva implicada: {bw_nom/self.cal.a:.0f} MHz "
-                  f"(la nominal de la curva del VCO es {bw_nom:.0f} MHz)")
-            if not 0.7 < self.cal.a < 1.4:
-                print("  [!] esa pendiente esta muy lejos de 1: la calibracion "
-                      "lo va a hacer ver bien, pero hay algo del banco que no "
-                      "es lo que creemos (BW real del barrido, o el tramo que "
-                      "se esta tomando como rampa).")
+            if len(self.cal.puntos) >= 2:
+                print(f"  pendiente {self.cal.a:.4f} -> BW efectiva "
+                      f"{bw_nom/self.cal.a:.0f} MHz (la nominal es "
+                      f"{bw_nom:.0f} MHz)")
+                if not 0.85 < self.cal.a < 1.18:
+                    print("  [!] la pendiente tendria que dar ~1: el retardo "
+                          "de cables es un offset puro y no escala. Si no da "
+                          "1, revisá el periodo de la triangular (que el "
+                          "panel coincida con el generador) antes que nada.")
         self._poner_eje_x()
 
     def _borrar_cal(self, _=None):
