@@ -35,6 +35,8 @@
 \usepackage{float}
 \usepackage{caption}
 \usepackage{subcaption}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, fit}
 
 % Colores y código fuente
 \usepackage{xcolor}
@@ -240,6 +242,7 @@ con permitividad relativa $\varepsilon_r$ es:
 
 \begin{equation}
   v = \frac{c}{\sqrt{\varepsilon_r}}.
+  \label{eq:velocidad_medio}
 \end{equation}
 
 Para los materiales de mayor interés práctico se indican valores
@@ -1071,6 +1074,439 @@ circuito o de la medición) y no de la respuesta propia del filtro. En
 consecuencia, el ancho de banda real del filtro es mayor que los
 $\sim\!20\,\text{kHz}$ medidos en $G=1$, que a su vez ya es, por lo
 dicho arriba, una cota inferior.
+
+%============================================================
+\chapter{Cables de RF: Retardo Eléctrico, Pérdidas y Calibración
+  de Distancia}
+\label{ch:cables}
+%============================================================
+
+En una prueba de banco con un blanco metálico a una distancia $d$
+conocida (Sección~\ref{sec:prueba_metalica}), la frecuencia de batido
+medida resultó sistemáticamente mayor que la predicha por la
+ecuación~\eqref{eq:beat_freq_aire}: un blanco a $1\,\text{m}$ producía
+una $f^*$ compatible con un blanco a varios metros. Este capítulo
+muestra que el desvío no es un error del modelo de la
+Sección~\ref{sec:beat_freq} sino un término que faltaba: \textbf{el
+retardo eléctrico de los cables coaxiles} que conectan el splitter con
+las antenas y con el oscilador local (LO) del mezclador. Se deduce ese
+término a partir de la misma ecuación de propagación ya usada en la
+Sección~\ref{sec:parametros_fmcw}
+(ecuación~\eqref{eq:velocidad_medio}), se cuantifica su efecto sobre la
+distancia estimada y el alcance no ambiguo, y se deja planteada la
+caracterización comparativa entre los cables originales y un juego
+nuevo, más corto, todavía pendiente de fabricar y medir.
+
+\section{El mezclador ve una diferencia de retardo, no una distancia}
+\label{sec:cables_diferencia_retardo}
+
+El mezclador de un radar FMCW homodino no tiene forma de saber cuánto
+del retardo que ve entre sus dos entradas (RF y LO) proviene del
+trayecto por el aire hacia el blanco y cuánto proviene del cableado que
+llega hasta él. Ambos caminos comparten el mismo splitter de salida del
+VCO, pero después divergen:
+
+\begin{itemize}
+  \item \textbf{Camino del LO} (corto): splitter $\to$ cable de
+    longitud $L_\text{LO}$ $\to$ entrada LO del mezclador.
+  \item \textbf{Camino de RF} (largo): splitter $\to$ cable de longitud
+    $L_\text{TX}$ $\to$ antena transmisora $\to$ trayecto por el aire
+    (ida y vuelta $2d$) $\to$ antena receptora $\to$ cable de longitud
+    $L_\text{RX}$ $\to$ LNA $\to$ entrada RF del mezclador.
+\end{itemize}
+
+La Figura~\ref{fig:cables_diagrama} esquematiza ambos caminos. El
+retardo total que ve el mezclador es la suma del retardo eléctrico en
+los cables más el retardo de propagación por el aire:
+
+\begin{equation}
+  \tau_\text{total} = \underbrace{\frac{L_\text{TX} + L_\text{RX}
+  - L_\text{LO}}{v_p}}_{\displaystyle \tau_\text{cables}}
+  \;+\; \underbrace{\frac{2d}{c}}_{\displaystyle \tau_\text{blanco}},
+  \label{eq:tau_total}
+\end{equation}
+
+donde $v_p$ es la velocidad de propagación dentro del dieléctrico del
+cable coaxil. Conviene definir el \textbf{desbalance neto de cableado}
+
+\begin{equation}
+  D \;=\; L_\text{TX} + L_\text{RX} - L_\text{LO},
+  \label{eq:D_neto}
+\end{equation}
+
+que es la magnitud relevante: no importan las longitudes absolutas de
+cada tramo, sino cuánto más largo es el camino de RF que el del LO. Si
+$D = 0$ (cables perfectamente balanceados) el término de cables
+desaparece y el mezclador mide únicamente $\tau_\text{blanco}$, que es
+la situación que asume implícitamente la
+ecuación~\eqref{eq:beat_freq_aire}.
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+      font=\small,
+      box/.style={draw, rounded corners, minimum height=0.9cm,
+        align=center, inner sep=4pt},
+      arr/.style={-{Latex[length=2.2mm]}, thick},
+      node distance=10mm and 8mm
+    ]
+    \node[box] (vco) {VCO};
+    \node[box, right=of vco] (split) {Splitter};
+
+    \node[box, above right=6mm and 18mm of split] (lo) {Mezclador\\(entrada LO)};
+    \node[box, below right=6mm and 18mm of split] (tx) {Antena Tx};
+    \node[box, right=32mm of tx] (rx) {Antena Rx};
+    \node[box, above right=6mm and 8mm of rx] (lna) {LNA};
+    \node[box, right=8mm of lo] (mix) {Mezclador};
+
+    \draw[arr] (vco) -- (split);
+    \draw[arr] (split.north east) -- node[above, sloped]{$L_\text{LO}$} (lo.west);
+    \draw[arr] (split.south east) -- node[below, sloped]{$L_\text{TX}$} (tx.west);
+    \draw[arr] (tx) -- node[above, font=\scriptsize]{aire, $2d$} (rx);
+    \draw[arr] (rx) -- (lna);
+    \draw[arr] (lna) -- node[above, sloped]{$L_\text{RX}$} (mix.south);
+    \draw[arr] (lo) -- (mix);
+
+    \node[align=center, below=2mm of mix, font=\scriptsize\itshape]
+      {ve $\tau_\text{total} = \tau_\text{cables} + \tau_\text{blanco}$};
+  \end{tikzpicture}
+  \caption{Los dos caminos que llegan al mezclador. El del LO es
+    corto y fijo; el de RF incluye los cables a las antenas más el
+    trayecto por el aire. El mezclador solo puede medir la diferencia
+    de retardo entre ambos, no el retardo absoluto de ninguno.}
+  \label{fig:cables_diagrama}
+\end{figure}
+
+\section{Velocidad de propagación en el cable: el factor de velocidad}
+\label{sec:cables_vf}
+
+La ecuación~\eqref{eq:velocidad_medio}, ya usada para la propagación en
+el suelo, se aplica sin cambios al dieléctrico interno del cable
+coaxil: $v_p = c/\sqrt{\varepsilon_{r,\text{cable}}}$. En cables de RF
+esta razón se expresa habitualmente como el \textbf{factor de
+velocidad} $\text{VF} = v_p/c = 1/\sqrt{\varepsilon_{r,\text{cable}}}$,
+que el fabricante especifica en la hoja de datos. La
+Tabla~\ref{tab:vf_cables} resume valores nominales típicos según el
+dieléctrico.
+
+\begin{table}[H]
+  \centering
+  \caption{Factor de velocidad nominal según el dieléctrico del cable
+    coaxil (valores de catálogo típicos; a confirmar contra la hoja de
+    datos del cable efectivamente utilizado).}
+  \label{tab:vf_cables}
+  \begin{tabular}{lcc}
+    \toprule
+    \textbf{Dieléctrico} & \textbf{Cables típicos} & \textbf{VF} \\
+    \midrule
+    Polietileno sólido      & RG-58, RG-213 & $\approx 0{,}66$ \\
+    PTFE (teflón) sólido    & Semirrígido   & $\approx 0{,}70$ \\
+    Polietileno espumado    & RG-8X espuma  & $\approx 0{,}78$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{El cable es más lento que el aire.} Con $\text{VF} = 0{,}66$,
+un metro de cable tarda lo mismo que $1/0{,}66 \approx 1{,}52\,\text{m}$
+de aire: es la razón por la que el retardo de los cables pesa más de
+lo que la intuición geométrica sugiere.
+
+\section{Retardo neto y distancia aparente}
+\label{sec:cables_offset}
+
+Identificando en la ecuación~\eqref{eq:tau_total} el término de cables
+y sustituyéndolo en la ecuación~\eqref{eq:beat_freq} (usando
+$S = 2B/T_c$, Sección~\ref{sec:parametros_fmcw}), la frecuencia de
+batido medida es
+
+\begin{equation}
+  f^*_\text{medido} = S\,\tau_\text{total}
+  = \underbrace{\frac{4Bd}{c\,T_c}}_{f^*(d),\ \text{ec.}~\eqref{eq:beat_freq_aire}}
+  \;+\; \underbrace{\frac{2B}{T_c}\cdot\frac{D}{\text{VF}\cdot c}}_{f_\text{offset}}.
+  \label{eq:f_offset}
+\end{equation}
+
+Aplicando la inversión de la ecuación~\eqref{eq:d_estimada} a
+$f^*_\text{medido}$, el offset en frecuencia se traduce en un offset
+constante en la distancia estimada, \textbf{independiente de $T_c$ y
+de $d$}:
+
+\begin{equation}
+  \boxed{
+    \hat{d} = d + d_\text{offset},
+    \qquad
+    d_\text{offset} = \frac{D}{2\,\text{VF}}.
+  }
+  \label{eq:d_offset}
+\end{equation}
+
+Es un corrimiento aditivo, no un factor de escala: la pendiente de
+$\hat d$ respecto de $d$ sigue siendo $1$. Esto explica una observación
+del banco que a primera vista resulta contraintuitiva: al acercar o
+alejar el blanco, la frecuencia de batido bajaba o subía exactamente
+como predice la ecuación~\eqref{eq:beat_freq_aire} —el sistema
+\emph{medía bien}— pero el valor absoluto de $\hat d$ estaba corrido
+por una constante ajena al blanco.
+
+\subsection{Ejemplo numérico}
+\label{sub:cables_ejemplo}
+
+Con los cables originales del banco ($L_\text{TX} = L_\text{RX} =
+3\,\text{m}$, $L_\text{LO} = 0{,}5\,\text{m}$, de modo que
+$D = 5{,}5\,\text{m}$) y $\text{VF} = 0{,}66$ (polietileno sólido,
+Tabla~\ref{tab:vf_cables}):
+
+\begin{equation*}
+  d_\text{offset} = \frac{5{,}5}{2 \times 0{,}66} \approx 4{,}17\,\text{m}.
+\end{equation*}
+
+Este offset es constante en distancia pero, al pasar por
+$f_\text{offset} = S\,D/(\text{VF}\,c)$, depende de $T_c$ porque $S$
+depende de $T_c$. La Tabla~\ref{tab:cables_ejemplo} evalúa
+$f_\text{offset}$ y la $f^*_\text{medido}$ total esperada para un
+blanco a $d = 1\,\text{m}$, con $B = 1\,\text{GHz}$.
+
+\begin{table}[H]
+  \centering
+  \caption{Frecuencia de batido esperada para un blanco a
+    $d = 1\,\text{m}$, con y sin el aporte de los cables originales
+    ($D = 5{,}5\,\text{m}$, $\text{VF} = 0{,}66$). $d_\text{offset}
+    = 4{,}17\,\text{m}$ es constante; lo que cambia con $T_c$ es a
+    cuántos Hz equivale.}
+  \label{tab:cables_ejemplo}
+  \begin{tabular}{cccc}
+    \toprule
+    $T_c$ & $f^*(d=1\,\text{m})$ & $f_\text{offset}$
+      & $f^*_\text{medido}$ \\
+    \midrule
+    $40\,\text{ms}$  &  $333\,\text{Hz}$ & $1389\,\text{Hz}$ & $1722\,\text{Hz}$ \\
+    $80\,\text{ms}$  &  $167\,\text{Hz}$ &  $694\,\text{Hz}$ &  $861\,\text{Hz}$ \\
+    $160\,\text{ms}$ &   $83\,\text{Hz}$ &  $347\,\text{Hz}$ &  $430\,\text{Hz}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+La fila de $T_c = 80\,\text{ms}$ es la que se comparó contra el banco:
+el modelo predice $861\,\text{Hz}$ para un blanco a $1\,\text{m}$, y lo
+observado en la medición superaba los $800\,\text{Hz}$ —compatible
+dentro de la incertidumbre de $L_\text{LO}$ y $\text{VF}$ reales, que
+todavía no se midieron por separado (Sección~\ref{sec:cables_plantilla}
+propone cómo hacerlo con el VNA en vez de asumirlos).
+
+\section{Corrección: calibración con un punto de distancia conocida}
+\label{sec:cables_calibracion}
+
+Como $d_\text{offset}$ es un corrido de origen y no una escala, alcanza
+con \textbf{un único} punto de calibración: colocar un blanco a una
+distancia $d_\text{real}$ conocida, medir la $\hat d$ cruda que entrega
+el sistema, y restar:
+
+\begin{equation}
+  d_\text{offset}^\text{medido} = \hat d - d_\text{real}.
+  \label{eq:offset_medido}
+\end{equation}
+
+Con dos o más puntos a distancias distintas puede además ajustarse por
+cuadrados mínimos una recta $\hat d = a\,d_\text{real} + b$, lo que
+sirve como \textbf{verificación}: si el modelo de este capítulo es
+correcto, $a$ debe dar $\approx 1$ y $b$ debe coincidir con el
+$d_\text{offset}$ predicho por la
+ecuación~\eqref{eq:d_offset} a partir de las longitudes de cable
+medidas físicamente. Un valor de $a$ alejado de $1$ señala que el
+problema no está en los cables sino en otro parámetro del sistema (por
+ejemplo, un $T_c$ mal configurado respecto del que efectivamente
+entrega el generador).
+
+\section{Pérdidas de inserción: lo que los cables cuestan aparte del retardo}
+\label{sec:cables_perdidas}
+
+El retardo de los cables puede anularse por diseño, igualando
+$L_\text{LO}$ a $L_\text{TX} + L_\text{RX}$ para que $D = 0$ en la
+ecuación~\eqref{eq:D_neto}. La \textbf{atenuación} de los cables, en
+cambio, no se cancela nunca: cada tramo atenúa la señal que lo atraviesa
+sin importar cuánto midan los otros. Un coaxil atenúa más cuanto:
+
+\begin{itemize}
+  \item más alta es la frecuencia (la pérdida por efecto pelicular en
+    el conductor crece aproximadamente con $\sqrt{f}$, y la pérdida en
+    el dieléctrico crece aproximadamente en forma lineal con $f$);
+  \item más largo es el tramo (la atenuación en dB es proporcional a la
+    longitud);
+  \item menor es el diámetro del conductor central y peor el
+    dieléctrico (por eso el RG-213, con un conductor más grueso que el
+    RG-58, atenúa menos por metro a igual frecuencia).
+\end{itemize}
+
+Esta pérdida golpea al sistema en dos lugares distintos de la cadena
+de la Figura~\ref{fig:cables_diagrama}: la atenuación de
+$L_\text{TX}$ resta potencia efectivamente radiada, y la de
+$L_\text{RX}$ resta señal a la entrada del LNA \emph{antes} de que se
+amplifique, empeorando directamente la figura de ruido de toda la
+cadena. Acortar los cables reduce el retardo (Sección~\ref{sec:cables_offset})
+\textbf{y} la atenuación al mismo tiempo: a diferencia de la elección
+de $T_c$ (Capítulo~\ref{ch:senal_if}), acá no hay dos efectos en
+sentidos opuestos que haya que balancear. El valor exacto de
+atenuación en la banda de $943$ a $1982\,\text{MHz}$ depende del cable
+concreto y se mide, no se supone: queda planteado como parte de la
+caracterización de la Sección~\ref{sec:cables_plantilla}.
+
+\section{Caracterización propuesta: cables originales vs. cables nuevos}
+\label{sec:cables_plantilla}
+
+Se fabricará un segundo juego de cables, de $30\,\text{cm}$ cada uno en
+RG-213, para reemplazar los originales ($3\,\text{m}$ por antena). Con
+$D_\text{nuevo} = 2\times0{,}30 - L_\text{LO,nuevo}$, el offset de
+distancia se reduce drásticamente frente a los $4{,}17\,\text{m}$
+actuales; la Tabla~\ref{tab:cables_nuevo_offset} lo evalúa para
+algunas longitudes candidatas del cable al LO (a definir cuando se
+arme el juego nuevo completo).
+
+\begin{table}[H]
+  \centering
+  \caption{Offset de distancia esperado con los cables nuevos
+    ($L_\text{TX} = L_\text{RX} = 30\,\text{cm}$, $\text{VF} = 0{,}66$
+    nominal) según la longitud que se elija para el cable al LO.}
+  \label{tab:cables_nuevo_offset}
+  \begin{tabular}{cccc}
+    \toprule
+    $L_\text{LO,nuevo}$ & $D_\text{nuevo}$ & $d_\text{offset}$ \\
+    \midrule
+    $0\,\text{cm}$   & $60\,\text{cm}$  & $45{,}5\,\text{cm}$ \\
+    $15\,\text{cm}$  & $45\,\text{cm}$  & $34{,}1\,\text{cm}$ \\
+    $30\,\text{cm}$  & $30\,\text{cm}$  & $22{,}7\,\text{cm}$ \\
+    $50\,\text{cm}$  & $10\,\text{cm}$  & $7{,}6\,\text{cm}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Ojo con el signo.} Si $L_\text{LO,nuevo}$ resultara mayor que
+$L_\text{TX} + L_\text{RX}$, $D$ se vuelve negativo y con él
+$d_\text{offset}$: un blanco aparecería más \emph{cerca} de lo que
+está en realidad, en vez de más lejos. Conviene medir $L_\text{LO}$ y
+recortarlo junto con los cables de antena, no dejarlo como estaba.
+
+\subsection{Procedimiento}
+\label{sub:cables_procedimiento}
+
+\begin{enumerate}
+  \item \textbf{Pérdida de inserción ($S_{21}$) con el VNA.} Medir
+    $S_{21}$ en dB de $900\,\text{MHz}$ a $2\,\text{GHz}$ para el juego
+    de cables original y para el nuevo, superpuestos en el mismo
+    gráfico (plantilla en la Figura~\ref{fig:cables_s21_template}).
+  \item \textbf{Retardo de grupo con el VNA.} Medir la fase de $S_{21}$
+    (o el retardo de grupo directo, si el VNA lo entrega) para extraer
+    el $\text{VF}$ real de cada cable y compararlo contra el nominal de
+    la Tabla~\ref{tab:vf_cables} (plantilla en la
+    Figura~\ref{fig:cables_delay_template}).
+  \item \textbf{Calibración de un punto en el radar.} Repetir el
+    procedimiento de la Sección~\ref{sec:cables_calibracion} con cada
+    juego de cables y comparar el $d_\text{offset}^\text{medido}$
+    contra el predicho por la ecuación~\eqref{eq:d_offset} usando el
+    $\text{VF}$ medido en el paso anterior (no el nominal), en la
+    Tabla~\ref{tab:cables_teoria_practica}.
+  \item \textbf{Espectro de batido, mismo blanco, los dos juegos de
+    cables.} Con un blanco fijo y la misma distancia, capturar el
+    panel de espectro de \texttt{vivo.py} con los cables originales y
+    con los nuevos (plantilla en la
+    Figura~\ref{fig:cables_espectro_template}), y comparar posición del
+    pico, ancho del pico y piso de ruido.
+\end{enumerate}
+
+\subsection{Resultados: pérdida de inserción (VNA)}
+
+\begin{figure}[H]
+  \centering
+  % TODO: reemplazar por la captura del VNA en modo S21, 900 MHz a
+  % 2 GHz, con las dos curvas (cable original y cable nuevo)
+  % superpuestas en el mismo eje.
+  % \includegraphics[width=0.9\linewidth]{figuras/cables/s21_original_vs_nuevo.png}
+  \fbox{\parbox{0.9\linewidth}{\centering\vspace{3cm}
+    \textit{Pendiente: $S_{21}$ [dB] vs.\ frecuencia [MHz],
+    $900$--$2000\,\text{MHz}$, cable original y cable nuevo
+    superpuestos.}\vspace{3cm}}}
+  \caption{Pérdida de inserción medida con el VNA, cable original
+    ($3\,\text{m}$) contra cable nuevo (RG-213, $30\,\text{cm}$).}
+  \label{fig:cables_s21_template}
+\end{figure}
+
+\subsection{Resultados: retardo de grupo y VF real (VNA)}
+
+\begin{figure}[H]
+  \centering
+  % TODO: reemplazar por la captura del VNA en modo fase de S21 o
+  % retardo de grupo, mismo rango de frecuencias, cable original y
+  % nuevo superpuestos. Del retardo total y la longitud física del
+  % cable se despeja VF = (longitud / c) / retardo medido.
+  % \includegraphics[width=0.9\linewidth]{figuras/cables/retardo_original_vs_nuevo.png}
+  \fbox{\parbox{0.9\linewidth}{\centering\vspace{3cm}
+    \textit{Pendiente: retardo de grupo [ns] vs.\ frecuencia [MHz],
+    cable original y cable nuevo superpuestos, con el VF despejado de
+    cada uno indicado en la leyenda.}\vspace{3cm}}}
+  \caption{Retardo de grupo medido con el VNA y factor de velocidad
+    real despejado, cable original contra cable nuevo.}
+  \label{fig:cables_delay_template}
+\end{figure}
+
+\subsection{Resultados: espectro de batido con blanco fijo}
+
+\begin{figure}[H]
+  \centering
+  % TODO: dos capturas del panel de FFT de vivo.py (o
+  % graficar_captura.py), mismo blanco y misma distancia, una con los
+  % cables originales y otra con los nuevos. Señalar en cada una la
+  % posición del pico, su ancho a -3 dB y el piso de ruido.
+  % \includegraphics[width=0.48\linewidth]{figuras/cables/espectro_cable_original.png}
+  % \includegraphics[width=0.48\linewidth]{figuras/cables/espectro_cable_nuevo.png}
+  \fbox{\parbox{0.9\linewidth}{\centering\vspace{3cm}
+    \textit{Pendiente: espectro de batido (\texttt{vivo.py}), mismo
+    blanco y misma distancia, cable original vs.\ cable nuevo.
+    Indicar posición del pico, ancho a $-3\,\text{dB}$ y piso de
+    ruido.}\vspace{3cm}}}
+  \caption{Efecto del cable sobre el espectro de batido: posición del
+    pico (retardo), y forma/piso de ruido (pérdida y SNR).}
+  \label{fig:cables_espectro_template}
+\end{figure}
+
+Dos efectos de los cables se superponen en esta comparación y conviene
+no confundirlos: acortar el cable \textbf{corre el pico} (menos
+retardo, Sección~\ref{sec:cables_offset}) y, si además reduce la
+atenuación, \textbf{puede subir el piso de SNR} (menos pérdida de
+inserción antes del LNA, Sección~\ref{sec:cables_perdidas}). Son
+efectos independientes: el primero se lee en el eje de frecuencia
+(dónde cae el pico) y el segundo en el eje de amplitud (cuánto se
+levanta el pico sobre el piso de ruido). La comparación debe reportar
+ambos por separado, no un único número.
+
+\subsection{Comparación teoría vs.\ práctica: tabla resumen}
+
+\begin{table}[H]
+  \centering
+  \caption{Resumen comparativo entre el valor teórico (predicho por
+    las ecuaciones de este capítulo, a partir de longitudes medidas
+    con cinta métrica y $\text{VF}$ nominal de catálogo) y el valor
+    medido (VNA y calibración en el radar), para ambos juegos de
+    cables. Completar al finalizar la caracterización.}
+  \label{tab:cables_teoria_practica}
+  \begin{tabular}{lcccc}
+    \toprule
+    & \multicolumn{2}{c}{\textbf{Cable original}}
+    & \multicolumn{2}{c}{\textbf{Cable nuevo (RG-213)}} \\
+    \cmidrule(lr){2-3}\cmidrule(lr){4-5}
+    & Teoría & Medido & Teoría & Medido \\
+    \midrule
+    VF                                    & $0{,}66$\textsuperscript{*} & --- & $0{,}66$\textsuperscript{*} & --- \\
+    $D$ {[}m{]}                           & $5{,}50$ & --- & \textit{(a def.)} & --- \\
+    $d_\text{offset}$ {[}m{]}              & $4{,}17$ & --- & \textit{(a def.)} & --- \\
+    Atenuación @ $1{,}5\,\text{GHz}$ {[}dB{]} & --- & --- & --- & --- \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{4pt}
+  \footnotesize\textsuperscript{*}Valor nominal de catálogo
+  (Tabla~\ref{tab:vf_cables}); reemplazar por el VF despejado del
+  retardo de grupo medido con el VNA (Sección anterior) en cuanto esté
+  disponible.
+\end{table}
 
 %============================================================
 %  APÉNDICES
