@@ -110,7 +110,7 @@ Generador de funciones ──> amplificador ──> VCO ──> splitter ──�
   a 1 m.
 - Es un **offset puro**: la pendiente sigue siendo 1 y la resolución no se
   toca. Se saca con un punto de calibración en `vivo.py`.
-- Derivación completa, diagramas y tablas: **`GPRv2/docs/retardo_cables.md`**.
+- Derivación completa, diagramas y tablas: **`GPRv2/docs/CABLES/retardo_cables.md`**.
 
 **Amplificador de RF y exposición** (agregado 2026-09-05)
 - Salida del PA: **+24 dBm = 251 mW**. Con antenas de 6 a 10 dBi eso da

@@ -54,6 +54,11 @@ build/
 #     redaccion/figuras/banco/primer_banco_medicion3.jpeg
 #     redaccion/figuras/arquitectura/diagrama_bloques.png
 #     redaccion/figuras/arquitectura/principio_fmcw.png
+#     redaccion/figuras/cables/cables_insercion.png
+#     redaccion/figuras/cables/cables_retorno.png
+#     redaccion/figuras/cables/cables_tiempo.png
+#     redaccion/figuras/cables/cables_impacto.png
+# (las cuatro de cables las regenera GPRv2/analisis/cables_vna.py)
 # Una vez agregadas con -f quedan trackeadas: si regeneras el grafico, el
 # cambio aparece en el diff como cualquier otro archivo.
 # ---------------------------------------------------------------------------

@@ -330,7 +330,7 @@ la misma banda).
 ## El desvio de distancia son LOS CABLES, y es un offset, no una escala
 
 > La derivación completa, con diagramas de los dos caminos, las tablas y
-> cómo medirlo, está en **[`docs/retardo_cables.md`](docs/retardo_cables.md)**.
+> cómo medirlo, está en **[`docs/CABLES/retardo_cables.md`](docs/CABLES/retardo_cables.md)**.
 
 Resuelto el 2026-09-05. Un FMCW **no mide la distancia al blanco**: mide la
 **diferencia de retardo entre las dos entradas del mezclador**.
@@ -354,18 +354,29 @@ sola vez):
 | semirrígido PTFE | 0,70 | 4,76 | 0,71 m |
 | RG-8X espuma | 0,78 | 4,27 | 0,64 m |
 
-Con **3 m por antena** y uno corto al LO, el neto son ~5 m de cable = **3,8 m
-de offset**. Medido en el banco: con Tprf 80 ms (173 Hz/m) una placa a 1 m
-daba **más de 800 Hz**, o sea 4,6 m aparentes → offset 3,6 m → 4,8 m de
-coaxil neto. Cierra.
+Los cables de antena son **dos RG-58 desparejos, de 3 m y 2,6 m**, con 0,5 m
+al LO: neto D = 5,1 m = **3,86 m de offset**. Medido en el banco: con Tprf
+80 ms (167 Hz/m) una placa a 1 m daba **más de 800 Hz**, o sea 4,9 m
+aparentes → offset ~3,6 m. Cierra.
+
+**Medido con el VNA el 2026-09-10** (ver abajo): el retardo de los dos cables
+de antena da 25,83 ns, que menos el LO nominal deja **3,49 m de offset**. Los
+tres caminos —la cuenta, el VNA y el radar— caen dentro de un 10 %.
 
 Y explica lo que se veía: **"se acerca y baja, se aleja y sube" funciona
 perfecto** aunque el número absoluto esté lejos. El radar mide bien, sólo que
 desde otro origen.
 
 Confirmación sobre los datos: reprocesada con el período correcto de 80 ms,
-la captura del 2026-09-04 tiene el pico dominante en **5,31 m**, que menos el
-offset de ~4,17 m da **1,14 m** — la placa, que estaba a ~1 m.
+la captura del 2026-09-04 tiene el pico dominante en **5,31 m**.
+
+⚠️ **Ojo con esta cuenta.** Cuando se escribió, el offset que se restaba era
+4,17 m (asumiendo los dos cables de 3 m) y daba 1,14 m, redondo. Con las
+longitudes reales el offset es 3,86 m calculado o 3,49 m medido con el VNA,
+así que la placa sale en **1,45 o 1,82 m**, no en 1,14. Sigue siendo el orden
+correcto para una placa que estaba a ~1 m, pero **el ajuste fino era una
+coincidencia de un número mal puesto**, no una validación. Para validar de
+verdad hay que medir el offset directo con el barrel (opción 1 de abajo).
 
 **Cómo tratarlo**, de mejor a peor:
 
@@ -385,10 +396,44 @@ offset de ~4,17 m da **1,14 m** — la placa, que estaba a ~1 m.
 dos puntos da lejos de 1, no son los cables: lo primero a revisar es el
 período de la triangular.
 
-**El offset cuesta alcance no ambiguo.** Con Tprf 80 ms (173 Hz/m) y Nyquist
-en 3000 Hz entran 17,3 m aparentes, menos 4,2 de offset quedan 13 m útiles.
-Pero con Tprf 40 ms (346 Hz/m) entran 8,7 m aparentes y quedan sólo **4,5 m
+**El offset cuesta alcance no ambiguo.** Con Tprf 80 ms (167 Hz/m) y Nyquist
+en 3000 Hz entran 18,0 m aparentes, menos 3,9 de offset quedan 14 m útiles.
+Pero con Tprf 40 ms (334 Hz/m) entran 9,0 m aparentes y quedan sólo **5,1 m
 útiles**. Con estos cables, conviene el Tprf largo.
+
+Con los **RG-213 nuevos de 1 m** el offset baja a 1,14 m, y a 40 ms quedarían
+7,9 m útiles en vez de 5,1.
+
+## Los cables, medidos con el VNA — 2026-09-10
+
+`analisis/cables_vna.py` procesa los barridos de `docs/CABLES/` (Agilent
+N9923A, 500-2500 MHz) y genera las cuatro figuras del capítulo de cables de
+la tesis. Los seis CSV se llaman `RG213_*` por un renombre, pero **cuatro son
+de los RG-58 viejos**: el tipo lo dice `MEDICIONES` en el script, no el
+nombre del archivo.
+
+| cable | α @1 GHz | catálogo | VF despejado |
+|---|---|---|---|
+| RG-213 nuevo, 1 m | 0,294 dB/m | 0,28 | 0,684 |
+| RG-58 viejo, 3 m | 0,515 dB/m | 0,53 | 0,702 |
+| RG-58 viejo, 2,6 m | **1,078 dB/m** | 0,53 | 0,750 |
+
+**El RG-58 de 2,6 m tiene un conector para tirar**: atenúa el doble que su
+gemelo de 3 m y es el peor adaptado de los tres (VSWR 1,64). Él solo se come
+3,4 dB de los 5,3 que costaba el par viejo.
+
+**El VF sigue siendo 0,66 nominal para todo cálculo.** Los tres dan más
+rápido, pero el método (FFT del rizado de S11) tiene ±0,25 ns de resolución
+sobre τ, que en el cable de 1 m es 5 %. No alcanza para descartar el
+catálogo. Para medir VF de verdad hay que **repetir el barrido exportando
+fase**: el equipo dio solo magnitud.
+
+**El truco del rizado, por si hay que rehacerlo.** Sin fase no hay retardo de
+grupo, pero el eco del extremo del cable interfiere con el del conector de
+entrada y ondula |S11| con período `Δf = 1/(2τ)`. La FFT de esa ondulación da
+un pico en 2τ. Que es el eco de verdad se verifica solo: el cable de 3 m
+muestra el pico en 28,53 ns y el segundo rebote en 57,05, exactamente al
+doble.
 
 ## La distancia del eje hay que calibrarla, pero ya se sabe por qué
 
