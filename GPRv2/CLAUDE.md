@@ -340,8 +340,9 @@ f_beat = alpha0 * (tau_blanco + tau_cables)
 ```
 
 El camino de RX lleva el cable a la antena TX, el aire, el cable de vuelta
-desde la antena RX y el LNA. El del LO lleva un cable corto. Esa diferencia
-se suma al retardo del blanco.
+desde la antena RX y el LNA. El del LO no lleva cable: son 5 cm de conexión
+directa entre el splitter y el mezclador. Esa diferencia se suma al retardo
+del blanco.
 
 **Y el cable pesa muchísimo más de lo que uno espera.** Un metro de coaxil de
 VF 0,66 son 5,05 ns, y el radar lo lee como **0,76 m de distancia aparente**
@@ -354,14 +355,26 @@ sola vez):
 | semirrígido PTFE | 0,70 | 4,76 | 0,71 m |
 | RG-8X espuma | 0,78 | 4,27 | 0,64 m |
 
-Los cables de antena son **dos RG-58 desparejos, de 3 m y 2,6 m**, con 0,5 m
-al LO: neto D = 5,1 m = **3,86 m de offset**. Medido en el banco: con Tprf
-80 ms (167 Hz/m) una placa a 1 m daba **más de 800 Hz**, o sea 4,9 m
-aparentes → offset ~3,6 m. Cierra.
+Los cables de antena son **dos RG-58 desparejos, de 3 m y 2,6 m**.
+
+**El camino del LO no lleva cable**: el splitter y el mezclador se conectan
+directamente, unos 5 cm. Eso aporta 0,25 ns = **3,8 cm** de offset, muy por
+debajo de la resolución de 14,4 cm, así que `L_LO` se desprecia en todos los
+cálculos y **D ≈ L_TX + L_RX = 5,55 m → 4,20 m de offset**.
+
+Ojo con leerlo como una simplificación afortunada: `L_LO` es el único término
+que RESTA en `D = L_TX + L_RX - L_LO`, y no está restando nada. El cable de
+antena se paga entero.
+
+Medido en el banco: con Tprf 80 ms (167 Hz/m) una placa a 1 m daba **más de
+800 Hz**; el modelo predice 868 Hz.
 
 **Medido con el VNA el 2026-09-10** (ver abajo): el retardo de los dos cables
-de antena da 25,83 ns, que menos el LO nominal deja **3,49 m de offset**. Los
-tres caminos —la cuenta, el VNA y el radar— caen dentro de un 10 %.
+de antena da 25,83 ns → **3,83 m de offset**, sin suponer ningún VF. Contra
+los 4,20 m de la cuenta es un 9 % menos. Los tres caminos —la cuenta, el VNA
+y el radar— caen dentro de un 10 %, con los dos experimentales por debajo del
+teórico (la cinta métrica sobre cable no recto y el VF 0,66 de catálogo
+sobreestiman los dos).
 
 Y explica lo que se veía: **"se acerca y baja, se aleja y sube" funciona
 perfecto** aunque el número absoluto esté lejos. El radar mide bien, sólo que
@@ -371,12 +384,13 @@ Confirmación sobre los datos: reprocesada con el período correcto de 80 ms,
 la captura del 2026-09-04 tiene el pico dominante en **5,31 m**.
 
 ⚠️ **Ojo con esta cuenta.** Cuando se escribió, el offset que se restaba era
-4,17 m (asumiendo los dos cables de 3 m) y daba 1,14 m, redondo. Con las
-longitudes reales el offset es 3,86 m calculado o 3,49 m medido con el VNA,
-así que la placa sale en **1,45 o 1,82 m**, no en 1,14. Sigue siendo el orden
-correcto para una placa que estaba a ~1 m, pero **el ajuste fino era una
-coincidencia de un número mal puesto**, no una validación. Para validar de
-verdad hay que medir el offset directo con el barrel (opción 1 de abajo).
+4,17 m (asumiendo dos cables de 3 m y 0,5 m al LO) y daba 1,14 m, redondo.
+Con las longitudes reales el offset es 4,20 m calculado o 3,83 m medido con
+el VNA, así que la placa sale en **1,11 o 1,48 m**. Sigue siendo el orden
+correcto para una placa que estaba a ~1 m, pero **los 1,14 m salían de dos
+errores que casi se cancelaban** (L_RX de más, L_LO de más), no de una
+validación. Para validar de verdad hay que medir el offset directo con el
+barrel (opción 1 de abajo).
 
 **Cómo tratarlo**, de mejor a peor:
 
@@ -389,20 +403,23 @@ verdad hay que medir el offset directo con el barrel (opción 1 de abajo).
    correcto. Con dos o más ajusta las dos y sirve para **verificar** que la
    pendiente da ~1.
 3. **Emparejar los cables**: agregarle al camino del LO tanto cable como
-   (TX + RX). Deja el offset en cero, pero son ~6 m de coaxil más y 4-5 dB de
-   pérdida en el LO, que el mezclador puede necesitar.
+   (TX + RX) — hoy ese camino es una conexión directa, así que sería agregar
+   los 5,55 m enteros. Deja el offset en cero, pero son 5,55 m de coaxil más
+   y ~3,5 dB de pérdida en el LO (RG-58) o ~2 dB (RG-213), que el mezclador
+   puede necesitar para conmutar bien. Con los RG-213 de 1 m serían 2 m de
+   cable y ~0,7 dB, bastante más razonable.
 
 **La pendiente ~1 es LA verificación de que todo lo demás está bien.** Si con
 dos puntos da lejos de 1, no son los cables: lo primero a revisar es el
 período de la triangular.
 
 **El offset cuesta alcance no ambiguo.** Con Tprf 80 ms (167 Hz/m) y Nyquist
-en 3000 Hz entran 18,0 m aparentes, menos 3,9 de offset quedan 14 m útiles.
-Pero con Tprf 40 ms (334 Hz/m) entran 9,0 m aparentes y quedan sólo **5,1 m
+en 3000 Hz entran 18,0 m aparentes, menos 4,2 de offset quedan 13,8 m útiles.
+Pero con Tprf 40 ms (334 Hz/m) entran 9,0 m aparentes y quedan sólo **4,8 m
 útiles**. Con estos cables, conviene el Tprf largo.
 
-Con los **RG-213 nuevos de 1 m** el offset baja a 1,14 m, y a 40 ms quedarían
-7,9 m útiles en vez de 5,1.
+Con los **RG-213 nuevos de 1 m** el offset baja a 1,48 m, y a 40 ms quedarían
+7,5 m útiles en vez de 4,8.
 
 ## Los cables, medidos con el VNA — 2026-09-10
 

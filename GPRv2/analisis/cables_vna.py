@@ -64,6 +64,12 @@ F_CENTRO = 0.5 * (F_LO + F_HI)
 # estos valores, no los despejados del retardo medido.
 VF_NOMINAL = {"RG-58": 0.66, "RG-213": 0.66}
 
+# El splitter y el mezclador se conectan directamente, sin cable: el camino
+# del LO son los ~5 cm de la unión. Aporta 0,25 ns = 3,8 cm de offset, muy
+# por debajo de la resolución de 14,4 cm, así que D es en la práctica
+# L_TX + L_RX. Se lo deja explícito igual, para que se vea que se consideró.
+L_LO = 0.05
+
 # El juego viejo (los dos RG-58) contra el nuevo (RG-213).
 MEDICIONES = [
     dict(tag="1m",   largo=1.00, tipo="RG-213", juego="nuevo",
@@ -347,12 +353,12 @@ def figura_impacto(datos):
     ax1.text(6.9, 0.22, "resolución del radar, 14,4 cm",
              fontsize=8, color="0.4", ha="right")
 
-    # Los dos juegos reales, con el mismo cable al LO (0,5 m) en los dos:
-    # D = L_TX + L_RX - L_LO.
+    # Los dos juegos reales. D = L_TX + L_RX - L_LO, con el mismo L_LO en los
+    # dos porque el splitter y el mezclador van conectados directamente.
     # (D neto, texto, color, dónde va el texto)
     escenarios = [
-        (5.1, "juego viejo\nRG-58 de 3 y 2,6 m", "#d62728", (3.30, 4.75)),
-        (1.5, "juego nuevo\ndos RG-213 de 1 m",  "#1f77b4", (2.60, 1.05)),
+        (3.0 + 2.6 - L_LO, "juego viejo\nRG-58 de 3 y 2,6 m", "#d62728", (3.60, 5.10)),
+        (1.0 + 1.0 - L_LO, "juego nuevo\ndos RG-213 de 1 m",  "#1f77b4", (3.05, 1.35)),
     ]
     for d_neto, txt, col, (tx, ty) in escenarios:
         y = d_neto / (2 * vf)
@@ -456,8 +462,8 @@ def resumen(datos):
     print("\nOFFSET DE DISTANCIA CON VF NOMINAL 0,66  (%.3f m por metro de coaxil)"
           % (1 / (2 * 0.66)))
     print("-" * 74)
-    for D, txt in [(5.1, "juego viejo: RG-58 de 3 + 2,6 m, LO de 0,5"),
-                   (1.5, "juego nuevo: dos RG-213 de 1 m, LO de 0,5")]:
+    for D, txt in [(3.0 + 2.6 - L_LO, "juego viejo: RG-58 de 3 + 2,6 m"),
+                   (1.0 + 1.0 - L_LO, "juego nuevo: dos RG-213 de 1 m")]:
         print("  D = %4.2f m -> offset %5.2f m   (%s)" % (D, D / (2 * 0.66), txt))
     print()
 

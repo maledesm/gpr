@@ -1108,12 +1108,21 @@ VCO, pero después divergen:
 
 \begin{itemize}
   \item \textbf{Camino del LO} (corto): splitter $\to$ cable de
-    longitud $L_\text{LO}$ $\to$ entrada LO del mezclador.
+    longitud $L_\text{LO}$ $\to$ entrada LO del mezclador. En el banco
+    de esta tesis ese tramo \emph{no es un cable}: el splitter y el
+    mezclador van conectados directamente, con unos $5\,\text{cm}$ de
+    unión, de modo que $L_\text{LO} \approx 0$
+    (Sección~\ref{sub:cables_ejemplo}).
   \item \textbf{Camino de RF} (largo): splitter $\to$ cable de longitud
     $L_\text{TX}$ $\to$ antena transmisora $\to$ trayecto por el aire
     (ida y vuelta $2d$) $\to$ antena receptora $\to$ cable de longitud
     $L_\text{RX}$ $\to$ LNA $\to$ entrada RF del mezclador.
 \end{itemize}
+
+Se conserva $L_\text{LO}$ en la formulación aunque en este montaje
+valga casi cero, porque es el término sobre el que se actúa si se
+quiere cancelar el offset por diseño
+(Sección~\ref{sec:cables_plantilla}).
 
 La Figura~\ref{fig:cables_diagrama} esquematiza ambos caminos. El
 retardo total que ve el mezclador es la suma del retardo eléctrico en
@@ -1170,8 +1179,9 @@ ecuación~\eqref{eq:beat_freq_aire}.
     \node[align=center, below=2mm of mix, font=\scriptsize\itshape]
       {ve $\tau_\text{total} = \tau_\text{cables} + \tau_\text{blanco}$};
   \end{tikzpicture}
-  \caption{Los dos caminos que llegan al mezclador. El del LO es
-    corto y fijo; el de RF incluye los cables a las antenas más el
+  \caption{Los dos caminos que llegan al mezclador. El del LO es corto
+    y fijo ---en este banco, una conexión directa de $\approx
+    5\,\text{cm}$---; el de RF incluye los cables a las antenas más el
     trayecto por el aire. El mezclador solo puede medir la diferencia
     de retardo entre ambos, no el retardo absoluto de ninguno.}
   \label{fig:cables_diagrama}
@@ -1252,20 +1262,29 @@ por una constante ajena al blanco.
 \label{sub:cables_ejemplo}
 
 Con los cables originales del banco ---dos RG-58 desparejos,
-$L_\text{TX} = 3\,\text{m}$ y $L_\text{RX} = 2{,}6\,\text{m}$, con
-$L_\text{LO} = 0{,}5\,\text{m}$, de modo que $D = 5{,}1\,\text{m}$---
-y $\text{VF} = 0{,}66$ (polietileno sólido,
-Tabla~\ref{tab:vf_cables}):
+$L_\text{TX} = 3\,\text{m}$ y $L_\text{RX} = 2{,}6\,\text{m}$--- y
+$\text{VF} = 0{,}66$ (polietileno sólido, Tabla~\ref{tab:vf_cables}).
+
+\textbf{En este montaje el camino del LO no lleva cable}: el splitter y
+el mezclador van conectados directamente, con unos $5\,\text{cm}$ de
+unión. Ese tramo aporta $0{,}25\,\text{ns}$, es decir $3{,}8\,\text{cm}$
+de distancia aparente ---bastante menos que la resolución de
+$14{,}4\,\text{cm}$ del radar---, así que $L_\text{LO}$ es despreciable
+y $D \approx L_\text{TX} + L_\text{RX} = 5{,}55\,\text{m}$:
 
 \begin{equation*}
-  d_\text{offset} = \frac{5{,}1}{2 \times 0{,}66} \approx 3{,}86\,\text{m}.
+  d_\text{offset} = \frac{5{,}55}{2 \times 0{,}66} \approx 4{,}20\,\text{m}.
 \end{equation*}
 
-Nótese que la ecuación~\eqref{eq:D_neto} solo pide la \emph{suma}
-$L_\text{TX} + L_\text{RX}$: que los dos cables de antena sean de
-distinto largo no agrega ningún término. El desbalance que importa es
-el que hay entre el camino de RF y el del LO, no el que hay entre TX y
-RX.
+Que $L_\text{LO}$ sea despreciable es una \emph{mala} noticia, no una
+simplificación afortunada: es el único término de la
+ecuación~\eqref{eq:D_neto} que resta, y no está restando nada. Todo el
+cable de antena se paga entero.
+
+Nótese además que esa ecuación solo pide la \emph{suma} $L_\text{TX} +
+L_\text{RX}$: que los dos cables de antena sean de distinto largo no
+agrega ningún término. El desbalance que importa es el que hay entre el
+camino de RF y el del LO, no el que hay entre TX y RX.
 
 Este offset es constante en distancia pero, al pasar por
 $f_\text{offset} = S\,D/(\text{VF}\,c)$, depende de $T_c$ porque $S$
@@ -1277,8 +1296,8 @@ blanco a $d = 1\,\text{m}$, con $B = 1\,\text{GHz}$.
   \centering
   \caption{Frecuencia de batido esperada para un blanco a
     $d = 1\,\text{m}$, con y sin el aporte de los cables originales
-    ($D = 5{,}1\,\text{m}$, $\text{VF} = 0{,}66$). $d_\text{offset}
-    = 3{,}86\,\text{m}$ es constante; lo que cambia con $T_c$ es a
+    ($D = 5{,}55\,\text{m}$, $\text{VF} = 0{,}66$). $d_\text{offset}
+    = 4{,}20\,\text{m}$ es constante; lo que cambia con $T_c$ es a
     cuántos Hz equivale.}
   \label{tab:cables_ejemplo}
   \begin{tabular}{cccc}
@@ -1286,20 +1305,20 @@ blanco a $d = 1\,\text{m}$, con $B = 1\,\text{GHz}$.
     $T_c$ & $f^*(d=1\,\text{m})$ & $f_\text{offset}$
       & $f^*_\text{medido}$ \\
     \midrule
-    $40\,\text{ms}$  &  $334\,\text{Hz}$ & $1289\,\text{Hz}$ & $1622\,\text{Hz}$ \\
-    $80\,\text{ms}$  &  $167\,\text{Hz}$ &  $644\,\text{Hz}$ &  $811\,\text{Hz}$ \\
-    $160\,\text{ms}$ &   $83\,\text{Hz}$ &  $322\,\text{Hz}$ &  $406\,\text{Hz}$ \\
+    $40\,\text{ms}$  &  $334\,\text{Hz}$ & $1402\,\text{Hz}$ & $1736\,\text{Hz}$ \\
+    $80\,\text{ms}$  &  $167\,\text{Hz}$ &  $701\,\text{Hz}$ &  $868\,\text{Hz}$ \\
+    $160\,\text{ms}$ &   $83\,\text{Hz}$ &  $351\,\text{Hz}$ &  $434\,\text{Hz}$ \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 La fila de $T_c = 80\,\text{ms}$ es la que se comparó contra el banco:
-el modelo predice $811\,\text{Hz}$ para un blanco a $1\,\text{m}$, y lo
-observado en la medición superaba los $800\,\text{Hz}$. La coincidencia
-es mejor de lo que el método merece ---$L_\text{LO}$ y el $\text{VF}$
-real siguen siendo valores supuestos, no medidos--- pero deja el orden
-de magnitud fuera de discusión: el aporte de los cables es varias veces
-el del blanco.
+el modelo predice $868\,\text{Hz}$ para un blanco a $1\,\text{m}$, y lo
+observado en la medición superaba los $800\,\text{Hz}$. El acuerdo no
+debe leerse como más fino de lo que es ---el $\text{VF}$ real sigue
+siendo un valor de catálogo, no medido--- pero deja el orden de
+magnitud fuera de discusión: el aporte de los cables es varias veces el
+del blanco.
 
 \section{Corrección: calibración con un punto de distancia conocida}
 \label{sec:cables_calibracion}
@@ -1328,11 +1347,13 @@ entrega el generador).
 \section{Pérdidas de inserción: lo que los cables cuestan aparte del retardo}
 \label{sec:cables_perdidas}
 
-El retardo de los cables puede anularse por diseño, igualando
-$L_\text{LO}$ a $L_\text{TX} + L_\text{RX}$ para que $D = 0$ en la
-ecuación~\eqref{eq:D_neto}. La \textbf{atenuación} de los cables, en
-cambio, no se cancela nunca: cada tramo atenúa la señal que lo atraviesa
-sin importar cuánto midan los otros. Un coaxil atenúa más cuanto:
+El retardo de los cables puede anularse por diseño, agregándole al
+camino del LO tanto cable como suman $L_\text{TX} + L_\text{RX}$ para
+que $D = 0$ en la ecuación~\eqref{eq:D_neto}. La \textbf{atenuación} de
+los cables, en cambio, no se cancela nunca: cada tramo atenúa la señal
+que lo atraviesa sin importar cuánto midan los otros ---y esa maniobra,
+de hecho, \emph{agrega} atenuación en el LO en vez de quitarla. Un
+coaxil atenúa más cuanto:
 
 \begin{itemize}
   \item más alta es la frecuencia (la pérdida por efecto pelicular en
@@ -1375,9 +1396,12 @@ doble por metro (Sección~\ref{sub:cables_s21_medido}): $1\,\text{m}$ de
 RG-213 es el punto donde las dos exigencias se cruzan.
 
 Con $D_\text{nuevo} = 2\times1{,}0 - L_\text{LO}$, el offset de
-distancia cae frente a los $3{,}86\,\text{m}$ del juego original; la
-Tabla~\ref{tab:cables_nuevo_offset} lo evalúa según qué se haga con el
-cable al LO, que es el único grado de libertad que queda.
+distancia cae de los $4{,}20\,\text{m}$ del juego original a
+$1{,}48\,\text{m}$. La Tabla~\ref{tab:cables_nuevo_offset} muestra
+cuánto más se podría bajar interviniendo el camino del LO, que hoy es
+una conexión directa ($L_\text{LO} \approx 5\,\text{cm}$) y es el único
+grado de libertad que queda una vez fijado el largo de los cables de
+antena.
 
 \begin{table}[H]
   \centering
@@ -1389,10 +1413,10 @@ cable al LO, que es el único grado de libertad que queda.
     \toprule
     $L_\text{LO}$ & $D_\text{nuevo}$ & $d_\text{offset}$ \\
     \midrule
-    $0{,}0\,\text{m}$ & $2{,}00\,\text{m}$ & $1{,}52\,\text{m}$ \\
-    $0{,}5\,\text{m}$ & $1{,}50\,\text{m}$ & $1{,}14\,\text{m}$ \\
-    $1{,}0\,\text{m}$ & $1{,}00\,\text{m}$ & $0{,}76\,\text{m}$ \\
-    $2{,}0\,\text{m}$ & $0$                & $0$ \\
+    $0{,}05\,\text{m}$ (hoy) & $1{,}95\,\text{m}$ & $1{,}48\,\text{m}$ \\
+    $0{,}5\,\text{m}$        & $1{,}50\,\text{m}$ & $1{,}14\,\text{m}$ \\
+    $1{,}0\,\text{m}$        & $1{,}00\,\text{m}$ & $0{,}76\,\text{m}$ \\
+    $2{,}0\,\text{m}$        & $0$                & $0$ \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -1403,11 +1427,16 @@ tanto cable como suman TX y RX. El costo es la atenuación que ese tramo
 le agrega al LO ---unos $0{,}7\,\text{dB}$ a $1{,}5\,\text{GHz}$ con
 RG-213---, que el mezclador puede necesitar para conmutar bien.
 
-\textbf{Ojo con el signo.} Si $L_\text{LO}$ resultara mayor que
-$L_\text{TX} + L_\text{RX}$, $D$ se vuelve negativo y con él
-$d_\text{offset}$: un blanco aparecería más \emph{cerca} de lo que
-está en realidad, en vez de más lejos. Conviene medir $L_\text{LO}$ y
-recortarlo junto con los cables de antena, no dejarlo como estaba.
+\textbf{Ojo con el signo si se toma ese camino.} Alargar el LO es la
+única maniobra de este capítulo que puede \emph{pasarse} de largo: si
+$L_\text{LO}$ terminara siendo mayor que $L_\text{TX} + L_\text{RX}$,
+$D$ se vuelve negativo y con él $d_\text{offset}$, y un blanco
+aparecería más \emph{cerca} de lo que está en realidad en vez de más
+lejos. El error no es más grave que el actual ---sigue siendo un
+offset constante, corregible con un punto de calibración--- pero es
+mucho más confuso de diagnosticar, porque contradice la intuición de
+que ``los cables alejan''. Conviene entonces cortar ese tramo con
+medida y no de más.
 
 \subsection{Procedimiento}
 \label{sub:cables_procedimiento}
@@ -1609,8 +1638,8 @@ los cables cortos se miden mal por este camino.
 
 Los dos costos se leen por separado. En \textbf{retardo}, cambiar los
 RG-58 de $3$ y $2{,}6\,\text{m}$ por los dos RG-213 de $1\,\text{m}$
-baja el offset de $3{,}86\,\text{m}$ a $1{,}14\,\text{m}$. Sigue siendo
-ocho veces la resolución de $14{,}4\,\text{cm}$, así que \textbf{acortar
+baja el offset de $4{,}20\,\text{m}$ a $1{,}48\,\text{m}$. Sigue siendo
+diez veces la resolución de $14{,}4\,\text{cm}$, así que \textbf{acortar
 los cables no reemplaza a la calibración} de la
 Sección~\ref{sec:cables_calibracion}: solo la vuelve una corrección más
 chica. Lo único que anula el offset de raíz es emparejar el LO
@@ -1676,7 +1705,7 @@ ambos por separado, no un único número.
     VF                                        & $0{,}66$\textsuperscript{*} & $0{,}70$\textsuperscript{\dag} & $0{,}66$\textsuperscript{*} & $0{,}68$\textsuperscript{\dag} \\
     $\tau_\text{TX}+\tau_\text{RX}$ {[}ns{]}  & $28{,}3$ & $25{,}8$ & $10{,}1$ & $9{,}75$ \\
     $L_\text{TX}+L_\text{RX}$ {[}m{]}         & $5{,}60$ & $5{,}11$ & $2{,}00$ & $1{,}93$ \\
-    $d_\text{offset}$ {[}m{]}\textsuperscript{\S} & $3{,}86$ & $\bm{3{,}49}$ & $1{,}14$ & $\bm{1{,}08}$ \\
+    $d_\text{offset}$ {[}m{]}\textsuperscript{\S} & $4{,}20$ & $\bm{3{,}83}$ & $1{,}48$ & $\bm{1{,}42}$ \\
     Atenuación del par @ $1{,}5\,\text{GHz}$ {[}dB{]} & $3{,}64$ & $5{,}32$\textsuperscript{\ddag} & $0{,}69$ & $0{,}72$ \\
     \bottomrule
   \end{tabular}
@@ -1698,20 +1727,20 @@ ambos por separado, no un único número.
     $3{,}5\,\text{dB}$, extrapolando el $\alpha$ medido del cable de
     $3\,\text{m}$.
 
-    \textsuperscript{\S}Los dos juegos se evalúan con el mismo cable al
-    LO, $L_\text{LO} = 0{,}5\,\text{m}$, que no se midió con el VNA:
-    también en la columna ``medido'' se le resta su retardo nominal
-    ($2{,}53\,\text{ns}$). Es la única suposición que entra en esa
-    columna.
+    \textsuperscript{\S}El camino del LO es una conexión directa de
+    $\approx 5\,\text{cm}$, que aporta $0{,}25\,\text{ns}$: se lo resta
+    en las dos columnas, pero equivale a $3{,}8\,\text{cm}$ y no cambia
+    ninguna conclusión. La columna ``medido'' no depende, entonces, de
+    ningún valor supuesto.
   \end{minipage}
 \end{table}
 
-\textbf{El offset medido casi no depende de suponer nada}, y eso lo
-hace el número más sólido de la tabla: sale de multiplicar el retardo
-que se leyó en el rizado por $c_0/2$, sin pasar por el factor de
-velocidad ni por el largo de cinta métrica de los cables de antena. Da
-$3{,}49\,\text{m}$ contra los $3{,}86\,\text{m}$ que predice la
-ecuación~\eqref{eq:d_offset}: un $10$\,\% menos.
+\textbf{El offset medido no depende de suponer nada}, y eso lo hace el
+número más sólido de la tabla: sale de multiplicar el retardo que se
+leyó en el rizado por $c_0/2$, sin pasar por el factor de velocidad ni
+por el largo de cinta métrica. Da $3{,}83\,\text{m}$ contra los
+$4{,}20\,\text{m}$ que predice la ecuación~\eqref{eq:d_offset}: un
+$9$\,\% menos.
 
 Ese número cierra además con una estimación completamente
 independiente, hecha en el banco antes de tener el VNA: con

@@ -30,10 +30,10 @@ Los cables están de un solo lado de esa diferencia. Entonces se suman.
 El montaje, dibujado como está sobre la mesa:
 
 ```
-                        ┌──────────┐        L_LO (corto)
-             VCO ──────►│ splitter ├──────────────────────────┐
+                        ┌──────────┐   L_LO ≈ 5 cm (conexion DIRECTA,
+             VCO ──────►│ splitter ├─────────────────  sin cable)
                         └────┬─────┘                          │
-                             │ L_TX ≈ 3 m                     ▼
+                             │ L_TX = 3 m                     ▼
                         ┌────▼────┐                    ┌─────────────┐
                         │antena TX│                    │  mezclador  │──► IF
                         └────┬────┘                    └──────▲──────┘
@@ -41,10 +41,18 @@ El montaje, dibujado como está sobre la mesa:
                              │  2R por el aire            ┌───┴───┐
                              │  (R = 1 m → 2 m)           │  LNA  │
                              │                            └───▲───┘
-                        ┌────▼────┐      L_RX ≈ 3 m           │
+                        ┌────▼────┐      L_RX = 2,6 m         │
                         │antena RX├───────────────────────────┘
                         └─────────┘
 ```
+
+**El camino del LO no tiene cable.** El splitter y el mezclador se conectan
+directamente: son ~5 cm, que aportan 0,25 ns = 3,8 cm de distancia aparente,
+muy por debajo de la resolución de 14,4 cm. Se desprecia en todos los
+cálculos, así que **D ≈ L_TX + L_RX**.
+
+No es una buena noticia: `L_LO` es el único término que RESTA, y no está
+restando nada.
 
 ## La cuenta
 
@@ -57,13 +65,13 @@ Definiciones, con la notación del cuaderno:
 | `T_rampa` | **medio** período: la rampa de subida | 20 ms |
 | `μ` | pendiente del chirp, `BW / T_rampa` | **50 GHz/s** |
 | `v_p` | velocidad en el coaxil, `VF·c₀` | 2/3·c₀ ≈ 200 000 km/s |
-| `D` | coaxil neto, `L_TX + L_RX − L_LO` | 6 m |
+| `D` | coaxil neto, `L_TX + L_RX − L_LO` | **5,55 m** (3 + 2,6 − 0,05) |
 | `R` | distancia real al blanco | 1 m |
 
 **1. Cuánto tarda la señal en los cables**
 
 ```
-    Δt_c = D / v_p = 6 m / 200 000 km/s = 30 ns
+    Δt_c = D / v_p = 5,55 m / 200 000 km/s = 27,8 ns
 ```
 
 **2. Cuánto "aire" le parece eso al radar** — la distancia aparente `D̃` es la
@@ -72,31 +80,31 @@ que el aire recorrería en ese mismo tiempo:
 ```
     D̃ = Δt_c · c₀ = (D / v_p) · c₀ = D · c₀/(⅔c₀) = (3/2)·D
 
-    D̃ = (3/2) · 6 m = 9 m
+    D̃ = (3/2) · 5,55 m = 8,33 m
 ```
 
 > El factor **3/2 es 1/VF**. Ahí está la trampa: el coaxil es *más lento* que
-> el aire, así que 6 m de cable le parecen 9 m de aire al radar.
+> el aire, así que 5,55 m de cable le parecen 8,33 m de aire al radar.
 
 **3. El recorrido total que ve el mezclador**, sumando la ida y vuelta al
 blanco:
 
 ```
-    D_T = D̃ + 2R = 9 m + 2 m = 11 m
+    D_T = D̃ + 2R = 8,33 m + 2 m = 10,33 m
 
-    Δt_T = D_T / c₀ = 11 / 3·10⁸ = 36,7 ns
+    Δt_T = D_T / c₀ = 10,33 / 3·10⁸ = 34,4 ns
 ```
 
 **4. La frecuencia de batido**
 
 ```
-    f_beat = μ · Δt_T = 50·10⁹ · 36,7·10⁻⁹ = 1833 Hz     ← con los coaxiles
+    f_beat = μ · Δt_T = 50·10⁹ · 34,4·10⁻⁹ = 1721 Hz     ← con los coaxiles
     f_beat = μ · 2R/c₀ = 50·10⁹ · 6,67·10⁻⁹ = 333 Hz     ← sin ellos
                                               ────────
-                        los coaxiles agregan    1500 Hz
+                        los coaxiles agregan    1388 Hz
 ```
 
-**Los 6 m de coaxil pesan 4,5 veces más que el blanco.**
+**Los 5,55 m de coaxil pesan 4,2 veces más que el blanco.**
 
 ## Lo importante: es un OFFSET, no una escala
 
@@ -130,22 +138,25 @@ offset y no 1,5.
 
 **Offset según el cableado** (no depende del `T_PRF`):
 
+Las dos primeras filas son los juegos reales; el resto es qué pasaría si se
+le agregara cable al LO para emparejar.
+
 | L_TX | L_RX | L_LO | neto `D` | `D̃` | **offset `D̃/2`** |
 |---|---|---|---|---|---|
-| 3 m | 3 m | 0 | 6,0 m | 9,00 m | **4,50 m** |
-| 3 m | 3 m | 0,5 m | 5,5 m | 8,25 m | **4,12 m** |
-| 3 m | 3 m | 1,0 m | 5,0 m | 7,50 m | **3,75 m** |
-| 2 m | 2 m | 0,5 m | 3,5 m | 5,25 m | **2,62 m** |
-| 1 m | 1 m | 0,5 m | 1,5 m | 2,25 m | **1,12 m** |
-| 0,5 m | 0,5 m | 0,5 m | 0,5 m | 0,75 m | **0,38 m** |
+| **3 m** | **2,6 m** | **0,05 m** ← hoy | 5,55 m | 8,33 m | **4,20 m** |
+| **1 m** | **1 m** | **0,05 m** ← RG-213 | 1,95 m | 2,93 m | **1,48 m** |
+| 1 m | 1 m | 0,5 m | 1,5 m | 2,25 m | 1,14 m |
+| 1 m | 1 m | 1,0 m | 1,0 m | 1,50 m | 0,76 m |
+| 1 m | 1 m | 2,0 m | 0 | 0 | **0** (emparejado) |
 
-**En frecuencia, para un blanco a 1 m** (BW = 1 GHz, cables 2×3 m + 0,5 m al LO):
+**En frecuencia, para un blanco a 1 m** (BW = 1 GHz, cables de 3 y 2,6 m, LO
+directo):
 
 | `T_PRF` | `T_rampa` | `μ` | Hz/m | sin cables | con cables | agregan |
 |---|---|---|---|---|---|---|
-| **40 ms** | 20 ms | 50 GHz/s | 333 | 333 Hz | **1708 Hz** | 1375 Hz |
-| **80 ms** | 40 ms | 25 GHz/s | 167 | 167 Hz | **854 Hz** | 688 Hz |
-| 160 ms | 80 ms | 12,5 GHz/s | 83 | 83 Hz | 427 Hz | 344 Hz |
+| **40 ms** | 20 ms | 50 GHz/s | 334 | 334 Hz | **1736 Hz** | 1402 Hz |
+| **80 ms** | 40 ms | 25 GHz/s | 167 | 167 Hz | **868 Hz** | 701 Hz |
+| 160 ms | 80 ms | 12,5 GHz/s | 83 | 83 Hz | 434 Hz | 351 Hz |
 
 La fila de 80 ms es la que cierra con lo observado en el banco: **"a 1 m era
 más de 800 Hz"**.
@@ -155,16 +166,19 @@ más de 800 Hz"**.
 El offset no arruina la medición, pero **se come parte del alcance no
 ambiguo**: consume presupuesto de Nyquist antes de que empiece el blanco.
 
-Con `SPS_SALIDA` = 6000 (Nyquist 3000 Hz) y un offset de 4,17 m:
+Con `SPS_SALIDA` = 6000 (Nyquist 3000 Hz) y el offset de 4,20 m:
 
 | `T_PRF` | Hz/m | alcance aparente | menos el offset | **útil** |
 |---|---|---|---|---|
-| 40 ms | 333 | 9,0 m | −4,17 m | **4,8 m** |
-| 80 ms | 167 | 18,0 m | −4,17 m | **13,8 m** |
-| 160 ms | 83 | 36,0 m | −4,17 m | **31,8 m** |
+| 40 ms | 334 | 9,0 m | −4,20 m | **4,8 m** |
+| 80 ms | 167 | 18,0 m | −4,20 m | **13,8 m** |
+| 160 ms | 83 | 36,0 m | −4,20 m | **31,8 m** |
 
 **Con estos cables conviene el `T_PRF` largo.** A 40 ms quedan menos de 5 m
 útiles.
+
+Con los RG-213 de 1 m el offset baja a 1,48 m y a 40 ms quedan **7,5 m
+útiles**, o sea que acortar los cables recupera alcance además de precisión.
 
 El otro costo, más sutil: el acoplamiento directo TX→RX (las antenas a
 ~0,15 m) también se corre al offset, así que aparece justo donde caen los
@@ -197,12 +211,21 @@ y a metros de coaxil, para ver si el número cierra con el cableado real.
 primero a revisar es el período de la triangular.
 
 **4. Emparejar los caminos**: agregarle al LO tanto cable como `L_TX + L_RX`.
-Deja el offset en cero de raíz, pero son ~6 m más de coaxil y 4-5 dB de
-pérdida en el LO, que el mezclador puede necesitar para conmutar bien. No
-hace falta para medir bien; sí ayuda al presupuesto de alcance.
+Como hoy el LO es una conexión directa, serían los 5,55 m enteros: deja el
+offset en cero de raíz, pero agrega ~3,5 dB de pérdida en el LO, que el
+mezclador puede necesitar para conmutar bien. Con los RG-213 de 1 m serían
+2 m y ~0,7 dB, bastante más razonable. No hace falta para medir bien; sí
+ayuda al presupuesto de alcance.
 
 ## Verificación sobre datos reales
 
 Reprocesando la captura del 2026-09-04 con el período correcto (80 ms, ver
-`GPRv2/CLAUDE.md`), el pico dominante cae en **5,31 m**. Restando el offset de
-~4,17 m quedan **1,14 m**: la placa, que estaba a ~1 m.
+`GPRv2/CLAUDE.md`), el pico dominante cae en **5,31 m**. Restando el offset
+queda la placa en **1,11 m** (con los 4,20 m calculados) o **1,48 m** (con
+los 3,83 m que midió el VNA), contra ~1 m real.
+
+⚠️ Este párrafo decía antes "1,14 m", restando un offset de 4,17 m que salía
+de suponer dos cables de 3 m y 0,5 m al LO. Los dos errores casi se
+cancelaban. El orden de magnitud siempre estuvo bien, pero **el ajuste fino
+era casualidad**: para validar de verdad hay que medir el offset directo con
+el barrel (opción 1).
