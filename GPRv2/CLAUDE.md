@@ -174,6 +174,183 @@ llenarse descarta sólo el excedente y siempre quedan `necesarios` perfiles, o
 sea una ventana máxima entera. Medido: 120 s pedidos dan 119,8 s constantes a
 lo largo de 2,5 vueltas de buffer.
 
+## `vivo_rapido.py` — el mismo programa, 4x mas barato (`vivo_rapido.bat`)
+
+> El informe completo — que cambio, por que, cuanto gano cada cosa y
+> como se verifico — esta en
+> **[`docs/bitacora_vivo_rapido.html`](docs/bitacora_vivo_rapido.html)**.
+
+Agregado el 2026-09-11. **`vivo.py` no se toco**: queda como referencia y como
+red de seguridad, y los dos graban el mismo formato de CSV y comparten
+`datos/calibracion_distancia.json`.
+
+El problema era medible: un refresco de `vivo.py` costaba **~150 ms con 200 ms
+de presupuesto**. La ventana estaba saturada, el timer se atrasaba y la
+pantalla iba a tirones. Ahora un cuadro cuesta **~22 ms de mediana** (44 ms el
+percentil 95), o sea que sobra el 90 % del presupuesto.
+
+| por cuadro | `vivo.py` | `vivo_rapido.py` | |
+|---|---|---|---|
+| dibujar, ventana 20 s | 211 ms | 44 ms | 4,8x |
+| dibujar, ventana 120 s | 340 ms | 44 ms | 7,7x |
+| agrupar + dB, ventana 120 s | 30 ms | 0,5 ms | 60x |
+| cada 2 s: ajuste de la triangular | 105 ms | 4 ms | 26x |
+| por rampa: remuestreo | 293 µs | 13 µs | 22x |
+| por rampa: FFT | 27 µs | 5 µs | 5,4x |
+| por segundo de stream: parseo | 12 ms | 6,5 ms | 1,9x |
+
+Lo que lo logro, en orden de cuanto aporto:
+
+1. **Se dibuja solo lo que cambia (blitting).** `draw()` repinta TODO: los 8
+   cuadros de texto, los 6 botones, la colorbar, los ticks. Eso solo son
+   ~140 ms y nada de eso cambia entre cuadros. Se fotografia el fondo una vez
+   y despues se restaura y se pintan encima los cinco artistas que se mueven.
+   Medido sobre 300 cuadros: el fondo se vuelve a sacar en el **0,7 %** de los
+   refrescos.
+
+   Para que eso rinda, dos limites de eje tuvieron que dejar de bailar:
+   - el eje de tiempo se fija en la VENTANA pedida y no en el span cargado
+     (si no, mientras el buffer se llena cambia en cada cuadro y no hay
+     blitting justo en el primer medio minuto);
+   - el eje de la triangular se redondea a 0,01 ms (si no, los ppm que mueve
+     cada reajuste obligarian a repintar todo cada 2 s).
+
+2. **No se dibujan filas ni columnas que no se ven.** El eje llega al Nyquist
+   (decenas de metros) y se muestran 5: se recorta al ultimo bin visible ANTES
+   del log10. Y con la ventana en 120 s salen hasta 3000 filas para ~400
+   pixeles: arriba de `MAX_FILAS` se agrupa de a mas rampas, que es lo mismo
+   que subir rampas/fila, y el panel informa el **agrupado efectivo**.
+
+3. **El remuestreo es una matriz, no un spline por rampa** (`proceso_rapido.py`).
+   El spline cubico sobre una grilla θ FIJA es un operador lineal, y θ no
+   cambia entre rampas. Se precalcula la matriz una vez (interpolando la
+   identidad) y cada rampa pasa a ser un producto que va a BLAS; ademas la
+   ventana de Hann va plegada adentro de la matriz y las rampas se procesan
+   en lote.
+
+   ⚠️ **Esto NO contradice "no cambies el interpolador de `remuestrear()`"**
+   de la seccion de abajo: es el MISMO spline cubico not-a-knot que usa
+   `interp1d(kind="cubic")`, escrito de otra forma. Verificado: el error
+   relativo contra `remuestrear()` es **6e-16** en doble precision.
+
+4. **El ajuste de la triangular ya no congela la ventana.**
+   `ajustar_triangular()` barre 600 + 400 periodos y cada evaluacion es un
+   `np.exp` complejo sobre ~940 lecturas: 105 ms **en el hilo del grafico,
+   cada 2 s**. `ajustar_triangular_rapido()` vectoriza la pasada gruesa y le
+   saca la cantidad de pasos a los datos (el lobulo principal en T mide
+   1/N_periodos relativo, asi que con 8·span·N_periodos hay 4 puntos por
+   lobulo), y reemplaza la pasada fina por seccion aurea: ~90 evaluaciones en
+   vez de 1000, 4 ms. El periodo coincide con el original dentro de **5 ppm**
+   y el vertice dentro de **12 µs** (una muestra son 167 µs).
+
+5. **Las cuentas no se repiten.** `_poner_estado()` pedia `pico_crudo()`,
+   `hay_blanco()` y `energia_actual_db()` varias veces cada uno, y cada uno
+   promediaba de nuevo cientos de perfiles: nueve veces el mismo promedio por
+   cuadro. Hay un cache que se vacia al empezar cada refresco.
+
+### Lo que ademas se agrego
+
+- **Pico sub-bin** (parabola sobre los tres dB alrededor del maximo). El ancho
+  de bin real no cambia (sigue siendo `c/(2·BW)`), pero el CENTRO de un pico
+  ya resuelto deja de saltar de bin en bin. Medido sobre tonos sintéticos: el
+  error de posicion baja de 0,22 bins a ~0. Es lo que hace repetible un punto
+  de calibracion, y de paso deja de importar el relleno ×8 para la PRECISION
+  (sigue importando para que el dibujo no salga en bandas).
+- **Fondo automatico (MTI)**, boton `fondo auto` o tecla `f`. Promedio
+  exponencial del perfil (τ = 30 s) que se resta solo: el "background
+  removal" clasico de GPR, sin sala vacia. Lo que hay al prenderlo se va de
+  una; lo que aparece o se mueve despues salta y se desvanece en ~τ si se
+  queda quieto. **Con MTI la puerta NO puede comparar la energia cruda contra
+  la del fondo**: el fondo persigue a la senal, asi que esas dos energias son
+  la misma por construccion y el cociente daria 0 dB con blanco y sin blanco.
+  Con MTI la puerta mide el RESIDUO contra el fondo, y por eso el margen
+  arranca en `MARGEN_MTI` = −20 dB en vez de +6.
+- **`ms/cuadro` en el panel.** Si se acerca a `REFRESCO_MS`, bajar la ventana
+  o subir rampas/fila. Antes habia que adivinarlo.
+- **Bug arreglado que `vivo.py` todavia tiene**: `TextBox.set_val()` dispara
+  el callback de submit, o sea vuelve a entrar a `_escribir()`, que borra
+  `self.aviso`. Por eso el mensaje de "medir fondo" no llegaba a la pantalla.
+  `_refrescar_cajas()` ahora lo guarda y lo repone.
+
+### Capturas PNG para el informe
+
+Cuadro de texto `captura` + boton `guardar captura PNG`, o la tecla `s`. Se
+tipea un nombre ("placa_1m"), se aprieta, y queda en
+`datos/capturas/<nombre>.png` a 200 dpi (~2190x1509 px, ~180 KB).
+
+- **Nunca sobrescribe**: si el nombre ya existe sale `<nombre>_2.png`. Los
+  caracteres que Windows no acepta se reemplazan por `_`; nombre vacio ->
+  `captura`.
+- **El nombre se lee al apretar**, de `caja_nombre.text`, no del submit: no
+  hace falta apretar Enter antes del boton.
+- **Se recorta la columna de controles.** El recorte se MIDE (union de los
+  `get_tightbbox()` de los cinco paneles), no esta hardcodeado: uno fijo
+  cortaba el rotulo `Hace [s]`. Y los controles se ESCONDEN durante el
+  `savefig()`, porque un aviso largo del texto de estado se desborda de su
+  axes y se metia por el borde izquierdo.
+- **La figura se explica sola**: adentro del recorte quedan la escala de
+  color, el alcance, y el Tprf, la BW, el alpha0, la resolucion, la
+  saturacion de la triangular, el estado del fondo y el agrupado efectivo.
+  Es lo que hace que la captura sirva seis meses despues.
+- `RECORTE_CAPTURA = None` guarda la ventana entera.
+
+**El cuadro de informacion paso de 31 a 39 lineas** (ms/cuadro, agrupado
+efectivo, modo del fondo) y ya no entraba. Entre el y la triangular habia
+0,14 de figura sin usar: ahora baja hasta `y=0.33` en vez de `0.42`, a 7 pt
+con interlineado 1,15.
+
+**Teclas**: `e` eje, `a` autoescala, `f` fondo auto, `s` captura, `q` salir.
+
+> ⚠️ **matplotlib se reserva `f` (pantalla completa) y `s` (guardar).** Sin
+> sacarselas, apretar `f` prendia el MTI Y ponia la ventana en pantalla
+> completa. `armar_figura()` les saca la tecla suelta y les deja el atajo con
+> ctrl. Y `_tecla()` ignora todo mientras se tipea en el cuadro del nombre: si
+> no, escribir "fondo_sala" prendia el MTI y guardaba una captura.
+
+### No hay mediciones reales en la maquina
+
+Buscado por tres lados el 2026-09-11: `GPRv2/datos/` vacio, ningun
+`captura.csv` ni `triangular.csv` en todo el disco, y en el historial de git
+nunca entro uno (estan en `.gitignore`). El unico archivo de `datos/` que
+estuvo commiteado es `calibracion_distancia.json`, y el commit `ce8b125` lo
+borro por ser FALSO (lo habia escrito una prueba sintetica).
+
+**Conviene guardar una `captura.csv` real fuera del repo.** Todo lo que
+verifica `verificar_rapido.py` es contra streams sinteticos; con una captura
+real guardada la prueba se vuelve mucho mas fuerte.
+
+### `waterfall.py` solo corre parado en `analisis/`
+
+Destapado por la prueba del nivel 6. Hereda de `correccion_no_linealidad.py`
+rutas relativas al DIRECTORIO ACTUAL y no al archivo, asi que desde otra
+carpeta no encuentra la curva del VCO. Ya estaba anotado abajo en "Cosas que
+conviene no volver a descubrir", pero ahora esta medido.
+`graficar_captura.py` no tiene el problema porque usa
+`os.path.dirname(__file__)`.
+
+### `verificar_rapido.py` — la prueba de que mide lo mismo
+
+Corre sin hardware (`python verificar_rapido.py`). Arma un stream sintetico
+con blancos de distancia conocida y lo pasa por los DOS programas enteros.
+
+- Con los **mismos limites de rampa** para los dos, el radargrama da identico:
+  **7,6e-05 dB** de peor diferencia sobre 62×280 celdas, sin excluir ninguna.
+- Dejando que cada uno ajuste el periodo por su cuenta, los vertices difieren
+  0,35 muestra y eso mueve los NULOS profundos de la FFT (no los picos). El
+  test incluye el **control**: el original contra SI MISMO con ese mismo
+  corrimiento difiere MAS (0,85 dB) que el rapido contra el original (0,64 dB),
+  o sea que la diferencia es el ruido de estimacion del ajuste, no el codigo.
+- La distancia informada: blanco a 1,200 m → `vivo.py` 1,207 m,
+  `vivo_rapido.py` **1,199 m** (el sub-bin).
+
+Ademas se comprueba que **los CSV que quedan en disco son byte a byte
+identicos** a los de `vivo.py`, y que una captura escrita por el programa
+nuevo se **reanaliza** con la cadena vieja entera y con `waterfall.py` y
+`graficar_captura.py` sin tocarlos.
+
+Son 26 comprobaciones y tarda un minuto. Cuando se toque cualquiera de los
+dos, correr esto antes de llevarlo al banco.
+
 ## La triangular se vio recortada: era el divisor desconectado
 
 **Resuelto el 2026-09-04.** Se había soltado una resistencia del divisor

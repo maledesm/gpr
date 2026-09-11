@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bitácora de vivo_rapido</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+:root{
+  --ground:#f4f8f6;
+  --surface:#ffffff;
+  --panel:#eaf1ee;
+  --ink:#0f201d;
+  --muted:#566c67;
+  --faint:#7d918c;
+  --rule:#d5e2de;
+  --rule-strong:#b8cbc6;
+  --accent:#15746f;
+  --accent-soft:#dceeec;
+  --warn:#a9503a;
+  --warn-soft:#f5e3dd;
+  --pop:#8a7a12;
+  --shadow:0 1px 2px rgba(15,32,29,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0c1514;
+    --surface:#121d1b;
+    --panel:#172422;
+    --ink:#dce8e4;
+    --muted:#93a8a3;
+    --faint:#6f847f;
+    --rule:#223330;
+    --rule-strong:#2f423e;
+    --accent:#41b8ae;
+    --accent-soft:#13302e;
+    --warn:#d4826a;
+    --warn-soft:#2c1f1a;
+    --pop:#cbb53a;
+    --shadow:0 1px 2px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0c1514;
+  --surface:#121d1b;
+  --panel:#172422;
+  --ink:#dce8e4;
+  --muted:#93a8a3;
+  --faint:#6f847f;
+  --rule:#223330;
+  --rule-strong:#2f423e;
+  --accent:#41b8ae;
+  --accent-soft:#13302e;
+  --warn:#d4826a;
+  --warn-soft:#2c1f1a;
+  --pop:#cbb53a;
+  --shadow:0 1px 2px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"IBM Plex Serif",Georgia,serif;
+  font-size:17px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:960px;margin:0 auto;padding:0 24px 96px}
+
+/* ---------- masthead ---------- */
+.mast{padding:56px 0 0}
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--accent);font-weight:500;margin:0 0 14px;
+}
+h1{
+  font-family:"IBM Plex Sans Condensed",system-ui,sans-serif;
+  font-weight:700;font-size:clamp(38px,6vw,58px);line-height:1.02;
+  letter-spacing:-.015em;margin:0;text-wrap:balance;
+}
+h1 .mono{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.82em;letter-spacing:-.02em}
+.dek{
+  font-size:19px;line-height:1.55;color:var(--muted);
+  max-width:62ch;margin:18px 0 0;
+}
+.spectrum{
+  height:4px;margin:32px 0 0;border-radius:2px;
+  background:linear-gradient(90deg,#440154,#3b528b,#21918c,#5ec962,#fde725);
+}
+.meta{
+  display:flex;flex-wrap:wrap;gap:8px 28px;margin:18px 0 0;
+  font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--faint);
+}
+.meta b{color:var(--muted);font-weight:500}
+
+/* ---------- headline numbers ---------- */
+.headline{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+  gap:1px;background:var(--rule);border:1px solid var(--rule);
+  margin:44px 0 0;border-radius:3px;overflow:hidden;
+}
+.hl{background:var(--surface);padding:20px 20px 18px}
+.hl .k{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--faint);margin:0 0 10px;
+}
+.hl .v{
+  font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:700;
+  font-size:34px;line-height:1;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;color:var(--accent);
+}
+.hl .v small{font-size:16px;font-weight:600;color:var(--muted);margin-left:3px}
+.hl .s{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.45}
+
+/* ---------- structure ---------- */
+section{margin:64px 0 0}
+h2{
+  font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;
+  font-size:29px;line-height:1.15;letter-spacing:-.01em;margin:0 0 6px;
+  text-wrap:balance;
+}
+h2 .num{
+  font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:500;
+  color:var(--accent);margin-right:12px;vertical-align:.28em;
+  letter-spacing:.04em;
+}
+h3{
+  font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;
+  font-size:20px;line-height:1.25;margin:36px 0 4px;letter-spacing:-.005em;
+}
+h4{
+  font-family:"IBM Plex Mono",monospace;font-weight:500;font-size:11.5px;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--faint);
+  margin:28px 0 8px;
+}
+.sechead{border-top:2px solid var(--ink);padding-top:16px;margin-bottom:22px}
+.sechead p{color:var(--muted);margin:4px 0 0;max-width:66ch;font-size:16.5px}
+p{margin:0 0 16px;max-width:68ch}
+ul,ol{max-width:68ch;margin:0 0 16px;padding-left:22px}
+li{margin:0 0 8px}
+strong{font-weight:600}
+em{font-style:italic}
+a{color:var(--accent);text-underline-offset:2px}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+
+code,.chip{
+  font-family:"IBM Plex Mono",monospace;font-size:.855em;
+  background:var(--panel);padding:1px 5px;border-radius:2px;
+  border:1px solid var(--rule);white-space:nowrap;
+}
+.where{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--faint);
+  border-left:2px solid var(--accent);padding:2px 0 2px 12px;margin:14px 0 18px;
+  max-width:68ch;line-height:1.6;
+}
+.where b{color:var(--muted);font-weight:500}
+
+/* ---------- readout: antes -> despues ---------- */
+.readout{
+  border:1px solid var(--rule);border-radius:3px;overflow:hidden;
+  margin:22px 0 24px;background:var(--surface);box-shadow:var(--shadow);
+}
+.readout .cap{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--faint);
+  padding:11px 16px;border-bottom:1px solid var(--rule);background:var(--panel);
+}
+.row{
+  display:grid;grid-template-columns:1fr 88px 20px 88px 60px;
+  align-items:baseline;gap:10px;padding:10px 16px;
+  border-bottom:1px solid var(--rule);
+  font-family:"IBM Plex Mono",monospace;font-size:13px;
+  font-variant-numeric:tabular-nums;
+}
+.row:last-child{border-bottom:none}
+.row .lbl{font-size:13px;color:var(--ink);line-height:1.4;white-space:normal}
+.row .a{text-align:right;color:var(--warn);font-weight:500}
+.row .arr{text-align:center;color:var(--faint);font-size:11px}
+.row .b{text-align:right;color:var(--accent);font-weight:600}
+.row .g{
+  text-align:right;font-size:11.5px;font-weight:500;color:var(--muted);
+}
+.row.head{background:transparent;color:var(--faint);font-size:10.5px;
+  letter-spacing:.11em;text-transform:uppercase;padding-top:12px;padding-bottom:8px}
+.row.head .a,.row.head .b{color:var(--faint);font-weight:500}
+@media(max-width:620px){
+  .row{grid-template-columns:1fr 76px 16px 76px;}
+  .row .g{grid-column:2/5;text-align:right;padding-top:2px}
+}
+
+/* ---------- tabla de datos ---------- */
+.tablebox{overflow-x:auto;margin:22px 0 24px;border:1px solid var(--rule);border-radius:3px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-family:"IBM Plex Mono",monospace;font-size:12.5px}
+th,td{padding:9px 14px;text-align:right;border-bottom:1px solid var(--rule);font-variant-numeric:tabular-nums;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{
+  font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--faint);font-weight:500;background:var(--panel);
+  border-bottom:1px solid var(--rule-strong);
+}
+tbody tr:last-child td{border-bottom:none}
+td.good{color:var(--accent);font-weight:600}
+td.bad{color:var(--warn)}
+tbody tr.group td{background:var(--panel);color:var(--muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+
+/* ---------- callouts ---------- */
+.note{
+  border:1px solid var(--rule);border-left:3px solid var(--accent);
+  background:var(--accent-soft);padding:16px 18px;border-radius:0 3px 3px 0;
+  margin:22px 0;max-width:72ch;
+}
+.note.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.note p:last-child{margin-bottom:0}
+.note .t{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--accent);margin:0 0 8px;font-weight:500;
+}
+.note.warn .t{color:var(--warn)}
+
+pre{
+  font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.6;
+  background:var(--surface);border:1px solid var(--rule);border-radius:3px;
+  padding:14px 16px;overflow-x:auto;margin:18px 0;
+}
+pre code{background:none;border:none;padding:0;font-size:inherit;white-space:pre}
+
+/* ---------- mapa de archivos ---------- */
+.files{display:grid;gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin:22px 0}
+.file{background:var(--surface);padding:16px 18px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 16px;align-items:baseline}
+.file .n{font-family:"IBM Plex Mono",monospace;font-size:13.5px;font-weight:600;color:var(--accent)}
+.file .ln{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.file .d{grid-column:1/-1;font-size:15px;color:var(--muted);line-height:1.5;max-width:70ch}
+
+footer{margin:72px 0 0;padding-top:22px;border-top:1px solid var(--rule);
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--faint);line-height:1.7}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">GPRv2 · análisis · 2026-09-11</p>
+  <h1>Bitácora de <span class="mono">vivo_rapido</span></h1>
+  <p class="dek">Qué se cambió en el radargrama en tiempo real, por qué, cuánto ganó cada cosa y cómo se verificó que sigue midiendo exactamente lo mismo. <span class="chip">vivo.py</span> no se tocó.</p>
+  <div class="spectrum"></div>
+  <div class="meta">
+    <span><b>Banco:</b> Tprf 80 ms · 240 muestras/rampa · BW 1040 MHz · 6000 sps</span>
+    <span><b>Máquina:</b> Python 3.11 · numpy 1.26 · scipy 1.15 · matplotlib 3.7</span>
+  </div>
+</header>
+
+<div class="headline">
+  <div class="hl">
+    <p class="k">Costo de un cuadro</p>
+    <div class="v">150–206<small>ms</small></div>
+    <div class="s">antes, con 200 ms<br>de presupuesto</div>
+  </div>
+  <div class="hl">
+    <p class="k">Ahora</p>
+    <div class="v">22<small>ms</small></div>
+    <div class="s">mediana sobre 300<br>cuadros reales</div>
+  </div>
+  <div class="hl">
+    <p class="k">Radargrama</p>
+    <div class="v">7,6e−5<small>dB</small></div>
+    <div class="s">peor diferencia contra<br><code>vivo.py</code>, sin excluir celdas</div>
+  </div>
+  <div class="hl">
+    <p class="k">Verificación</p>
+    <div class="v">26</div>
+    <div class="s">comprobaciones,<br>todas pasan</div>
+  </div>
+  <div class="hl">
+    <p class="k">Archivos nuevos</p>
+    <div class="v">4</div>
+    <div class="s">cero archivos viejos<br>modificados</div>
+  </div>
+</div>
+
+<!-- ============ 1 ============ -->
+<section>
+  <div class="sechead">
+    <h2><span class="num">01</span>El problema, medido antes de tocar nada</h2>
+    <p>No arranqué optimizando por intuición. Primero perfilé cada pieza por separado.</p>
+  </div>
+
+  <p><code>vivo.py</code> redibuja cada <code>REFRESCO_MS</code> = 200 ms. Un cuadro costaba entre <strong>150 y 206 ms</strong>. O sea que la ventana estaba saturada: el timer de matplotlib no llegaba, las llamadas se encimaban, y eso es exactamente lo que se ve como “va a tirones”.</p>
+
+  <p>Lo importante del perfilado fue la sorpresa: <strong>lo caro no era la física</strong>. El remuestreo y las FFT de todas las rampas de un cuadro sumaban ~6 ms. Los otros ~145 ms eran matplotlib repintando cosas que no cambian.</p>
+
+  <div class="readout">
+    <div class="cap">Perfilado inicial · un cuadro con ventana de 20 s</div>
+    <div class="row head"><span class="lbl">pieza</span><span class="a">costo</span><span class="arr"></span><span class="b">% del cuadro</span><span class="g"></span></div>
+    <div class="row"><span class="lbl">redibujar la figura entera (<code>draw()</code>)</span><span class="a">211 ms</span><span class="arr"></span><span class="b">~97 %</span><span class="g"></span></div>
+    <div class="row"><span class="lbl">agrupar perfiles + pasar a dB</span><span class="a">2,5 ms</span><span class="arr"></span><span class="b">1 %</span><span class="g"></span></div>
+    <div class="row"><span class="lbl">remuestreo + FFT de las rampas nuevas</span><span class="a">~4 ms</span><span class="arr"></span><span class="b">2 %</span><span class="g"></span></div>
+    <div class="row"><span class="lbl">cada 2 s: ajuste de la triangular</span><span class="a">105 ms</span><span class="arr"></span><span class="b">medio cuadro</span><span class="g"></span></div>
+  </div>
+
+  <p>De esos 211 ms del dibujo, ~140 son la <em>base</em>: los 8 cuadros de texto, los 6 botones, la colorbar, los ticks, los títulos. Nada de eso cambia entre refrescos y se repintaba entero, cinco veces por segundo. Y con la ventana en 120 s el número trepaba a 340 ms porque además hay que mapear a color una matriz de 3000×481.</p>
+
+  <div class="note warn">
+    <p class="t">El tirón periódico</p>
+    <p><code>ajustar_triangular()</code> corre <strong>en el hilo del gráfico</strong>, cada <code>REAJUSTE_S</code> = 2 s, y cuesta 105 ms. Barre 600 períodos gruesos + 400 finos, y cada evaluación es un <code>np.exp</code> complejo sobre ~940 lecturas. Eso es medio refresco perdido cada dos segundos, y es el tirón regular que se nota mirando la pantalla.</p>
+  </div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section>
+  <div class="sechead">
+    <h2><span class="num">02</span>Los cinco cambios, ordenados por lo que aportaron</h2>
+    <p>La numeración no es decorativa: es el orden real de contribución medida.</p>
+  </div>
+
+  <h3><span class="num">1 ·</span> Se dibuja sólo lo que cambia (blitting)</h3>
+  <h4>Qué pasaba</h4>
+  <p><code>fig.canvas.draw_idle()</code> le pide a matplotlib que repinte <strong>todo</strong>. Entre cuadro y cuadro cambian cinco cosas: la imagen del radargrama, la traza roja, la línea de la FFT, la marca del pico y dos bloques de texto. Todo lo demás —widgets, ejes, colorbar— se redibujaba idéntico.</p>
+  <h4>Qué hice</h4>
+  <p>Blitting: se esconden los artistas móviles, se dibuja una vez, se guarda una <em>foto</em> del fondo de cada axes con <code>copy_from_bbox</code>, y después cada refresco es <code>restore_region</code> + <code>draw_artist</code> + <code>blit</code>. La foto se vuelve a sacar sólo cuando cambia algo del fondo.</p>
+  <p>Para saber cuándo, hay dos mecanismos: <code>_estado_estatico()</code> devuelve una tupla con todo lo que vive en el fondo y puede cambiar (límites de ejes, <code>clim</code>, título, etiquetas), y se compara contra la última; y un handler de <code>draw_event</code> invalida la foto si <em>cualquier otra cosa</em> disparó un redibujado completo —por ejemplo tocar un widget o redimensionar la ventana.</p>
+
+  <div class="note">
+    <p class="t">Dos límites de eje tuvieron que dejar de bailar</p>
+    <p>El blitting no sirve de nada si el fondo cambia todos los cuadros, y había dos que lo hacían sin necesidad:</p>
+    <p><strong>El eje de tiempo</strong> se fijaba en el <em>span</em> cargado, que crece en cada refresco mientras el buffer se llena. Ahora se fija en la <strong>ventana pedida</strong>. Lo que falta se ve como espacio vacío arriba, que es lo que realmente es. Sin este cambio no había blitting durante el primer medio minuto de cada sesión: medido, 149 ms/cuadro contra 10 ms.</p>
+    <p><strong>El eje de la triangular</strong> se seteaba en <code>T*1e3</code> con todos sus decimales, y cada reajuste mueve <code>T</code> unos ppm. Ahora va redondeado a 0,01 ms, así cambia sólo si <code>T</code> se movió de verdad.</p>
+  </div>
+
+  <div class="readout">
+    <div class="cap">Dibujo por cuadro</div>
+    <div class="row head"><span class="lbl">caso</span><span class="a">vivo.py</span><span class="arr"></span><span class="b">rápido</span><span class="g">gano</span></div>
+    <div class="row"><span class="lbl">ventana 20 s (250×481)</span><span class="a">211 ms</span><span class="arr">→</span><span class="b">44 ms</span><span class="g">4,8×</span></div>
+    <div class="row"><span class="lbl">ventana 120 s (3000×481)</span><span class="a">340 ms</span><span class="arr">→</span><span class="b">44 ms</span><span class="g">7,7×</span></div>
+    <div class="row"><span class="lbl">refotos del fondo, 300 cuadros</span><span class="a">300</span><span class="arr">→</span><span class="b">2</span><span class="g">0,7 %</span></div>
+  </div>
+  <p class="where"><b>Dónde vive:</b> <code>Vivo._pintar()</code> · <code>_sacar_fondos()</code> · <code>_estado_estatico()</code> · <code>_al_dibujar()</code> — vivo_rapido.py:1231–1301. Si el backend no banca blit, se avisa una vez por consola y se cae solo al dibujado completo.</p>
+
+  <h3><span class="num">2 ·</span> No se dibujan filas ni columnas que no se ven</h3>
+  <h4>Qué pasaba</h4>
+  <p>Dos derroches distintos, los dos silenciosos:</p>
+  <ul>
+    <li><strong>Columnas.</strong> El eje de distancia llega hasta el Nyquist del batido —18 m con Tprf 80 ms— pero en pantalla se muestran 5. De 961 bins se dibujaban 961 y se veían ~280. El <code>log10</code> y el mapeo a color se hacían sobre todos.</li>
+    <li><strong>Filas.</strong> Con la ventana en 120 s y rampas/fila en 1 salen 3000 filas para un radargrama de ~400 píxeles de alto. 2600 filas que no existen en la pantalla.</li>
+  </ul>
+  <h4>Qué hice</h4>
+  <p>Se recorta a <code>_i_alcance()</code> <strong>antes</strong> del <code>log10</code>, y si las filas superan <code>MAX_FILAS</code> (900) se sube el agrupado —que es literalmente lo mismo que subir rampas/fila—. El panel informa el <strong>agrupado efectivo</strong> (<code>n_ef</code>), así que no hay magia escondida: se ve que el programa está promediando de a más.</p>
+  <p>Los dos agrupados (el que pediste vos y el de la pantalla) se hacen en <strong>un solo</strong> <code>reshape().mean()</code>, no en dos pasadas.</p>
+
+  <div class="note warn">
+    <p class="t">Un cambio de comportamiento, chico pero real</p>
+    <p>Sin fondo medido, el 0 dB es “el máximo de la pantalla”. Antes ese máximo se buscaba sobre <strong>todas</strong> las columnas, incluidas las que quedan más allá del alcance; ahora sólo sobre las visibles. Es más fiel a lo que dice la documentación, y en la práctica no cambia nada porque el acoplamiento directo (que suele ser el máximo) vive cerca de 0 m y siempre está adentro. Pero hay que saberlo.</p>
+  </div>
+  <p class="where"><b>Dónde vive:</b> <code>Vivo.matriz()</code> — vivo_rapido.py:717. Y los índices <code>_i_zona()</code> / <code>_i_alcance()</code>, que reemplazaron a las máscaras booleanas: como <code>eje_m_crudo</code> es monótono, “los bins arriba de X” siempre es un tramo contiguo, así que se usan rebanadas (vistas, sin copiar) en vez de indexado booleano (que copia el array entero en cada uso).</p>
+
+  <h3><span class="num">3 ·</span> El remuestreo es una matriz, no un spline por rampa</h3>
+  <h4>Qué pasaba</h4>
+  <p><code>remuestrear()</code> arma un <code>interp1d(kind="cubic")</code> nuevo para cada rampa. Eso resuelve el sistema tridiagonal del spline y construye un objeto de Python, 25 o 100 veces por segundo.</p>
+  <h4>Por qué se podía evitar</h4>
+  <p>La grilla <code>theta</code> <strong>no cambia entre rampas</strong>: sale de <code>eje_theta()</code>, que sólo depende de la curva del VCO y del largo de la rampa. Y un spline cúbico con grilla de entrada y de salida fijas es un <strong>operador lineal</strong>. Si es lineal, es una matriz.</p>
+  <p>Se construye una sola vez interpolando la base canónica —o sea, pasándole la identidad a <code>CubicSpline</code>, que interpola por columnas—. De ahí en más cada rampa es un producto matriz-vector, y todas las rampas de un cuadro juntas son <strong>un</strong> producto de matrices que va a BLAS.</p>
+  <p>Dos cosas más entraron en el mismo producto: la <strong>ventana de Hann</strong> se pliega adentro de la matriz (ventanear es escalar cada fila) y la FFT se hace en lote con <code>scipy.fft</code> en float32, que a diferencia de <code>np.fft</code> respeta el tipo en vez de subir todo a float64.</p>
+
+  <div class="note">
+    <p class="t">Esto NO contradice “no cambies el interpolador”</p>
+    <p>CLAUDE.md avisa de no tocar el interpolador de <code>remuestrear()</code> buscando SNR. No se tocó: <code>interp1d(kind="cubic")</code> delega en <code>make_interp_spline(k=3)</code>, que usa condición <em>not-a-knot</em> — el mismo spline que <code>CubicSpline</code> por defecto. Es la misma cuenta escrita de otra forma. <strong>Error relativo medido contra <code>remuestrear()</code>: 5,1e−16 en doble precisión</strong>, o sea el redondeo del float y nada más.</p>
+  </div>
+
+  <div class="readout">
+    <div class="cap">Por rampa (del script de verificación, reproducible)</div>
+    <div class="row head"><span class="lbl">pieza</span><span class="a">vivo.py</span><span class="arr"></span><span class="b">rápido</span><span class="g">gano</span></div>
+    <div class="row"><span class="lbl">remuestreo + FFT + ventana</span><span class="a">196 µs</span><span class="arr">→</span><span class="b">17,7 µs</span><span class="g">11×</span></div>
+    <div class="row"><span class="lbl">sólo el remuestreo (aislado)</span><span class="a">293 µs</span><span class="arr">→</span><span class="b">13,3 µs</span><span class="g">22×</span></div>
+    <div class="row"><span class="lbl">sólo la FFT (aislada)</span><span class="a">26,9 µs</span><span class="arr">→</span><span class="b">5,0 µs</span><span class="g">5,4×</span></div>
+  </div>
+
+  <h4>Precisión: por qué float32 no rompe nada</h4>
+  <p>La matriz y la FFT van en float32, pero <strong>la resta de la media se hace en float64 y recién después se convierte</strong>. Eso importa: las muestras del PCM1808 son de 24 bits sobre una continua que puede ser grande frente al batido, y restarla en simple precisión se comería bits de la señal útil. El orden de las operaciones está elegido, no heredado.</p>
+  <p class="where"><b>Dónde vive:</b> <code>proceso_rapido.Remuestreador</code> (proceso_rapido.py:80) · <code>espectros()</code> · <code>largo_fft()</code>. El armado en lote está en <code>Vivo.procesar()</code> — vivo_rapido.py:660, que también reemplazó el <code>while</code> por rampa: los índices de arranque se calculan de una con <code>np.rint</code>, las rampas se juntan con una sola indexada, y las bajadas se dan vuelta con <code>S[impar] = S[impar, ::-1]</code>.</p>
+
+  <h3><span class="num">4 ·</span> El ajuste de la triangular ya no congela la ventana</h3>
+  <h4>Qué pasaba</h4>
+  <p>1000 evaluaciones de <code>|Σ v·exp(−2πi·t/T)|</code> sobre ~940 lecturas, en el hilo del gráfico, cada 2 s. 105 ms.</p>
+  <h4>Qué hice</h4>
+  <p>Tres cosas, ninguna cambia <em>qué</em> se maximiza, sólo <em>cómo</em> se busca el máximo:</p>
+  <ol>
+    <li><strong>La pasada gruesa va vectorizada.</strong> Una matriz de fases y dos productos con <code>cos</code>/<code>sin</code> reales, en vez de 600 vueltas de intérprete con <code>np.exp</code> complejo. Se calcula <code>|S|²</code> para ahorrar la raíz —el argmax es el mismo— y va por bloques de 256 períodos para acotar la memoria.</li>
+    <li><strong>La cantidad de pasos sale de los datos.</strong> El lóbulo principal en <code>T</code> tiene ancho relativo <code>1/N_períodos</code>: a medio lóbulo, la fase del borde de la ventana ya se corrió π. Con <code>8·span·N_períodos</code> puntos hay 4 puntos por lóbulo, o sea que es imposible saltearlo. Los 600 fijos derrochaban con Tprf largo y se habrían quedado cortos si alguna vez se agranda la ventana de ajuste.</li>
+    <li><strong>La pasada fina es sección áurea.</strong> 32 evaluaciones en vez de 400. El intervalo de arranque es ±1 paso grueso alrededor del argmax, que es medio lóbulo, o sea unimodal por construcción. Cada vuelta lo achica 0,618, así que 32 vueltas lo dividen por 3e−7.</li>
+  </ol>
+
+  <div class="readout">
+    <div class="cap">Ajuste de período y fase, por caso</div>
+    <div class="row head"><span class="lbl">Tprf · span</span><span class="a">vivo.py</span><span class="arr"></span><span class="b">rápido</span><span class="g">gano</span></div>
+    <div class="row"><span class="lbl">80 ms · 1 % (el reajuste normal)</span><span class="a">47,7 ms</span><span class="arr">→</span><span class="b">2,5 ms</span><span class="g">19×</span></div>
+    <div class="row"><span class="lbl">80 ms · 10 % (el primer ajuste)</span><span class="a">48,5 ms</span><span class="arr">→</span><span class="b">2,5 ms</span><span class="g">19×</span></div>
+    <div class="row"><span class="lbl">12,5 ms · 10 % (el caso más caro)</span><span class="a">47,3 ms</span><span class="arr">→</span><span class="b">8,9 ms</span><span class="g">5,3×</span></div>
+  </div>
+  <p>Y lo que importa: <strong>el período coincide con el original dentro de 4,6 ppm y el vértice dentro de 11,4 µs</strong>. Una muestra a 6000 sps son 167 µs, así que el desacuerdo es 1/15 de muestra.</p>
+  <p class="where"><b>Dónde vive:</b> <code>ajustar_triangular_rapido()</code> (proceso_rapido.py:203) · <code>_pot_armonico()</code> · <code>_maximo_aureo()</code>. El signo de la fase se copió tal cual del original, incluido el comentario: invertirlo devuelve <code>T−t0</code> en vez de <code>t0</code> y agarra la bajada creyendo que es la subida.</p>
+
+  <h3><span class="num">5 ·</span> Las cuentas no se repiten</h3>
+  <h4>Qué pasaba</h4>
+  <p><code>_poner_estado()</code> llamaba a <code>pico_crudo()</code>, <code>hay_blanco()</code> y <code>energia_actual_db()</code> varias veces cada uno, y cada uno de esos vuelve a promediar cientos de perfiles. Contando, salían <strong>nueve veces el mismo promedio</strong> por cuadro. Lo mismo con <code>saturacion()</code> y <code>_volts()</code>, que convertían la lista de la triangular a array tres veces.</p>
+  <h4>Qué hice</h4>
+  <p>Un diccionario <code>self._cache</code> que se vacía en la primera línea de <code>_actualizar()</code>. Cada cantidad derivada se calcula una vez por cuadro. <code>_zona_util()</code>, que era una máscara booleana recalculada en cada uso, pasó a ser un índice cacheado.</p>
+  <p class="where"><b>Dónde vive:</b> <code>perfil_actual()</code> · <code>energia_actual_db()</code> · <code>pico_crudo()</code> · <code>_tri_arrays()</code>. El cache se invalida a mano en <code>_escribir()</code> y en los botones que cambian la zona útil o la calibración.</p>
+
+  <h4>Y dos limpiezas menores del mismo tipo</h4>
+  <ul>
+    <li><strong>El parseo del puerto:</strong> se decodifica el bloque entero de una vez en vez de línea por línea, y se sacó la regex del camino caliente —la línea de muestra se reconoce por el primer carácter y se valida con el <code>int()</code> que hace falta igual—. 12,4 ms → 6,5 ms por segundo de stream. No era un cuello de botella, pero el hilo del puerto le pelea el GIL al del dibujo.</li>
+    <li><strong>La ventana de ajuste:</strong> se recortaba sacando de a uno del principio de una lista (<code>pop(0)</code>, cuadrático). Ahora se busca el corte con <code>searchsorted</code> y se rebana de una.</li>
+  </ul>
+</section>
+
+<!-- ============ 3 ============ -->
+<section>
+  <div class="sechead">
+    <h2><span class="num">03</span>Lo que además se agregó</h2>
+    <p>Dos cosas que no son rendimiento sino medición. Las dos son opcionales y no cambian el camino por defecto.</p>
+  </div>
+
+  <h3>Pico sub-bin</h3>
+  <p>El <code>argmax</code> de la FFT devuelve un entero, así que la distancia informada queda cuantizada al paso de la grilla. Pero la posición verdadera del pico está escrita en su <strong>forma</strong>: si el vecino derecho quedó más alto que el izquierdo, el máximo real está corrido a la derecha, y cuánto lo dice cuánto más alto.</p>
+  <p>Por tres puntos pasa exactamente una parábola. Se toma su vértice:</p>
+  <pre><code>δ = 0,5·(a − c) / (a − 2b + c)      a, b, c = los tres valores en dB</code></pre>
+  <p>En dB y no en lineal porque cerca del máximo la respuesta de una ventana de Hann es casi una parábola en dB.</p>
+
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>Relleno</th><th>Paso de grilla</th><th>SNR</th><th>Sólo argmax</th><th>+ parábola</th></tr></thead>
+      <tbody>
+        <tr><td>×8 (actual)</td><td>1,80 cm</td><td>40 dB</td><td class="bad">0,44 cm</td><td class="good">0,01 cm</td></tr>
+        <tr><td>×8</td><td>1,80 cm</td><td>20 dB</td><td class="bad">0,45 cm</td><td class="good">0,09 cm</td></tr>
+        <tr><td>×8</td><td>1,80 cm</td><td>10 dB</td><td class="bad">0,54 cm</td><td class="good">0,29 cm</td></tr>
+        <tr><td>×4</td><td>3,61 cm</td><td>20 dB</td><td class="bad">0,92 cm</td><td class="good">0,09 cm</td></tr>
+        <tr><td>×1</td><td>14,42 cm</td><td>20 dB</td><td class="bad">3,67 cm</td><td class="good">0,18 cm</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Mirá la última columna: <strong>con parábola, el relleno casi no importa</strong>. Con SNR de 10 dB el error se clava en 0,29 cm con cualquier relleno, porque ahí el límite es el ruido y no la grilla.</p>
+
+  <div class="note">
+    <p class="t">Resolución y precisión no son lo mismo</p>
+    <p><strong>Resolución</strong> = <code>c/(2·BW)</code> = 14,4 cm: qué tan cerca pueden estar dos blancos y seguir siendo dos. Esto no lo cambia nada salvo más ancho de banda del VCO, y sigue siendo cierto todo lo que dice CLAUDE.md al respecto.</p>
+    <p><strong>Precisión</strong> = con qué exactitud ubicás el centro de <em>un</em> blanco aislado. Eso es lo que mejora. Si hay dos blancos adentro de una celda de resolución, la parábola devuelve el centro del bulto, que no es ninguno de los dos.</p>
+  </div>
+
+  <p>Se usa sólo en <code>pico_crudo()</code>, o sea en el número del panel y en <code>tomar punto</code>. La imagen del radargrama no la toca. Donde más se nota es calibrando: como el offset de cables es un ajuste de un solo punto, todo el error de ese punto se va derecho al <code>b</code> de la calibración.</p>
+
+  <div class="note warn">
+    <p class="t">Un caso que hubo que blindar</p>
+    <p>Con el fondo restado, <code>np.maximum(p − fondo, 0)</code> puede dejar un vecino del máximo en cero exacto. Ese cero entra a la fórmula como −600 dB y empuja el pico media grilla para el otro lado. Si algún vecino se anuló, <code>pico_parabolico()</code> devuelve 0 y se queda con el centro del bin — que es lo que había antes de interpolar.</p>
+  </div>
+
+  <h3>Fondo automático (MTI)</h3>
+  <p>Botón <code>fondo auto</code> o tecla <code>f</code>. Un promedio exponencial del perfil (τ = <code>TAU_MTI</code> = 30 s) que se resta solo. Es el <em>background removal</em> clásico de GPR, o sea un pasaaltos en tiempo lento, y no necesita sala vacía.</p>
+  <p>Dicho con precisión: al prenderlo, <strong>todo lo que hay en ese momento pasa a ser fondo</strong> y se va de la pantalla. Lo que aparece o se mueve después salta, y se desvanece de vuelta en ~τ si se queda quieto. Sirve para “mover la placa y mirar”, no para medir algo que ya estaba y no se mueve — para eso sigue estando <code>medir fondo</code>, que lo congela.</p>
+
+  <div class="note warn">
+    <p class="t">La puerta de detección tuvo que cambiar, y es importante</p>
+    <p>Con el fondo congelado, la puerta compara la energía <strong>cruda</strong> contra la del fondo. Eso es lo correcto ahí y está justificado en CLAUDE.md: “la energía medida supera a la del fondo por un margen” es literalmente eso.</p>
+    <p>Con el fondo automático <strong>no sirve</strong>: el fondo persigue a la señal, así que esas dos energías son la misma por construcción y el cociente daría 0 dB con blanco y sin blanco. Con MTI la puerta mide el <strong>residuo</strong> (lo que queda después de restar) contra el fondo, que es exactamente “cuánto de lo que veo es nuevo”. Ese cociente es mucho más chico, así que el margen arranca en <code>MARGEN_MTI</code> = −20 dB en vez de +6.</p>
+  </div>
+
+  <h4>Probado contra una escena sintética</h4>
+  <p>Eco fijo en 2,0 m siempre; placa que aparece a los 20 s en 1,20 m y se aleja hasta 2,80 m. MTI prendido a los 15 s, cuando sólo estaba el eco fijo.</p>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>t [s]</th><th>Energía del residuo</th><th>¿Blanco?</th><th>Pico</th><th>Qué hay</th></tr></thead>
+      <tbody>
+        <tr><td>15,1</td><td>−65,8 dB</td><td>no</td><td>—</td><td>sólo el eco fijo (absorbido)</td></tr>
+        <tr><td>20,1</td><td>−29,1 dB</td><td>no</td><td>—</td><td>la placa recién aparece</td></tr>
+        <tr><td>25,1</td><td class="good">−3,5 dB</td><td class="good">SÍ</td><td class="good">1,20 m</td><td>placa a 1,20 m</td></tr>
+        <tr><td>40,1</td><td class="good">−11,9 dB</td><td class="good">SÍ</td><td class="good">1,76 m</td><td>alejándose</td></tr>
+        <tr><td>55,2</td><td class="good">−4,2 dB</td><td class="good">SÍ</td><td class="good">2,54 m</td><td>alejándose</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>El eco fijo de 2,0 m nunca dispara la puerta, y la traza sigue la placa aun cuando le pasa por encima.</p>
+  <p class="where"><b>Dónde vive:</b> <code>_actualizar_mti()</code> (vivo_rapido.py:917) · <code>_alternar_mti()</code> · la rama de <code>self.mti</code> en <code>matriz()</code> y en <code>energia_actual_db()</code>. El lote entero se aplica de una: aplicar el promedio <em>m</em> veces con constante α equivale a aplicarlo una vez con <code>1 − exp(−m·Δt/τ)</code>.</p>
+
+  <h3>Captura PNG para el informe</h3>
+  <p>Cuadro de texto <code>captura</code> + botón <code>guardar captura PNG</code>, o la tecla <code>s</code>. Se tipea un nombre —<code>placa_1m</code>, <code>sala_vacia</code>— se aprieta, y queda en <code>datos/capturas/&lt;nombre&gt;.png</code>.</p>
+  <p>Cuatro decisiones, cada una por un motivo:</p>
+  <ul>
+    <li><strong>El nombre se lee en el momento de apretar</strong>, de <code>caja_nombre.text</code>, no del callback de submit. Así alcanza con tipearlo: no hace falta acordarse de apretar Enter antes del botón.</li>
+    <li><strong>Nunca sobrescribe.</strong> Si <code>placa_1m.png</code> ya existe, el siguiente sale <code>placa_1m_2.png</code>. Guardar dos veces con el mismo nombre pasa todo el tiempo, y perder la primera captura en silencio sería peor que tener dos archivos. Los caracteres que Windows no acepta (<code>\ / : * ? " &lt; &gt; |</code>) se reemplazan por <code>_</code>.</li>
+    <li><strong>200 dpi</strong> sobre una figura de 14×8 pulgadas: ~2190×1509 px, ~180 KB. Entra holgado en una página de tesis sin verse pixelado.</li>
+    <li><strong>Se recorta la columna de controles.</strong> 9 cuadros de texto y 8 botones no pintan nada en un informe, y todo lo que importa de la configuración queda igual adentro de la imagen.</li>
+  </ul>
+
+  <div class="note">
+    <p class="t">La figura se explica sola</p>
+    <p>Eso es lo que hace que la captura sirva seis meses después. Adentro del recorte quedan: la escala de color (en la colorbar), el alcance (en el eje x), y en el cuadro de la derecha el Tprf, el largo de rampa, la fs, la BW, el <code>alpha0</code>, la resolución de bin, el alcance no ambiguo, los Hz por metro, la amplitud de la triangular, si está recortada contra el riel del ADC, el estado del fondo y el agrupado efectivo. No hay que anotar nada aparte.</p>
+  </div>
+
+  <h4>Dos cosas que hubo que resolver</h4>
+  <p><strong>El recorte se mide, no se hardcodea.</strong> Un rectángulo fijo cortaba el rótulo <code>Hace [s]</code> del radargrama. Ahora sale de la unión de los <code>get_tightbbox()</code> de los cinco paneles —que incluyen ticks, rótulos y títulos— más un margen. Si algún día se mueve un axes, el recorte se acomoda solo.</p>
+  <p><strong>Los controles se esconden mientras se guarda</strong>, en vez de confiar en que el recorte los deje afuera. Un aviso largo del texto de estado (<code>punto 1: crudo 1.199 m -&gt; real 1.200 m</code>) se desborda de su propio axes y se metía por el borde izquierdo de la captura. Escondidos no pueden aparecer, midan lo que midan. <code>savefig()</code> redibuja por su cuenta, así que basta con taparlos durante la llamada.</p>
+  <p class="where"><b>Dónde vive:</b> <code>guardar_captura()</code> · <code>_recorte_captura()</code> — vivo_rapido.py. Constantes: <code>DPI_CAPTURA</code>, <code>RECORTE_CAPTURA</code>, <code>MARGEN_CAPTURA</code>, <code>NOMBRE_CAPTURA_DEF</code>. Con <code>RECORTE_CAPTURA = None</code> se guarda la ventana entera, controles incluidos.</p>
+
+  <h4>El cuadro de información no entraba</h4>
+  <p>Al agregar <code>ms/cuadro</code>, <code>agrupado ef.</code> y el modo del fondo, el panel pasó de 31 a <strong>39 líneas</strong> y la última se salía del marco —<code>vivo.py</code> ya avisaba de esto en un comentario, con menos líneas—. Entre ese cuadro y la triangular había <strong>0,14 de figura sin usar</strong>. El panel ahora baja hasta <code>y=0.33</code> en vez de <code>0.42</code>, a 7 pt con interlineado 1,15. No se sacó ningún dato y no hizo falta achicar la letra hasta lo ilegible.</p>
+
+  <h3>Dos bugs arreglados</h3>
+  <p><strong>El aviso que nunca se veía.</strong> <code>TextBox.set_val()</code> dispara el callback de <em>submit</em>, o sea vuelve a entrar a <code>_escribir()</code>, que pone <code>self.aviso = ""</code>. Por eso el mensaje de <code>medir fondo</code> no llegaba a la pantalla: <code>_medir_fondo()</code> lo escribe, llama a <code>_refrescar_cajas()</code> —que mueve piso y techo— y el aviso se borra antes de dibujarse. <code>_refrescar_cajas()</code> ahora lo guarda y lo repone. <code>vivo.py</code> todavía lo tiene.</p>
+
+  <div class="note warn">
+    <p class="t">Y uno que me había metido yo</p>
+    <p>matplotlib se reserva teclas sueltas para sus propios atajos: <code>f</code> es pantalla completa y <code>s</code> abre su diálogo de guardar. Cuando agregué <code>f</code> para el fondo automático, apretarla prendía el MTI <strong>y</strong> ponía la ventana en pantalla completa al mismo tiempo. Ahora se les saca la tecla suelta en <code>armar_figura()</code> y se les deja el atajo con ctrl, que sigue andando. Además, <code>_tecla()</code> ignora todo mientras se está tipeando en el cuadro del nombre — si no, escribir <code>fondo_sala</code> prendía el MTI con la <code>f</code> y guardaba una captura con la <code>s</code>.</p>
+  </div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section>
+  <div class="sechead">
+    <h2><span class="num">04</span>La verificación</h2>
+    <p>Todo lo de arriba toca el camino de la medición. Sin una prueba de equivalencia, no vale.</p>
+  </div>
+
+  <p><code>verificar_rapido.py</code> corre sin hardware. Arma un stream sintético —las mismas líneas de texto que emitiría la placa, con blancos de distancia conocida— y lo pasa por <strong>los dos programas enteros</strong>, no por funciones sueltas. Son <strong>26 comprobaciones</strong> y tardan un minuto.</p>
+
+  <pre><code>python analisis/verificar_rapido.py</code></pre>
+
+  <div class="note warn">
+    <p class="t">Qué NO se pudo verificar, y por qué</p>
+    <p>No hay ninguna captura real del ESP32 en la máquina. Lo busqué por tres lados: <code>GPRv2/datos/</code> está vacío, no hay ningún <code>captura.csv</code> ni <code>triangular.csv</code> en todo el disco, y en el historial de git nunca entró uno —están en <code>.gitignore</code>—. El único archivo de <code>datos/</code> que sí estuvo commiteado es <code>calibracion_distancia.json</code>, y el commit <code>ce8b125</code> lo borró justamente por ser <strong>falso</strong>: una prueba sintética lo había escrito con <code>a=0.8657</code>.</p>
+    <p>Así que todo lo de abajo está verificado contra streams sintéticos con blancos de distancia conocida, que es un control más estricto que una medición real (se sabe la respuesta exacta), pero <strong>no reemplaza la primera corrida en el banco</strong>. La sección 07 dice qué mirar ahí.</p>
+  </div>
+
+  <h4>Nivel 1 · las piezas</h4>
+  <div class="readout">
+    <div class="cap">Equivalencia numérica, pieza por pieza</div>
+    <div class="row head"><span class="lbl">qué se compara</span><span class="a"></span><span class="arr"></span><span class="b">resultado</span><span class="g"></span></div>
+    <div class="row"><span class="lbl">remuestreo vs <code>remuestrear()</code>, float64</span><span class="a"></span><span class="arr"></span><span class="b">5,1e−16</span><span class="g">rel.</span></div>
+    <div class="row"><span class="lbl">remuestreo vs <code>remuestrear()</code>, float32</span><span class="a"></span><span class="arr"></span><span class="b">1,8e−07</span><span class="g">rel.</span></div>
+    <div class="row"><span class="lbl">ventana plegada vs ventanear después</span><span class="a"></span><span class="arr"></span><span class="b">1,8e−07</span><span class="g">rel.</span></div>
+    <div class="row"><span class="lbl">|FFT| del lote vs una por una</span><span class="a"></span><span class="arr"></span><span class="b">1,7e−07</span><span class="g">rel.</span></div>
+    <div class="row"><span class="lbl">período del ajuste</span><span class="a"></span><span class="arr"></span><span class="b">≤ 4,6</span><span class="g">ppm</span></div>
+    <div class="row"><span class="lbl">fase (vértice) del ajuste</span><span class="a"></span><span class="arr"></span><span class="b">≤ 11,4</span><span class="g">µs</span></div>
+    <div class="row"><span class="lbl">muestras y lecturas que saca el lector</span><span class="a"></span><span class="arr"></span><span class="b">idénticas</span><span class="g"></span></div>
+  </div>
+
+  <h4>Nivel 2 · de punta a punta, con los mismos límites de rampa</h4>
+  <p>Se le imponen a los dos el mismo <code>T</code> y el mismo <code>t0</code>, o sea exactamente las mismas muestras entrando a cada FFT. Acá no queda ninguna excusa:</p>
+  <div class="note">
+    <p class="t">El resultado que importa</p>
+    <p><strong>Peor diferencia: 7,63e−05 dB sobre las 62×280 celdas del radargrama, sin excluir ninguna.</strong> Eso es el ruido del float32, no una diferencia de método.</p>
+  </div>
+
+  <h4>Nivel 3 · dejando que cada uno ajuste el período solo</h4>
+  <p>Acá sí aparece una diferencia, y hay que entenderla bien porque a primera vista asusta. Los dos ajustes del período son estimaciones con su propio ruido, y difieren en <strong>0,35 muestra</strong> en la posición del vértice. Un corrimiento sub-muestra del límite de rampa <em>no mueve los picos</em> pero sí mueve los <strong>nulos profundos</strong> de la FFT, que son celdas 40 dB debajo del pico.</p>
+  <p>Para decidir si esa diferencia es “del código nuevo” o es el ruido de estimación que los dos tienen, el test hace un <strong>control</strong>: corre <code>vivo.py</code> contra <em>sí mismo</em> con ese mismo corrimiento de vértice.</p>
+
+  <div class="readout">
+    <div class="cap">Diferencia en celdas por encima de −30 dB</div>
+    <div class="row head"><span class="lbl">comparación</span><span class="a"></span><span class="arr"></span><span class="b">peor dif.</span><span class="g"></span></div>
+    <div class="row"><span class="lbl">rápido vs original</span><span class="a"></span><span class="arr"></span><span class="b">0,641 dB</span><span class="g"></span></div>
+    <div class="row"><span class="lbl">original vs SÍ MISMO, mismo corrimiento</span><span class="a"></span><span class="arr"></span><span class="b">0,845 dB</span><span class="g">control</span></div>
+  </div>
+  <p><strong>El control difiere más que el código nuevo.</strong> O sea que la diferencia no es atribuible al rewrite: es el ruido del ajuste, que ya estaba.</p>
+
+  <h4>Nivel 4 · el número que se informa</h4>
+  <p>Blanco sintético a <strong>1,200 m</strong>:</p>
+  <div class="readout">
+    <div class="cap">Distancia informada</div>
+    <div class="row head"><span class="lbl">programa</span><span class="a"></span><span class="arr"></span><span class="b">informa</span><span class="g">error</span></div>
+    <div class="row"><span class="lbl"><code>vivo.py</code></span><span class="a"></span><span class="arr"></span><span class="b">1,2067 m</span><span class="g">0,67 cm</span></div>
+    <div class="row"><span class="lbl"><code>vivo_rapido.py</code> (sub-bin)</span><span class="a"></span><span class="arr"></span><span class="b">1,1994 m</span><span class="g">0,06 cm</span></div>
+  </div>
+
+  <h4>Nivel 5 · lo que queda en disco</h4>
+  <p>Los niveles anteriores comparan lo que el lector le pasa al gráfico. Esto compara <strong>lo que queda escrito</strong>, que es otra cosa y es la que importa después: los dos programas sobrescriben el mismo <code>datos/captura.csv</code> y <code>datos/triangular.csv</code>, y de ahí comen <code>graficar_captura.py</code> y <code>waterfall.py</code>. Si el formato cambiara aunque sea en un byte, las capturas nuevas no se podrían reanalizar con los scripts de siempre.</p>
+  <div class="readout">
+    <div class="cap">Archivos escritos por cada programa, mismo stream</div>
+    <div class="row head"><span class="lbl">archivo</span><span class="a"></span><span class="arr"></span><span class="b">resultado</span><span class="g"></span></div>
+    <div class="row"><span class="lbl">captura.csv</span><span class="a"></span><span class="arr"></span><span class="b">idéntico</span><span class="g">1 496 156 B</span></div>
+    <div class="row"><span class="lbl">triangular.csv</span><span class="a"></span><span class="arr"></span><span class="b">idéntico</span><span class="g">50 903 B</span></div>
+  </div>
+  <p>Byte a byte, sin excepciones.</p>
+
+  <h4>Nivel 6 · reanálisis offline de una captura del programa nuevo</h4>
+  <p>Esto responde la pregunta que de verdad importa: <em>si grabo con el programa nuevo, ¿después puedo usar la captura?</em></p>
+  <p>Se toma el archivo que dejó <code>vivo_rapido.py</code> y se corre encima la <strong>cadena vieja entera</strong> —<code>rampas_desde_triangular()</code>, <code>remuestrear()</code>, <code>perfil_distancia()</code>, todas de <code>correccion_no_linealidad.py</code>, sin tocar—. Después se llaman los dos scripts de análisis tal como están.</p>
+  <div class="readout">
+    <div class="cap">Blanco sintético a 1,200 m</div>
+    <div class="row head"><span class="lbl">qué corre</span><span class="a"></span><span class="arr"></span><span class="b">resultado</span><span class="g"></span></div>
+    <div class="row"><span class="lbl">pandas lee el CSV</span><span class="a"></span><span class="arr"></span><span class="b">150 000 × 2</span><span class="g">+4688 tri</span></div>
+    <div class="row"><span class="lbl">la cadena vieja encuentra el blanco</span><span class="a"></span><span class="arr"></span><span class="b">1,153 m</span><span class="g">624 rampas</span></div>
+    <div class="row"><span class="lbl">waterfall.py</span><span class="a"></span><span class="arr"></span><span class="b">corre</span><span class="g">sin errores</span></div>
+    <div class="row"><span class="lbl">graficar_captura.py</span><span class="a"></span><span class="arr"></span><span class="b">corre</span><span class="g">sin errores</span></div>
+  </div>
+  <p>Los 1,153 m contra 1,200 son <strong>un tercio de bin</strong>: la cadena vieja usa <code>perfil_distancia()</code>, que no rellena con ceros, así que su grilla va de a 14,4 cm. Es su comportamiento documentado, no un problema de la captura.</p>
+
+  <div class="note warn">
+    <p class="t">Un hallazgo lateral, que no es mío pero conviene tener anotado</p>
+    <p><code>waterfall.py</code> se cae si no se lo corre parado en <code>GPRv2/analisis/</code>: hereda de <code>correccion_no_linealidad.py</code> rutas relativas al <strong>directorio actual</strong> y no al archivo, así que no encuentra la curva del VCO. Está anotado en CLAUDE.md pero la prueba lo destapó en la práctica. <code>graficar_captura.py</code> no tiene el problema porque usa <code>os.path.dirname(__file__)</code>. El test entra a <code>analisis/</code> antes de llamarlo, igual que haría uno a mano.</p>
+  </div>
+
+  <h4>Nivel 7 · el botón de captura</h4>
+  <ul>
+    <li>El cuadro de información entra en su marco en el caso de más líneas (39, con fondo medido).</li>
+    <li>Los 17 controles no se pisan entre sí, no se salen de la figura y no tapan el texto de estado.</li>
+    <li>Guardar dos veces con el mismo nombre da dos archivos, no uno pisado.</li>
+    <li>Un nombre con caracteres prohibidos se sanea; uno vacío cae al nombre por defecto.</li>
+    <li>Los cuatro PNG salen a 200 dpi, el más chico de 173 KB.</li>
+  </ul>
+
+  <div class="note">
+    <p class="t">Regla de trabajo</p>
+    <p>Cuando se toque cualquiera de los dos programas, correr <code>verificar_rapido.py</code> <strong>antes</strong> de llevarlo al banco. Es un minuto, son 26 comprobaciones y cubre todo el camino de la medición, incluido que la captura siga siendo reanalizable. Corre desde cualquier directorio.</p>
+  </div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section>
+  <div class="sechead">
+    <h2><span class="num">05</span>Mapa del código</h2>
+    <p>Cuatro archivos nuevos. Ninguno viejo modificado, salvo CLAUDE.md, que sólo creció.</p>
+  </div>
+
+  <div class="files">
+    <div class="file">
+      <span class="n">analisis/vivo_rapido.py</span><span class="ln">1593 líneas</span>
+      <span class="d">El programa. Misma ventana, mismos controles, mismo CSV, mismo <code>calibracion_distancia.json</code> que <code>vivo.py</code> — una calibración tomada con uno sirve para el otro. Clases: <code>Lector</code> (hilo del puerto), <code>Calibracion</code>, <code>Vivo</code> (el resto).</span>
+    </div>
+    <div class="file">
+      <span class="n">analisis/proceso_rapido.py</span><span class="ln">277 líneas</span>
+      <span class="d">Las primitivas de proceso, separadas justamente para poder testearlas contra las originales: <code>Remuestreador</code>, <code>espectros()</code>, <code>largo_fft()</code>, <code>ajustar_triangular_rapido()</code>, <code>pico_parabolico()</code>. No importa nada de <code>vivo_rapido</code>, así que <code>waterfall.py</code> y <code>graficar_captura.py</code> podrían adoptarlo después sin arrastrar nada.</span>
+    </div>
+    <div class="file">
+      <span class="n">analisis/verificar_rapido.py</span><span class="ln">493 líneas</span>
+      <span class="d">La prueba de equivalencia y el banco de medición. Corre sin hardware. Incluye <code>generar_stream()</code>, que fabrica el stream sintético con la no linealidad real del VCO, y <code>correr()</code>, que maneja los dos programas enteros con el mismo tamaño de bloque que tendrían en vivo.</span>
+    </div>
+    <div class="file">
+      <span class="n">vivo_rapido.bat</span><span class="ln">—</span>
+      <span class="d">Doble click, igual que <code>vivo.bat</code>. Busca el mismo venv <code>gpr-win</code>.</span>
+    </div>
+  </div>
+
+  <h4>Constantes nuevas, todas al principio de vivo_rapido.py</h4>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>Constante</th><th>Valor</th><th>Qué hace</th></tr></thead>
+      <tbody>
+        <tr><td>MAX_FILAS</td><td>900</td><td>tope de filas que se le mandan a la pantalla; arriba de eso sube el agrupado</td></tr>
+        <tr><td>CADA_INFO</td><td>3</td><td>refrescos entre dos actualizaciones del cuadro de info (31 líneas de monoespaciada)</td></tr>
+        <tr><td>CADA_TRI</td><td>3</td><td>ídem para la triangular plegada (~940 puntos)</td></tr>
+        <tr><td>TAU_MTI</td><td>30 s</td><td>constante de tiempo del fondo automático</td></tr>
+        <tr><td>MARGEN_MTI</td><td>−20 dB</td><td>margen de la puerta cuando el fondo es automático</td></tr>
+        <tr><td>USAR_BLIT</td><td>True</td><td>se apaga solo si el backend no lo banca</td></tr>
+        <tr><td>RAMPAS_POR_CUADRO</td><td>512</td><td>tope por cuadro, por si hubo un parate largo</td></tr>
+        <tr class="group"><td colspan="3">capturas</td></tr>
+        <tr><td>DPI_CAPTURA</td><td>200</td><td>~2190×1509 px; 300 si hace falta imprimir grande</td></tr>
+        <tr><td>RECORTE_CAPTURA</td><td>"paneles"</td><td>o <code>None</code> (ventana entera), o una tupla de fracciones</td></tr>
+        <tr><td>MARGEN_CAPTURA</td><td>0,10 in</td><td>para que ningún rótulo quede pegado al borde</td></tr>
+        <tr><td>NOMBRE_CAPTURA_DEF</td><td>"captura"</td><td>si el cuadro del nombre queda vacío</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Controles nuevos</h4>
+  <ul>
+    <li>Cuadro de texto <code>captura</code> (el noveno) y botón <code>guardar captura PNG</code> (el primero de la columna).</li>
+    <li>Botón <code>fondo auto (MTI)</code>.</li>
+    <li>Teclas: <code>e</code> eje, <code>a</code> autoescala, <code>f</code> fondo auto, <code>s</code> captura, <code>q</code> salir. <code>f</code> y <code>s</code> se le sacan a matplotlib en <code>armar_figura()</code>; los atajos con ctrl siguen andando.</li>
+  </ul>
+
+  <h4>Lo nuevo en el panel de la derecha</h4>
+  <ul>
+    <li><strong><code>ms/cuadro</code></strong> — si se acerca a <code>REFRESCO_MS</code> (200), bajar la ventana o subir rampas/fila. Antes había que adivinarlo.</li>
+    <li><strong><code>agrupado ef.</code></strong> — el agrupado real, que puede ser mayor que rampas/fila si entró la decimación de pantalla.</li>
+    <li><strong><code>modo</code></strong> en la sección de fondo — <code>congelado</code> o <code>AUTO (MTI)</code>.</li>
+  </ul>
+  <p>Son 39 líneas cuando hay fondo medido. El cuadro se agrandó hacia abajo (de <code>y=0.42</code> a <code>y=0.33</code>) para que entren.</p>
+
+  <h4>Rendimiento real, sobre 300 cuadros de una sesión simulada de 60 s</h4>
+  <div class="readout">
+    <div class="cap">Distribución del costo de un cuadro</div>
+    <div class="row head"><span class="lbl">estadístico</span><span class="a"></span><span class="arr"></span><span class="b">ms</span><span class="g"></span></div>
+    <div class="row"><span class="lbl">mediana</span><span class="a"></span><span class="arr"></span><span class="b">22</span><span class="g">11 % del presupuesto</span></div>
+    <div class="row"><span class="lbl">percentil 95 (después del arranque)</span><span class="a"></span><span class="arr"></span><span class="b">44</span><span class="g">22 %</span></div>
+    <div class="row"><span class="lbl">los ~20 primeros cuadros</span><span class="a"></span><span class="arr"></span><span class="b">130–188</span><span class="g">arranque</span></div>
+  </div>
+  <p>Los cuadros lentos son sólo los del arranque, mientras se arma la figura y se saca la primera foto del fondo. Después queda plano.</p>
+</section>
+
+<!-- ============ 6 ============ -->
+<section>
+  <div class="sechead">
+    <h2><span class="num">06</span>Lo que no hice, y por qué lo propongo</h2>
+    <p>Cinco cosas que quedaron identificadas pero sin implementar, ordenadas por lo que aportarían a la medición.</p>
+  </div>
+
+  <h3>1 · Guardar perfiles complejos en vez de magnitudes</h3>
+  <p>Es el cambio con más potencial y hoy está <strong>explícitamente bloqueado</strong> en CLAUDE.md: “lo que se guarda son magnitudes de FFT, no complejos, o sea que no hay cancelación coherente posible”. Guardando <code>complex64</code> se habilitan dos cosas:</p>
+  <ul>
+    <li><strong>Resta de fondo coherente</strong> — cancela el acoplamiento directo de verdad, en vez de restarlo en amplitud con piso en cero.</li>
+    <li><strong>Promediado coherente entre rampas</strong> — <strong>+3 dB por duplicación</strong> en vez de +1,5 dB. Con 8 rampas/fila eso son 4,5 dB de SNR regalados.</li>
+  </ul>
+  <p>Cuesta el doble de memoria por perfil y hay que <em>verificar primero</em> que la fase repite entre rampas. Con el troceo actual debería, pero es medible antes de comprometerse: correlacionar rampas consecutivas y mirar la fase del pico.</p>
+
+  <h3>2 · Ventana de Hann → Blackman-Harris, seleccionable</h3>
+  <p>El acoplamiento directo TX→RX es lo más fuerte de la pantalla y vive cerca de 0 m. El primer lóbulo lateral de Hann está a −31 dB: un blanco débil a 1 o 2 m puede estar sentado adentro de ese faldón. Blackman-Harris lo baja a −92 dB a cambio de un lóbulo principal más ancho. Son tres líneas y sospecho que en el banco se nota.</p>
+
+  <h3>3 · Bajar <code>RELLENO</code> de 8 a 4</h3>
+  <p>Con el pico sub-bin, el relleno ya no compra precisión (ver la tabla de la sección 03): sólo suavidad del dibujo. Con ×4 el radargrama se sigue viendo bien y se ahorra la mitad de memoria por perfil y la mitad de FFT. Gratis.</p>
+
+  <h3>4 · CFAR por bin para la traza roja</h3>
+  <p>Hoy la traza marca una fila si su pico se despega <code>TRAZA_MIN_DB</code> = 3 dB de la <em>mediana</em> de esa fila. Un CFAR de promedio de celdas daría un umbral adaptativo por bin, que es lo estándar y es más robusto cuando el piso no es plano a lo largo del eje.</p>
+
+  <h3>5 · Trama binaria en el firmware</h3>
+  <p>El stream ASCII son ~78 kB/s a 6000 sps. Binario sería ~2,5× menos ancho de banda de USB y cero parseo. Pero cambia el formato del CSV, así que rompería <code>graficar_captura.py</code>, <code>waterfall.py</code> y todas las capturas viejas. Es el más invasivo y el que menos aporta hoy.</p>
+
+  <div class="note">
+    <p class="t">Mi orden</p>
+    <p><strong>2 y 3 ya</strong> — son baratos y uno puede destapar blancos que hoy no se ven. <strong>1 cuando quieras sacarle SNR de verdad</strong>, midiendo antes la coherencia. 4 y 5 después.</p>
+  </div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section>
+  <div class="sechead">
+    <h2><span class="num">07</span>Qué mirar la primera vez en el banco</h2>
+    <p>Cosas que el test sintético no puede cubrir.</p>
+  </div>
+  <ul>
+    <li><strong>Que el blitting arranque.</strong> Si el backend no lo banca, sale un aviso por consola y sigue andando con el dibujado completo. Si aparece ese aviso, el programa funciona igual pero no vas a ver la mejora.</li>
+    <li><strong><code>ms/cuadro</code> en el panel.</strong> Debería quedar en 20–45 después de los primeros segundos. Si se queda arriba de 100, algo está forzando refotos del fondo todo el tiempo y quiero saberlo.</li>
+    <li><strong>El espacio vacío arriba del radargrama</strong> mientras se llena la ventana es intencional, no un bug. Antes el eje se estiraba; ahora está fijo en la ventana pedida.</li>
+    <li><strong>Los dos programas escriben el mismo <code>datos/captura.csv</code></strong> y lo sobrescriben. No los corras a la vez.</li>
+    <li><strong>La primera vez, corré los dos sobre la misma escena</strong> (uno después del otro, con la placa quieta) y compará el número del pico. Tienen que dar lo mismo dentro de un bin.</li>
+    <li><strong>Guardá la primera captura del día con el botón</strong>, aunque no la uses. Es la forma más barata de dejar registrado el estado del banco: el Tprf que estaba puesto, la amplitud de la triangular, si estaba recortada. Todo eso queda escrito adentro del PNG y no depende de que uno se acuerde de anotarlo.</li>
+    <li><strong>Y guardá la captura.csv de esa corrida</strong> en algún lado fuera del repo. Hoy no hay ninguna medición real en la máquina —están en <code>.gitignore</code> y se perdieron— así que todo lo verificado es contra streams sintéticos. Una captura real guardada convierte a <code>verificar_rapido.py</code> en una prueba mucho más fuerte.</li>
+  </ul>
+</section>
+
+<footer>
+  GPRv2 · analisis/ · 2026-09-11<br>
+  vivo.py, correccion_no_linealidad.py y waterfall.py sin modificar · CLAUDE.md con una sección nueva
+</footer>
+
+</div>
+
+</body>
+</html>
