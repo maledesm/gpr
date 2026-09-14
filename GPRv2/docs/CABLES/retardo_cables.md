@@ -221,8 +221,8 @@ ayuda al presupuesto de alcance.
 
 Reprocesando la captura del 2026-09-04 con el período correcto (80 ms, ver
 `GPRv2/CLAUDE.md`), el pico dominante cae en **5,31 m**. Restando el offset
-queda la placa en **1,11 m** (con los 4,20 m calculados) o **1,48 m** (con
-los 3,83 m que midió el VNA), contra ~1 m real.
+queda la placa en **1,11 m** (con los 4,20 m calculados) o **1,45 m** (con
+los 3,86 m que midió el VNA con fase), contra ~1 m real.
 
 ⚠️ Este párrafo decía antes "1,14 m", restando un offset de 4,17 m que salía
 de suponer dos cables de 3 m y 0,5 m al LO. Los dos errores casi se

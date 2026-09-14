@@ -546,12 +546,13 @@ antena se paga entero.
 Medido en el banco: con Tprf 80 ms (167 Hz/m) una placa a 1 m daba **más de
 800 Hz**; el modelo predice 868 Hz.
 
-**Medido con el VNA el 2026-09-10** (ver abajo): el retardo de los dos cables
-de antena da 25,83 ns → **3,83 m de offset**, sin suponer ningún VF. Contra
-los 4,20 m de la cuenta es un 9 % menos. Los tres caminos —la cuenta, el VNA
-y el radar— caen dentro de un 10 %, con los dos experimentales por debajo del
-teórico (la cinta métrica sobre cable no recto y el VF 0,66 de catálogo
-sobreestiman los dos).
+**Medido con el VNA, con fase, el 2026-09-14** (ver abajo): el retardo de los
+dos cables de antena da 26,0 ns → **3,86 m de offset**, sin suponer ningún VF.
+Contra los 4,20 m de la cuenta es un 8 % menos. Los tres caminos —la cuenta,
+el VNA y el radar (~3,6 m)— caen dentro de un 15 %, con los dos experimentales
+por debajo del teórico. No es el largo (medido con cinta, da el nominal): los
+RG-58 viejos son más rápidos que el 0,66 de catálogo, y el de 2,6 m está
+dañado.
 
 Y explica lo que se veía: **"se acerca y baja, se aleja y sube" funciona
 perfecto** aunque el número absoluto esté lejos. El radar mide bien, sólo que
@@ -562,8 +563,8 @@ la captura del 2026-09-04 tiene el pico dominante en **5,31 m**.
 
 ⚠️ **Ojo con esta cuenta.** Cuando se escribió, el offset que se restaba era
 4,17 m (asumiendo dos cables de 3 m y 0,5 m al LO) y daba 1,14 m, redondo.
-Con las longitudes reales el offset es 4,20 m calculado o 3,83 m medido con
-el VNA, así que la placa sale en **1,11 o 1,48 m**. Sigue siendo el orden
+Con las longitudes reales el offset es 4,20 m calculado o 3,86 m medido con
+el VNA, así que la placa sale en **1,11 o 1,45 m**. Sigue siendo el orden
 correcto para una placa que estaba a ~1 m, pero **los 1,14 m salían de dos
 errores que casi se cancelaban** (L_RX de más, L_LO de más), no de una
 validación. Para validar de verdad hay que medir el offset directo con el
@@ -595,39 +596,53 @@ en 3000 Hz entran 18,0 m aparentes, menos 4,2 de offset quedan 13,8 m útiles.
 Pero con Tprf 40 ms (334 Hz/m) entran 9,0 m aparentes y quedan sólo **4,8 m
 útiles**. Con estos cables, conviene el Tprf largo.
 
-Con los **RG-213 nuevos de 1 m** el offset baja a 1,48 m, y a 40 ms quedarían
-7,5 m útiles en vez de 4,8.
+Con los **RG-213 nuevos de 1 m** el offset baja a 1,48 m calculado (1,45 m
+medido con el VNA), y a 40 ms quedarían 7,5 m útiles en vez de 4,8.
 
-## Los cables, medidos con el VNA — 2026-09-10
+## Los cables, medidos con el VNA — 2026-09-14 (con fase)
 
-`analisis/cables_vna.py` procesa los barridos de `docs/CABLES/` (Agilent
-N9923A, 500-2500 MHz) y genera las cuatro figuras del capítulo de cables de
-la tesis. Los seis CSV se llaman `RG213_*` por un renombre, pero **cuatro son
-de los RG-58 viejos**: el tipo lo dice `MEDICIONES` en el script, no el
-nombre del archivo.
+`analisis/cables_vna.py` lee los cuatro `.s2p` de `docs/CABLES/`
+(`RG213_A_1m`, `RG213_B_1m`, `RG58_3m`, `RG58_2m6`; FieldFox N9923A,
+500-2500 MHz, 801 puntos, QuickCal de 2 puertos completa, IF BW 1 kHz, 4
+promedios) y genera las cuatro figuras del capítulo de cables de la tesis.
+Los CSV viejos (`RG213_S11_*`, `RG213_S12_*`, de la tanda del 2026-09-10, solo
+magnitud) quedan como registro; el script ya no los usa.
 
-| cable | α @1 GHz | catálogo | VF despejado |
-|---|---|---|---|
-| RG-213 nuevo, 1 m | 0,294 dB/m | 0,28 | 0,684 |
-| RG-58 viejo, 3 m | 0,515 dB/m | 0,53 | 0,702 |
-| RG-58 viejo, 2,6 m | **1,078 dB/m** | 0,53 | 0,750 |
+El retardo sale de la **pendiente de la fase de S21** y la respuesta al
+impulso, de **S11 complejo** (`np.fft.ifft`, no `fft`: con `fft` los ecos
+caen en tiempos negativos).
 
-**El RG-58 de 2,6 m tiene un conector para tirar**: atenúa el doble que su
-gemelo de 3 m y es el peor adaptado de los tres (VSWR 1,64). Él solo se come
-3,4 dB de los 5,3 que costaba el par viejo.
+| cable | τ fase | VF (L nominal) | desvío fase | α @1 GHz | peor S11 |
+|---|---|---|---|---|---|
+| RG-213 A, 1 m | 4,983 ns | 0,669 | 0,09° | 0,296 dB/m | −20,9 dB |
+| RG-213 B, 1 m | 4,975 ns | 0,671 | 0,08° | 0,320 dB/m | −22,1 dB |
+| RG-58 viejo, 3 m | 14,319 ns | 0,699 | 0,37° | 0,527 dB/m | −14,5 dB |
+| RG-58 viejo, 2,6 m | 11,686 ns | **0,742** | **1,78°** | **1,132 dB/m** | **−11,7 dB** |
 
-**El VF sigue siendo 0,66 nominal para todo cálculo.** Los tres dan más
-rápido, pero el método (FFT del rizado de S11) tiene ±0,25 ns de resolución
-sobre τ, que en el cable de 1 m es 5 %. No alcanza para descartar el
-catálogo. Para medir VF de verdad hay que **repetir el barrido exportando
-fase**: el equipo dio solo magnitud.
+Los **largos medidos con cinta dan aproximadamente los nominales**, así que
+esos VF son reales: los RG-213 confirman el catálogo (0,67) y los RG-58 viejos
+son más rápidos. **Para todo cálculo de diseño se sigue usando VF 0,66**
+(decisión del usuario).
 
-**El truco del rizado, por si hay que rehacerlo.** Sin fase no hay retardo de
-grupo, pero el eco del extremo del cable interfiere con el del conector de
-entrada y ondula |S11| con período `Δf = 1/(2τ)`. La FFT de esa ondulación da
-un pico en 2τ. Que es el eco de verdad se verifica solo: el cable de 3 m
-muestra el pico en 28,53 ns y el segundo rebote en 57,05, exactamente al
-doble.
+**El RG-58 de 2,6 m se supone dañado, por tres indicios** (sección
+`sub:cables_defectuoso` de la tesis):
+
+1. Atenúa el doble (3,56 dB contra 1,91 del de 3 m, siendo más corto) y no
+   sigue √f: el ajuste libre necesita b = −3,43 dB.
+2. Es el peor adaptado: VSWR 1,71.
+3. Fase 1,78° fuera de un retardo puro, VF 0,742 imposible en PE sólido, y una
+   **reflexión interna vista desde los dos puertos** (12,63 + 10,77 ns =
+   2τ = 23,4 ns), a ~1,4 m de un extremo.
+
+En las figuras está rotulado "conector sospechado" (la hipótesis del usuario).
+El punto 3 sugiere que también hay algo adentro del cable, pero ojo: el de 3 m
+tiene reflexiones internas parecidas, ~5 dB más débiles. El par viejo cuesta
+5,47 dB; dos RG-58 sanos habrían costado 3,6.
+
+**Los dos métodos de retardo coinciden.** El del rizado de |S11| (`Δf =
+1/(2τ)`, el que se usó cuando solo había magnitud) difiere del de fase 0,05 a
+0,12 ns, dentro de sus ±0,25 ns. El 0,684 que daba para el RG-213 era error de
+ese método.
 
 ## La distancia del eje hay que calibrarla, pero ya se sabe por qué
 

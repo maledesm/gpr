@@ -1447,13 +1447,12 @@ medida y no de más.
     Figura~\ref{fig:cables_s21}. Se barrió de $500\,\text{MHz}$ a
     $2{,}5\,\text{GHz}$, más ancho que la banda del radar, para poder
     ajustar el modelo de atenuación sobre un tramo largo.
-  \item \textbf{Retardo de grupo con el VNA.} \emph{Pendiente} --- el
-    equipo exportó solo magnitud, sin fase, y sin fase no hay retardo
-    de grupo. El retardo se obtuvo por un camino alternativo, el
-    rizado de $|S_{11}|$ (Sección~\ref{sub:cables_retardo_medido},
-    Figura~\ref{fig:cables_tiempo}), que alcanza para acotar el
-    $\text{VF}$ pero no para medirlo con precisión en cables cortos.
-    Queda repetir el barrido exportando fase.
+  \item \textbf{Retardo de grupo con el VNA.} \emph{Hecho} ---
+    Sección~\ref{sub:cables_retardo_medido},
+    Figura~\ref{fig:cables_tiempo}. El retardo sale de la pendiente de
+    la fase de $S_{21}$, con los cuatro parámetros $S$ guardados en
+    Touchstone (\texttt{.s2p}). Los largos físicos, medidos con cinta,
+    coinciden aproximadamente con los nominales.
   \item \textbf{Calibración de un punto en el radar.} \emph{Pendiente.}
     Repetir el
     procedimiento de la Sección~\ref{sec:cables_calibracion} con cada
@@ -1472,16 +1471,21 @@ medida y no de más.
 \subsection{Resultados: pérdida de inserción (VNA)}
 \label{sub:cables_s21_medido}
 
-Se midieron tres cables con un analizador de redes Agilent N9923A, de
-$500$ a $2500\,\text{MHz}$ en $801$ puntos: los dos RG-58 del juego
-original ($3\,\text{m}$ y $2{,}6\,\text{m}$, uno por antena) y uno de
-los dos RG-213 nuevos.
+Se midieron los cuatro cables con un analizador de redes Agilent
+N9923A (FieldFox), de $500$ a $2500\,\text{MHz}$ en $801$ puntos: los
+dos RG-58 del juego original ($3\,\text{m}$ y $2{,}6\,\text{m}$, uno
+por antena) y los dos RG-213 nuevos de $1\,\text{m}$, que se llaman A
+y B en lo que sigue. El equipo se calibró en dos puertos completos con
+QuickCal ($\text{IFBW} = 1\,\text{kHz}$, promedio de $4$ barridos) y
+cada cable se guardó con sus cuatro parámetros $S$ en magnitud y fase.
+Una primera tanda de mediciones había exportado solo magnitud; con
+ella se estimó el retardo a partir del rizado de $|S_{11}|$, y ese
+valor se conserva en la Figura~\ref{fig:cables_tiempo} para comparar
+los dos métodos.
 
-\textbf{El equipo exportó solo magnitud, sin fase.} Eso deja sin hacer
-el paso~2 del procedimiento tal como estaba planteado --- no hay
-retardo de grupo sin fase --- y obliga a medir el retardo por otro
-camino, el de la Sección~\ref{sub:cables_retardo_medido}. Queda
-pendiente repetir el barrido exportando fase.
+Los cables son recíprocos dentro de la medición: $|S_{21}|$ y
+$|S_{12}|$ difieren menos de $0{,}02\,\text{dB}$ en los cuatro, que es
+una verificación de la calibración.
 
 La Figura~\ref{fig:cables_s21} muestra la pérdida de inserción. El
 panel izquierdo es lo que entrega el equipo: la pérdida total del
@@ -1494,11 +1498,13 @@ descrita en la Sección~\ref{sec:cables_perdidas}.
   \centering
   \includegraphics[width=\linewidth]{figuras/cables/cables_insercion.png}
   \caption{Pérdida de inserción medida con el VNA. Izquierda: pérdida
-    total tal como se mide. Derecha: atenuación por metro, con los
-    valores de catálogo superpuestos en punteado. Las curvas del
-    RG-213 y del RG-58 de $3\,\text{m}$ caen sobre sus respectivas
-    referencias de catálogo; la del RG-58 de $2{,}6\,\text{m}$ queda al
-    doble.}
+    total $|S_{21}|$ tal como se mide, cable más sus dos conectores; el
+    rizado fino es la interferencia entre los dos conectores. Derecha:
+    atenuación por metro ajustada como $a\sqrt{f}$ por el origen, con
+    los valores de catálogo superpuestos en punteado. Los dos RG-213 y
+    el RG-58 de $3\,\text{m}$ caen sobre sus referencias de catálogo;
+    el RG-58 de $2{,}6\,\text{m}$ queda al doble y, a la izquierda, se
+    curva hacia abajo en vez de seguir la raíz.}
   \label{fig:cables_s21}
 \end{figure}
 
@@ -1507,8 +1513,9 @@ con $a\sqrt{f} + b$, esperando que el término constante $b$ se quedara
 con lo que no depende del largo: los dos conectores y el desadaptado.
 No funciona. En una banda de apenas $500$ a $2500\,\text{MHz}$,
 $\sqrt{f}$ y la constante están demasiado correlacionadas para
-separarse, y $b$ salió \emph{negativo} en los tres cables ($-0{,}17$,
-$-0{,}49$ y $-3{,}22\,\text{dB}$), lo que como pérdida de conector no
+separarse, y $b$ salió \emph{negativo} en los cuatro cables
+($-0{,}15$ en los dos RG-213, $-0{,}48$ en el RG-58 de $3\,\text{m}$ y
+$-3{,}43\,\text{dB}$ en el de $2{,}6\,\text{m}$), lo que como pérdida de conector no
 existe: lo que hacía era absorber la desviación respecto de la raíz e
 inflarle $a$ al cable. Forzado por el origen los números caen sobre el
 catálogo, como se ve en la figura. Queda dicho lo que el ajuste
@@ -1518,28 +1525,32 @@ largos del mismo tipo de cable y restar.
 
 \begin{table}[H]
   \centering
-  \caption{Atenuación medida y de catálogo en la banda del radar. El
-    cable de $2{,}6\,\text{m}$ atenúa el doble que su gemelo de
-    $3\,\text{m}$, siendo el mismo tipo de cable.}
+  \caption{Atenuación medida y de catálogo en la banda del radar. Los
+    dos RG-213 difieren entre sí un $8$\,\% y quedan a menos de un
+    $15$\,\% del catálogo con los conectores incluidos. El cable de
+    $2{,}6\,\text{m}$ atenúa el doble que su gemelo de $3\,\text{m}$,
+    siendo el mismo tipo de cable.}
   \label{tab:cables_alfa}
-  \begin{tabular}{lccc}
+  \begin{tabular}{lcccc}
     \toprule
     \textbf{Cable} & $\bm{\alpha}$ \textbf{@} $\bm{1\,}$\textbf{GHz}
-    & \textbf{Catálogo} & $\bm{\alpha}$ \textbf{@} $\bm{1{,}46\,}$\textbf{GHz} \\
+    & \textbf{Catálogo} & $\bm{\alpha}$ \textbf{@} $\bm{1{,}46\,}$\textbf{GHz}
+    & \textbf{Total @} $\bm{1{,}46\,}$\textbf{GHz} \\
     \midrule
-    RG-213 nuevo, $1\,\text{m}$      & $0{,}294$ dB/m & $0{,}28$ dB/m & $0{,}356$ dB/m \\
-    RG-58 viejo, $3\,\text{m}$       & $0{,}515$ dB/m & $0{,}53$ dB/m & $0{,}623$ dB/m \\
-    RG-58 viejo, $2{,}6\,\text{m}$   & $1{,}078$ dB/m & $0{,}53$ dB/m & $1{,}304$ dB/m \\
+    RG-213 A, $1\,\text{m}$          & $0{,}296$ dB/m & $0{,}28$ dB/m & $0{,}358$ dB/m & $0{,}36$ dB \\
+    RG-213 B, $1\,\text{m}$          & $0{,}320$ dB/m & $0{,}28$ dB/m & $0{,}387$ dB/m & $0{,}39$ dB \\
+    RG-58 viejo, $3\,\text{m}$       & $0{,}527$ dB/m & $0{,}53$ dB/m & $0{,}637$ dB/m & $1{,}91$ dB \\
+    RG-58 viejo, $2{,}6\,\text{m}$   & $1{,}132$ dB/m & $0{,}53$ dB/m & $1{,}369$ dB/m & $3{,}56$ dB \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\textbf{El cable de $2{,}6\,\text{m}$ tiene un conector en mal
-estado.} Atenúa el doble de lo que le corresponde a un RG-58, y es
-además el peor adaptado de los tres (Figura~\ref{fig:cables_s11}). Se
-lo grafica porque es uno de los dos cables que efectivamente estuvieron
-en el banco, pero no se lo usa para caracterizar al RG-58: para eso
-sirve el de $3\,\text{m}$, que sí se comporta como su hoja de datos.
+\textbf{El cable de $2{,}6\,\text{m}$ se supone en mal estado}, por las
+tres razones que se reúnen en la Sección~\ref{sub:cables_defectuoso}.
+Se lo grafica porque es uno de los dos cables que efectivamente
+estuvieron en el banco, pero no se lo usa para caracterizar al RG-58:
+para eso sirve el de $3\,\text{m}$, que sí se comporta como su hoja de
+datos.
 
 \subsection{Resultados: adaptación y pérdida de retorno}
 \label{sub:cables_s11_medido}
@@ -1547,81 +1558,170 @@ sirve el de $3\,\text{m}$, que sí se comporta como su hoja de datos.
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figuras/cables/cables_retorno.png}
-  \caption{Pérdida de retorno. El rizado no es ruido: es la
-    interferencia entre la reflexión del conector de entrada y el eco
-    del extremo del cable, y su período vale $\Delta f = 1/(2\tau)$. El
-    zoom de la derecha lo hace visible --- a cable más largo, rizado más
+  \caption{Pérdida de retorno. Izquierda: $|S_{11}|$ en todo el
+    barrido, con la escala de VSWR equivalente a la derecha y la banda
+    del radar sombreada. Derecha: zoom de $1400$ a $1600\,\text{MHz}$.
+    El rizado no es ruido: es la interferencia entre las reflexiones de
+    los dos conectores, y su período vale $\Delta f = 1/(2\tau)$, con
+    $\tau$ el retardo medido de la fase. A cable más largo, rizado más
     apretado.}
   \label{fig:cables_s11}
 \end{figure}
 
-Ningún cable supera VSWR $1{,}64$ en la banda del radar, así que la
-adaptación no es un problema en ninguno de los tres. Lo interesante de
-esta figura es otra cosa: \textbf{el rizado contiene el retardo}, y es
-lo que permite medirlo sin fase.
+Los dos RG-213 quedan por debajo de VSWR $1{,}20$ en toda la banda del
+radar, y el RG-58 de $3\,\text{m}$ por debajo de $1{,}46$. El de
+$2{,}6\,\text{m}$ llega a $1{,}71$ ($|S_{11}| = -11{,}7\,\text{dB}$):
+es el peor de los cuatro, aunque sigue sin ser un desadaptado grave.
+
+Los períodos del zoom cierran con el retardo que se mide por otro
+camino en la sección siguiente: $100\,\text{MHz}$ en los cables de
+$1\,\text{m}$ corresponden a $\tau = 5{,}0\,\text{ns}$, y
+$34{,}9\,\text{MHz}$ en el de $3\,\text{m}$ a $14{,}3\,\text{ns}$.
+\textbf{El rizado contiene el retardo}, y fue lo que permitió estimarlo
+en la primera tanda de mediciones, cuando todavía no se tenía la fase.
 
 \subsection{Resultados: retardo y VF real}
 \label{sub:cables_retardo_medido}
 
-Sin fase no hay retardo de grupo, pero el retardo se puede medir igual
-a partir del rizado de $|S_{11}|$ de la figura anterior. La reflexión
-del conector de entrada y el eco del extremo del cable interfieren, y
-esa interferencia ondula $|S_{11}|$ con un período en frecuencia de
-$\Delta f = 1/(2\tau)$. Una FFT \emph{sobre el eje de frecuencia}
-convierte ese rizado en un pico ubicado en $2\tau$: es el mismo
-principio del modo ``dominio del tiempo'' de un VNA, con la limitación
-de que sin fase se pierde el signo de la reflexión.
+Con la fase de $S_{21}$ el retardo se mide directo: un cable ideal es
+un retardo puro, $S_{21} = |S_{21}|\,e^{-j\omega\tau}$, así que la
+fase desenrollada es una recta en $\omega$ y su pendiente, cambiada de
+signo, es $\tau$. Se ajustó esa recta sobre todo el barrido, de $500$ a
+$2500\,\text{MHz}$. El desvío rms de la fase respecto de la recta
+indica cuánto se aparta el cable de un retardo puro, y resulta útil
+para diagnosticarlo.
+
+Con $S_{11}$ en magnitud y fase se puede además calcular la
+\textbf{respuesta al impulso} del cable: la transformada inversa de
+$S_{11}(f)$ muestra cada discontinuidad como un pico en su tiempo de
+ida y vuelta. Es el modo ``dominio del tiempo'' de un VNA, hecho
+fuera del equipo. Como el barrido es de banda pasante ($500$ a
+$2500\,\text{MHz}$) y se aplica ventana de Hann, la resolución es de
+un poco más de $1/BW = 0{,}5\,\text{ns}$ de ida y vuelta.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figuras/cables/cables_tiempo.png}
-  \caption{Izquierda: respuesta al impulso obtenida del rizado de
-    $|S_{11}|$; el círculo marca el eco del extremo del cable, en
-    $2\tau$. Derecha: retardo medido contra la recta del VF nominal de
-    catálogo.}
+  \caption{Izquierda: respuesta al impulso de $S_{11}$ complejo, en
+    dB respecto del pico mayor. Cada pico es una reflexión, ubicada en
+    su tiempo de ida y vuelta; el triángulo marca $2\tau$ tomado de la
+    pendiente de fase de $S_{21}$, y coincide con el eco del extremo en
+    los cuatro cables. El RG-58 de $2{,}6\,\text{m}$ (naranja) muestra
+    además un pico a mitad de camino, en $12{,}6\,\text{ns}$.
+    Derecha: retardo de una vía contra el largo nominal. Los símbolos
+    llenos son la pendiente de fase y los huecos, el rizado de
+    $|S_{11}|$; la recta es el VF $0{,}66$ de catálogo.}
   \label{fig:cables_tiempo}
 \end{figure}
 
-\textbf{Que el pico es el eco del extremo, y no un artefacto del
-método, se verifica dentro de la misma figura}: el cable de
-$3\,\text{m}$ muestra su primer eco en $28{,}53\,\text{ns}$ y el
-segundo rebote en $57{,}05\,\text{ns}$, exactamente al doble, como
-corresponde a una señal que recorre el cable dos veces más.
+\textbf{Los dos métodos coinciden.} El eco del extremo cae exactamente
+donde lo pone la pendiente de fase, obtenida de otro parámetro
+($S_{21}$ y no $S_{11}$), y el retardo del rizado difiere del de fase
+entre $0{,}05$ y $0{,}12\,\text{ns}$, siempre dentro de la resolución
+de $\pm0{,}25\,\text{ns}$ que se le había asignado a ese método. La
+diferencia está en la precisión: el ajuste de fase usa las $801$
+muestras y no depende de dónde cae un bin de la FFT.
 
 \begin{table}[H]
   \centering
-  \caption{Retardo medido del rizado de $|S_{11}|$. Las dos últimas
-    columnas son dos lecturas del mismo dato: fijando el VF de catálogo
-    se despeja el largo eléctrico, o fijando el largo de cinta métrica
-    se despeja el VF.}
+  \caption{Retardo medido de la pendiente de fase de $S_{21}$. Las
+    columnas de $L$ y VF son dos lecturas del mismo dato: fijando el VF
+    de catálogo se despeja el largo eléctrico, y fijando el largo
+    nominal se despeja el VF. La última columna es el desvío rms de la
+    fase respecto de un retardo puro.}
   \label{tab:cables_retardo}
+  \small\setlength{\tabcolsep}{4pt}
   \begin{tabular}{lccccc}
     \toprule
-    \textbf{Cable} & $\bm{2\tau}$ & $\bm{\tau}$ & \textbf{ns/m}
-    & $\bm{L}$ \textbf{si VF} $\bm{=0{,}66}$ & \textbf{VF si} $\bm{L}$ \textbf{nominal} \\
+    \textbf{Cable} & $\bm{\tau}$ & \textbf{ns/m}
+    & $\bm{L}$ \textbf{si VF} $\bm{=0{,}66}$ & \textbf{VF si} $\bm{L}$ \textbf{nominal}
+    & \textbf{Desvío de fase} \\
     \midrule
-    RG-213 nuevo, $1\,\text{m}$    & $9{,}75$ ns  & $4{,}87$ ns  & $4{,}87$ & $0{,}96$ m & $0{,}684$ \\
-    RG-58 viejo, $3\,\text{m}$     & $28{,}53$ ns & $14{,}26$ ns & $4{,}75$ & $2{,}82$ m & $0{,}702$ \\
-    RG-58 viejo, $2{,}6\,\text{m}$ & $23{,}12$ ns & $11{,}56$ ns & $4{,}45$ & $2{,}29$ m & $0{,}750$ \\
+    RG-213 A, $1\,\text{m}$        & $4{,}983$ ns  & $4{,}98$ & $0{,}99$ m & $0{,}669$ & $0{,}09^\circ$ \\
+    RG-213 B, $1\,\text{m}$        & $4{,}975$ ns  & $4{,}98$ & $0{,}98$ m & $0{,}671$ & $0{,}08^\circ$ \\
+    RG-58 viejo, $3\,\text{m}$     & $14{,}319$ ns & $4{,}77$ & $2{,}83$ m & $0{,}699$ & $0{,}37^\circ$ \\
+    RG-58 viejo, $2{,}6\,\text{m}$ & $11{,}686$ ns & $4{,}49$ & $2{,}31$ m & $0{,}742$ & $1{,}78^\circ$ \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\textbf{Los tres cables miden más rápido que el nominal}, con VF
-despejados entre $0{,}68$ y $0{,}75$ contra el $0{,}66$ de catálogo.
-Antes de leer eso como un hallazgo hay que mirar el error del método:
-la resolución en tiempo la fija el ancho barrido, $1/BW =
-0{,}50\,\text{ns}$ sobre $2\tau$, o sea $\pm0{,}25\,\text{ns}$ sobre
-$\tau$. Eso es $1{,}8$\,\% en el cable de $3\,\text{m}$ pero
-$5{,}1$\,\% en el de $1\,\text{m}$, y se suma el error de medir el
-largo físico con cinta métrica, que en un cable de $1\,\text{m}$ pesa
-un $1$\,\% por cada centímetro. Con esos márgenes, la desviación no
-alcanza para descartar el VF de catálogo.
+\textbf{Los RG-213 confirman el catálogo.} Los dos dan VF $0{,}67$, a
+$1{,}5$\,\% del $0{,}66$ nominal, y difieren entre sí apenas
+$8\,\text{ps}$. Una diferencia de $1{,}5$\,\% en un cable de
+$1\,\text{m}$ son $1{,}5\,\text{cm}$ de largo, que es del orden del
+error de medir el cable con cinta y de dónde se toma el plano de
+referencia de los conectores. Con fase, el primer valor que se había
+despejado del rizado ($0{,}684$) resulta ser error del método.
 
-\textbf{Por eso todos los cálculos de diseño de este capítulo usan el
-VF nominal $0{,}66$}, no el despejado acá. Para poder afirmar algo
-sobre el VF real hace falta el barrido con fase, sobre un cable largo:
-los cables cortos se miden mal por este camino.
+\textbf{Los RG-58 viejos dan más rápidos}: $0{,}699$ el de
+$3\,\text{m}$ y $0{,}742$ el de $2{,}6\,\text{m}$. Medidos con cinta,
+los dos cables tienen aproximadamente su largo nominal, así que la
+diferencia no se explica por el largo: para ajustarse al catálogo, el
+de $3\,\text{m}$ tendría que medir unos $17\,\text{cm}$ menos. En ese
+cable es probable que el dieléctrico no sea exactamente el del RG-58
+de catálogo. El
+valor del de $2{,}6\,\text{m}$ no es físico para polietileno sólido y
+se trata en la sección siguiente. Aun así, \textbf{todos los cálculos
+de diseño de este capítulo siguen usando el VF nominal $0{,}66$}: es
+el valor que se conoce sin medir, y el offset real del banco se corrige
+igual con la calibración de la Sección~\ref{sec:cables_calibracion}.
+
+\subsection{El cable de $2{,}6\,\text{m}$: por qué se lo supone en mal estado}
+\label{sub:cables_defectuoso}
+
+El cable de $2{,}6\,\text{m}$ es uno de los dos que estuvieron en el
+banco, del lado de RX, y se sospechaba de él antes de medirlo. Las
+mediciones muestran tres indicios independientes, cada uno en un
+parámetro distinto:
+
+\begin{enumerate}
+  \item \textbf{Atenúa el doble de lo que le corresponde, y no con la
+    forma de un cable.} Da $1{,}13\,\text{dB/m}$ a $1\,\text{GHz}$
+    contra los $0{,}53$ del catálogo y los $0{,}527$ que midió su
+    gemelo de $3\,\text{m}$ (Tabla~\ref{tab:cables_alfa}). Aun siendo
+    $40\,\text{cm}$ más corto, pierde $3{,}56\,\text{dB}$ en el centro
+    de la banda contra $1{,}91$. Además, la pérdida no crece como
+    $\sqrt{f}$: en la Figura~\ref{fig:cables_s21} la curva se dobla
+    hacia abajo, y el ajuste libre $a\sqrt{f}+b$ necesita un término
+    constante de $-3{,}43\,\text{dB}$ para seguirla, siete veces el del
+    RG-58 sano. El efecto pelicular y el dieléctrico por sí solos
+    no dan esa forma.
+  \item \textbf{Es el peor adaptado de los cuatro.} $|S_{11}|$ llega a
+    $-11{,}7\,\text{dB}$ (VSWR $1{,}71$) en la banda del radar, contra
+    $-14{,}5\,\text{dB}$ del RG-58 de $3\,\text{m}$ y
+    $-21\,\text{dB}$ de los RG-213 (Figura~\ref{fig:cables_s11}).
+    Refleja más en sus extremos, que es lo que se espera de un conector
+    mal armado o flojo.
+  \item \textbf{Su retardo no es el de un cable sano.} La fase de
+    $S_{21}$ se aparta $1{,}78^\circ$ rms de un retardo puro, cinco
+    veces más que el RG-58 de $3\,\text{m}$ y veinte veces más que los
+    RG-213 (Tabla~\ref{tab:cables_retardo}). El VF que se despeja,
+    $0{,}742$, no es posible en polietileno sólido. Y en la respuesta
+    al impulso (Figura~\ref{fig:cables_tiempo}) aparece una reflexión
+    \emph{dentro} del cable, unos $15\,\text{dB}$ por debajo del eco
+    del extremo. Esa reflexión se ve desde los dos puertos: en
+    $12{,}63\,\text{ns}$ desde el puerto~1 y en $10{,}77\,\text{ns}$
+    desde el puerto~2. Las dos lecturas suman $23{,}40\,\text{ns}$,
+    igual a los $2\tau = 23{,}37\,\text{ns}$ del cable, así que no es
+    un artefacto de la transformada: es un punto físico, a unos
+    $1{,}4\,\text{m}$ de un extremo y $1{,}2\,\text{m}$ del otro.
+\end{enumerate}
+
+Los dos primeros indicios son compatibles con un conector en mal
+estado, que era la hipótesis inicial. El tercero sugiere que el daño
+no está solo en los extremos: una discontinuidad a mitad del cable
+puede ser un aplastamiento, un doblez por debajo del radio mínimo o un
+empalme. Conviene no sobreinterpretarlo. El RG-58 de $3\,\text{m}$,
+que en todo lo demás se comporta bien, muestra un par de reflexiones
+internas del mismo tipo, unos $5\,\text{dB}$ más débiles respecto de su
+propio eco del extremo. Además, una reflexión chica no alcanza para
+explicar por sí sola los $1{,}9\,\text{dB}$ que pierde de más en el
+centro de la banda: un daño con pérdida puede reflejar poco.
+
+La conclusión práctica es la misma en cualquier caso: \textbf{el cable
+de $2{,}6\,\text{m}$ no representa al RG-58} y no conviene volver a
+usarlo en el banco. Que el defecto esté en un conector o en el cable
+solo decide si vale la pena rearmarlo.
 
 \subsection{Consecuencias para el radar}
 \label{sub:cables_impacto}
@@ -1630,28 +1730,34 @@ los cables cortos se miden mal por este camino.
   \centering
   \includegraphics[width=\linewidth]{figuras/cables/cables_impacto.png}
   \caption{Lo que el cableado le cuesta al radar. Izquierda: offset de
-    distancia según el coaxil neto $D$, con los escenarios de cableado
-    marcados. Derecha: atenuación de los dos cables de antena en el
-    centro de la banda, con las pendientes medidas de cada cable.}
+    distancia $d_\text{offset} = D/(2\,\text{VF})$ con el VF $0{,}66$
+    de catálogo, según el coaxil neto $D$, con los dos juegos de cables
+    marcados. Derecha: pérdida de un par de cables (TX más RX) en el
+    centro de la banda, $1462\,\text{MHz}$, en función del largo de
+    cada uno, con la atenuación por metro medida en cada cable. La
+    recta del RG-58 de $2{,}6\,\text{m}$ es la del cable dañado
+    (Sección~\ref{sub:cables_defectuoso}), no la de un RG-58.}
   \label{fig:cables_impacto}
 \end{figure}
 
 Los dos costos se leen por separado. En \textbf{retardo}, cambiar los
 RG-58 de $3$ y $2{,}6\,\text{m}$ por los dos RG-213 de $1\,\text{m}$
-baja el offset de $4{,}20\,\text{m}$ a $1{,}48\,\text{m}$. Sigue siendo
+baja el offset de $4{,}20\,\text{m}$ a $1{,}48\,\text{m}$ con los
+valores de catálogo, o de $3{,}86\,\text{m}$ a $1{,}45\,\text{m}$ con
+los retardos medidos (Tabla~\ref{tab:cables_teoria_practica}). Sigue siendo
 diez veces la resolución de $14{,}4\,\text{cm}$, así que \textbf{acortar
 los cables no reemplaza a la calibración} de la
 Sección~\ref{sec:cables_calibracion}: solo la vuelve una corrección más
 chica. Lo único que anula el offset de raíz es emparejar el LO
 (Tabla~\ref{tab:cables_nuevo_offset}).
 
-En \textbf{atenuación}, el par original costaba $5{,}3\,\text{dB}$ a
-$1{,}46\,\text{GHz}$ contra los $0{,}7\,\text{dB}$ del par nuevo. De
-esos $4{,}6\,\text{dB}$ recuperados, sin embargo, solo una parte es
+En \textbf{atenuación}, el par original costaba $5{,}5\,\text{dB}$ a
+$1{,}46\,\text{GHz}$ contra los $0{,}75\,\text{dB}$ del par nuevo. De
+esos $4{,}7\,\text{dB}$ recuperados, sin embargo, solo una parte es
 mérito del RG-213: dos RG-58 sanos de esos largos habrían costado
-$3{,}5\,\text{dB}$, así que $1{,}8\,\text{dB}$ los estaba tirando el
-conector en mal estado del cable de $2{,}6\,\text{m}$ y se habrían
-recuperado con solo rehacerlo. La mitad de la mejora cae delante del
+$3{,}6\,\text{dB}$, así que $1{,}9\,\text{dB}$ los estaba perdiendo el
+cable de $2{,}6\,\text{m}$ en mal estado y se habrían recuperado con
+solo reemplazarlo. La mitad de la mejora cae delante del
 LNA, donde se descuenta uno a uno de la figura de ruido de toda la
 cadena.
 
@@ -1690,11 +1796,11 @@ ambos por separado, no un único número.
 \begin{table}[H]
   \centering
   \caption{Resumen comparativo entre el valor teórico (predicho por las
-    ecuaciones de este capítulo, a partir de longitudes medidas con
-    cinta métrica y $\text{VF}$ nominal de catálogo) y el valor medido
-    con el VNA, para ambos juegos de cables. La columna del juego nuevo
-    supone que el segundo RG-213 es igual al medido.}
+    ecuaciones de este capítulo, a partir de las longitudes nominales
+    y el $\text{VF}$ de catálogo) y el valor medido con el VNA a partir
+    de la fase de $S_{21}$, para ambos juegos de cables.}
   \label{tab:cables_teoria_practica}
+  \small\setlength{\tabcolsep}{4pt}
   \begin{tabular}{lcccc}
     \toprule
     & \multicolumn{2}{c}{\textbf{Juego original (2 RG-58)}}
@@ -1702,11 +1808,11 @@ ambos por separado, no un único número.
     \cmidrule(lr){2-3}\cmidrule(lr){4-5}
     & Teoría & Medido & Teoría & Medido \\
     \midrule
-    VF                                        & $0{,}66$\textsuperscript{*} & $0{,}70$\textsuperscript{\dag} & $0{,}66$\textsuperscript{*} & $0{,}68$\textsuperscript{\dag} \\
-    $\tau_\text{TX}+\tau_\text{RX}$ {[}ns{]}  & $28{,}3$ & $25{,}8$ & $10{,}1$ & $9{,}75$ \\
-    $L_\text{TX}+L_\text{RX}$ {[}m{]}         & $5{,}60$ & $5{,}11$ & $2{,}00$ & $1{,}93$ \\
-    $d_\text{offset}$ {[}m{]}\textsuperscript{\S} & $4{,}20$ & $\bm{3{,}83}$ & $1{,}48$ & $\bm{1{,}42}$ \\
-    Atenuación del par @ $1{,}5\,\text{GHz}$ {[}dB{]} & $3{,}64$ & $5{,}32$\textsuperscript{\ddag} & $0{,}69$ & $0{,}72$ \\
+    VF                                        & $0{,}66$\textsuperscript{*} & $0{,}70$ / $0{,}74$\textsuperscript{\dag} & $0{,}66$\textsuperscript{*} & $0{,}67$\textsuperscript{\dag} \\
+    $\tau_\text{TX}+\tau_\text{RX}$ {[}ns{]}  & $28{,}3$ & $26{,}0$ & $10{,}1$ & $9{,}96$ \\
+    $L_\text{TX}+L_\text{RX}$ {[}m{]}         & $5{,}60$ & $5{,}15$ & $2{,}00$ & $1{,}97$ \\
+    $d_\text{offset}$ {[}m{]}\textsuperscript{\S} & $4{,}20$ & $\bm{3{,}86}$ & $1{,}48$ & $\bm{1{,}45}$ \\
+    Atenuación del par @ $1{,}5\,\text{GHz}$ {[}dB{]} & $3{,}64$ & $5{,}47$\textsuperscript{\ddag} & $0{,}69$ & $0{,}75$ \\
     \bottomrule
   \end{tabular}
 
@@ -1716,16 +1822,17 @@ ambos por separado, no un único número.
     (Tabla~\ref{tab:vf_cables}), que es el que se usa en todos los
     cálculos de diseño de este capítulo.
 
-    \textsuperscript{\dag}Despejado del retardo medido suponiendo el
-    largo de cinta métrica. No se lo adopta: el error del método
-    ($\pm0{,}25\,\text{ns}$ sobre $\tau$) no alcanza para distinguirlo
-    del nominal --- ver Sección~\ref{sub:cables_retardo_medido}.
+    \textsuperscript{\dag}Despejado del retardo de fase suponiendo el
+    largo nominal de cada cable, que coincide aproximadamente con el
+    medido con cinta; en el juego original, $3\,\text{m}$ y
+    $2{,}6\,\text{m}$ por separado. Para diseño se sigue usando el
+    nominal --- ver Sección~\ref{sub:cables_retardo_medido}.
 
-    \textsuperscript{\ddag}Incluye el cable de $2{,}6\,\text{m}$ con el
-    conector en mal estado, que por sí solo aporta $3{,}4\,\text{dB}$
-    de los $5{,}3$. Dos RG-58 sanos de esos largos habrían costado
-    $3{,}5\,\text{dB}$, extrapolando el $\alpha$ medido del cable de
-    $3\,\text{m}$.
+    \textsuperscript{\ddag}Incluye el cable de $2{,}6\,\text{m}$ en mal
+    estado (Sección~\ref{sub:cables_defectuoso}), que por sí solo
+    aporta $3{,}56\,\text{dB}$ de los $5{,}47$. Dos RG-58 sanos de esos
+    largos habrían costado $3{,}6\,\text{dB}$, extrapolando el $\alpha$
+    medido del cable de $3\,\text{m}$.
 
     \textsuperscript{\S}El camino del LO es una conexión directa de
     $\approx 5\,\text{cm}$, que aporta $0{,}25\,\text{ns}$: se lo resta
@@ -1736,29 +1843,30 @@ ambos por separado, no un único número.
 \end{table}
 
 \textbf{El offset medido no depende de suponer nada}, y eso lo hace el
-número más sólido de la tabla: sale de multiplicar el retardo que se
-leyó en el rizado por $c_0/2$, sin pasar por el factor de velocidad ni
-por el largo de cinta métrica. Da $3{,}83\,\text{m}$ contra los
-$4{,}20\,\text{m}$ que predice la ecuación~\eqref{eq:d_offset}: un
-$9$\,\% menos.
+número más sólido de la tabla: sale de multiplicar el retardo de fase
+por $c_0/2$, sin pasar por el factor de velocidad ni por el largo de
+cinta métrica. En el juego nuevo da $1{,}45\,\text{m}$ contra
+$1{,}48\,\text{m}$ de la ecuación~\eqref{eq:d_offset}, un $2$\,\% de
+diferencia. En el original da $3{,}86\,\text{m}$ contra $4{,}20$, un
+$8$\,\% menos.
 
-Ese número cierra además con una estimación completamente
+El del juego original cierra además con una estimación completamente
 independiente, hecha en el banco antes de tener el VNA: con
 $T_c = 80\,\text{ms}$, una placa a $1\,\text{m}$ daba algo más de
 $800\,\text{Hz}$, de donde el offset resultaba
 $\approx 3{,}6\,\text{m}$. Tres caminos que no comparten ni el
 instrumento ni el método ---la ecuación, el VNA y el propio radar---
-caen dentro de un $10$\,\%, con los dos valores experimentales por
-debajo del teórico.
+caen dentro de un $15$\,\%, con los dos valores experimentales por
+debajo del teórico y a un $7$\,\% entre sí.
 
-Que la teoría quede sistemáticamente alta es esperable, porque sus dos
-entradas están sesgadas en la misma dirección: los largos se midieron
-con cinta métrica sobre un tendido que no está recto, lo que
-\emph{sobreestima} el cable eléctrico, y el $\text{VF}$ nominal
-$0{,}66$ es el más lento de los valores plausibles ---los tres cables
-midieron más rápido (Tabla~\ref{tab:cables_retardo})---, lo que
-\emph{sobreestima} el retardo. Las dos cosas empujan $d_\text{offset}$
-para arriba.
+La diferencia entre los dos juegos está en los cables, no en la
+ecuación. Los RG-213 miden el VF de catálogo
+(Tabla~\ref{tab:cables_retardo}), y con ellos teoría y medición
+coinciden. Los RG-58 viejos miden más rápidos que el nominal, y el de
+$2{,}6\,\text{m}$ bastante más, por el daño descripto en la
+Sección~\ref{sub:cables_defectuoso}. Por eso con ese juego la teoría
+queda alta. El largo no es la causa: medidos con cinta, los cables
+tienen aproximadamente su largo nominal.
 
 %============================================================
 %  APÉNDICES
