@@ -66,6 +66,10 @@ build/
 *.pdf
 *.svg
 
+# El PDF de la tesis SI va al repo: el que cambia el .tex lo recompila
+# (compilar.bat) y lo commitea junto con el .tex, asi el otro lo tiene al dia.
+!redaccion/tesis_gpr_fmcw.pdf
+
 # ---------------------------------------------------------------------------
 # Basura intermedia de compilar redaccion/tesis_gpr_fmcw.tex (pdflatex + biber)
 # ---------------------------------------------------------------------------
