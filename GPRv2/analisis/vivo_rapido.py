@@ -130,6 +130,17 @@ de guardar. No sobrescribe nunca: si el nombre ya existe sale <nombre>_2.png.
   figura se explica sola seis meses despues. Con RECORTE_CAPTURA = None se
   guarda la ventana entera.
 
+ARCHIVOS NUEVOS POR CORRIDA. Cada corrida graba datos/captura_<sello>.csv y
+datos/triangular_<sello>.csv, con el sello dd-mm-aaaa_hh-mm-ss del momento de
+arrancar, asi que ninguna medicion pisa a la anterior. (vivo.py sigue
+escribiendo captura.csv y triangular.csv, y graficar_captura.py y
+waterfall.py siguen buscando esos nombres fijos.)
+
+LA COLUMNA DE CONTROLES SE ACUERDA. Lo que quedo en los cuadros de texto, el
+eje elegido (m o Hz) y el nombre de la captura se guardan en
+datos/vivo_config.json al cambiarlos y al salir, y la proxima corrida arranca
+con eso. La primera vez el eje arranca en Hz.
+
 Teclas
 ------
     e   cambia el eje m <-> Hz
@@ -244,7 +255,7 @@ NOMBRE_CAPTURA_DEF = "captura"
 #              El rectangulo se mide sobre la figura ya dibujada, asi que si
 #              algun dia se mueve un axes no hay que venir a tocar un numero
 #              a mano — y no corta ningun rotulo, que es lo que pasaba con el
-#              recorte fijo (se comia el "Hace [s]").
+#              recorte fijo (se comia el rotulo del eje de tiempo).
 #   None       la ventana entera, controles incluidos.
 #   (x0,y0,x1,y1)  fracciones de la figura, a mano.
 #
@@ -259,9 +270,19 @@ MARGEN_CAPTURA = 0.10
 
 AQUI    = os.path.dirname(os.path.abspath(__file__))
 DATOS   = os.path.join(AQUI, "..", "datos")
-SALIDA  = os.path.join(DATOS, "captura.csv")
-SAL_TRI = os.path.join(DATOS, "triangular.csv")
 CAL_JSON = os.path.join(DATOS, "calibracion_distancia.json")
+# La configuracion de la columna de controles, para arrancar con lo ultimo
+# que se uso. Es por maquina: esta en .gitignore.
+CONFIG_JSON = os.path.join(DATOS, "vivo_config.json")
+# Cada corrida graba en un par de archivos NUEVOS, con la fecha y la hora en
+# el nombre, asi una medicion no pisa a la anterior:
+#     datos/captura_18-09-2026_17-33-05.csv
+#     datos/triangular_18-09-2026_17-33-05.csv
+# Los dos llevan el MISMO sello, que es lo que dice cuales van juntos.
+# graficar_captura.py y waterfall.py siguen buscando datos/captura.csv y
+# datos/triangular.csv por nombre fijo: para reanalizar una corrida hay que
+# apuntarlos al par que corresponda.
+FORMATO_SELLO = "%d-%m-%Y_%H-%M-%S"
 CAPTURAS = os.path.join(DATOS, "capturas")
 VCO_CSV = os.path.join(AQUI, "..", "..", "VCO", "Caracteristica VCO.csv")
 
@@ -407,8 +428,31 @@ def abrir_puerto():
     ser.open()
     time.sleep(0.5)
     ser.reset_input_buffer()
+    # 'fs' antes de 'run': la placa contesta con "# retardo = N muestras", que
+    # el Lector necesita para alinear la triangular con el batido. El firmware
+    # la emite solo al arrancar y con este comando, y como el puerto se abre
+    # sin resetear la placa y se vacia el buffer, sin esto nunca llegaba y el
+    # retardo quedaba en 0 (13 muestras = 2,2 ms corridos, ver CLAUDE.md).
+    ser.write(b"fs\n")
     ser.write(b"run\n")
     return ser
+
+
+def archivos_de_salida():
+    """(captura, triangular) de ESTA corrida, con el sello de fecha y hora."""
+    sello = time.strftime(FORMATO_SELLO)
+    return (os.path.join(DATOS, f"captura_{sello}.csv"),
+            os.path.join(DATOS, f"triangular_{sello}.csv"))
+
+
+def cargar_config(path):
+    """La configuracion guardada, o {} si no hay o no se entiende."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
 
 
 # --- Calibracion del eje de distancia --------------------------------------
@@ -515,9 +559,10 @@ class Vivo:
         self.alcance = ALCANCE_DEF
         self.ignorar = IGNORAR_DEF
         self.margen = MARGEN_DEF
-        self.en_metros = True
+        self.en_metros = False      # el eje arranca en Hz
         self.piso, self.techo = PISO_DEF, TECHO_DEF
         self.dist_real = 1.0
+        self.nombre_captura = NOMBRE_CAPTURA_DEF
         self.aviso = ""
 
         # Fondo. `fondo` es el que se usa; `mti` dice si ademas se lo va
@@ -1035,7 +1080,7 @@ class Vivo:
                                  extent=(0, ALCANCE_DEF, 0, VENTANA_DEF),
                                  vmin=self.piso, vmax=self.techo,
                                  interpolation="nearest")
-        self.ax.set_ylabel("Hace [s]")
+        self.ax.set_ylabel("Tiempo atrás [s]  (0 = ahora)")
         self.ax.tick_params(labelbottom=False)   # el eje x lo rotula la FFT
         self.fig.colorbar(self.im, cax=self.axc, label="Potencia relativa [dB]")
         self.txt = self.ax.text(0.5, 0.5, "esperando muestras...",
@@ -1111,7 +1156,7 @@ class Vivo:
         # .text en el momento de guardar, asi que no hace falta apretar Enter:
         # alcanza con tipear y darle al boton.
         ax = self.fig.add_axes([0.118, y, 0.092, 0.030])
-        self.caja_nombre = TextBox(ax, "captura  ", initial=NOMBRE_CAPTURA_DEF)
+        self.caja_nombre = TextBox(ax, "captura  ", initial=self.nombre_captura)
         y -= 0.040
 
         y -= 0.010
@@ -1165,6 +1210,7 @@ class Vivo:
         self._cache.clear()
         self._refrescar_cajas()
         self._poner_eje_x()
+        self.guardar_config()
 
     def _refrescar_cajas(self):
         """Deja los cuadros mostrando el valor que de verdad quedo.
@@ -1181,10 +1227,59 @@ class Vivo:
                 caja.set_val(texto)
         self.aviso = aviso
 
+    # --- configuracion de la columna de controles ---
+
+    def aplicar_config(self, d):
+        """Carga lo que haya en `d` (lo que dejo la corrida anterior). Lo que
+        falte o no se entienda queda en su valor por defecto."""
+        try:
+            if "n_rampas" in d:
+                self.n_rampas = int(np.clip(int(d["n_rampas"]), 1, N_MAX))
+            if "ventana" in d:
+                self.ventana = float(np.clip(float(d["ventana"]), 0.5,
+                                             VENTANA_MAX))
+            if "alcance" in d:
+                self.alcance = max(float(d["alcance"]), 0.05)
+            for k in ("piso", "techo", "ignorar", "margen", "dist_real"):
+                if k in d:
+                    setattr(self, k, float(d[k]))
+            if "en_metros" in d:
+                self.en_metros = bool(d["en_metros"])
+            if "nombre_captura" in d:
+                self.nombre_captura = str(d["nombre_captura"])
+        except (TypeError, ValueError) as e:
+            print(f"  [!] configuracion guardada con un valor raro, se ignora "
+                  f"el resto: {e}")
+        self._cache.clear()
+
+    def guardar_config(self):
+        """Deja en CONFIG_JSON lo que hay en la columna de controles.
+
+        piso, techo y margen se guardan solo si NO hay fondo: medir el fondo
+        o prender el MTI los mueve a valores que solo tienen sentido con ese
+        fondo, y la proxima corrida arranca sin fondo. Lo demas se guarda
+        siempre.
+        """
+        d = cargar_config(CONFIG_JSON)
+        nombre = (self.caja_nombre.text if hasattr(self, "caja_nombre")
+                  else self.nombre_captura)
+        d.update(n_rampas=self.n_rampas, ventana=self.ventana,
+                 alcance=self.alcance, ignorar=self.ignorar,
+                 dist_real=self.dist_real, en_metros=self.en_metros,
+                 nombre_captura=nombre)
+        if self.fondo is None:
+            d.update(piso=self.piso, techo=self.techo, margen=self.margen)
+        try:
+            with open(CONFIG_JSON, "w", encoding="utf-8") as f:
+                json.dump(d, f, indent=2)
+        except OSError as e:
+            print(f"  [!] no pude guardar la configuracion: {e}")
+
     def _cambiar_eje(self, _=None):
         self.en_metros = not self.en_metros
         self._cache.clear()
         self._poner_eje_x()
+        self.guardar_config()
 
     def _medir_fondo(self, _=None):
         self.aviso = self.medir_fondo()
@@ -1402,7 +1497,8 @@ class Vivo:
 
     def _poner_eje_x(self):
         if self.T is None:
-            self.axf.set_xlabel("Distancia [m]")
+            self.axf.set_xlabel("Distancia [m]" if self.en_metros
+                                else "Frecuencia de batido [Hz]")
             return
         if self.en_metros:
             tope, etiqueta = self.alcance, "Distancia [m]"
@@ -1753,13 +1849,19 @@ def main():
               "  distancia bien distinta, y despues 'calibrar'.")
 
     ser = abrir_puerto()
-    print(f"Grabando a {SALIDA} (y {SAL_TRI}). Sobrescribe lo anterior.")
+    salida, sal_tri = archivos_de_salida()
+    print(f"Grabando a {salida}\n         y {sal_tri}")
 
-    with open(SALIDA, "w", encoding="utf-8", newline="\n") as f_cap, \
-         open(SAL_TRI, "w", encoding="utf-8", newline="\n") as f_tri:
+    config = cargar_config(CONFIG_JSON)
+    if config:
+        print(f"Configuracion de la corrida anterior cargada de {CONFIG_JSON}")
+
+    with open(salida, "w", encoding="utf-8", newline="\n") as f_cap, \
+         open(sal_tri, "w", encoding="utf-8", newline="\n") as f_tri:
         lec = Lector(ser, f_cap, f_tri)
         lec.start()
         vivo = Vivo(lec, curva, cal)
+        vivo.aplicar_config(config)
         vivo.armar_figura()
         # El timer del canvas en vez de FuncAnimation: no hace falta guardar
         # cuadros, y el blitting lo maneja _pintar() a mano.
@@ -1770,6 +1872,7 @@ def main():
             plt.show()
         finally:
             timer.stop()
+            vivo.guardar_config()
             lec.parar = True
             lec.join(timeout=1.0)
             try:
@@ -1777,7 +1880,7 @@ def main():
             except Exception:
                 pass
             ser.close()
-    print(f"Listo. {lec.n_filas} muestras guardadas en {SALIDA}.")
+    print(f"Listo. {lec.n_filas} muestras guardadas en {salida}.")
 
 
 if __name__ == "__main__":

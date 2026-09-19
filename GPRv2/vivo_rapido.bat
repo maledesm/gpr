@@ -34,7 +34,10 @@ echo.
 echo   El panel de la derecha muestra "ms/cuadro": si se acerca a 200,
 echo   bajale la ventana o subile rampas/fila.
 echo.
-echo   OJO: sobrescribe datos\captura.csv, igual que grabar.bat.
+echo   Cada corrida graba un par de CSV NUEVOS en datos\ con la fecha
+echo   y la hora en el nombre (captura_dd-mm-aaaa_hh-mm-ss.csv y su
+echo   triangular_...). No pisa nada. Los cuadros de la izquierda
+echo   arrancan como quedaron la ultima vez.
 echo  ==========================================================
 
 "%PY%" "analisis\vivo_rapido.py"
