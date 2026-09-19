@@ -36,7 +36,7 @@
 //      GPIO7 <- OUT  datos (DOUT)
 // ===========================================================================
 
-#include <Arduino.h>
+#include <Arduino.h>
 #include <string.h>   // memset, para reiniciar el filtro de diezmado
 #include "driver/i2s_std.h"
 #include "esp_timer.h"
@@ -382,6 +382,16 @@ void loop() {
   // de leerla costaria el tiempo de escribir el bloque entero por USB, que
   // son ~1 ms, o sea un 3% del periodo de la triangular.
   int tri = analogRead(PIN_TRI);
+  // EXPERIMENTO 2026-09-18 (ver GPRv2/CLAUDE.md, "la triangular sale con dos
+  // lineas"): la lectura cae al azar en uno de dos estados separados ~390
+  // cuentas. Para saber si el estado cambia entre CONVERSIONES (el ADC o su
+  // driver) o entre ITERACIONES (el momento en que el lazo lee: USB, DMA), se
+  // lee dos veces mas, pegadas, y se emite todo en una linea "#v3,..." aparte
+  // al final del bloque. Ningun script de la PC la mira: empieza con '#' y no
+  // con "#v,". Sacar cuando el experimento termine.
+  int tri2 = analogRead(PIN_TRI);
+  int tri3 = analogRead(PIN_TRI);
+  int64_t t_lect = esp_timer_get_time();
 
   // Copia del anillo. Si el indice no cambio entre antes y despues, no entro
   // ningun flanco mientras copiabamos y la foto es consistente. Hace falta
@@ -424,4 +434,14 @@ void loop() {
     Serial.printf("#v,%d,%lu\n", tri,
                   (unsigned long)(n_emitidas - 1 + g_retardo));
   }
+
+  // EXPERIMENTO: las tres lecturas y los microsegundos desde la lectura de la
+  // iteracion anterior (5333 nominales a 48 kHz con bloques de 256: si el
+  // lazo se atrasa o procesa dos bloques seguidos, se ve aca).
+  static int64_t t_lect_ant = 0;
+  if (g_run && n_emitidas) {
+    Serial.printf("#v3,%d,%d,%d,%ld\n", tri, tri2, tri3,
+                  (long)(t_lect_ant ? t_lect - t_lect_ant : 0));
+  }
+  t_lect_ant = t_lect;
 }

@@ -307,7 +307,101 @@ con interlineado 1,15.
 > ctrl. Y `_tecla()` ignora todo mientras se tipea en el cuadro del nombre: si
 > no, escribir "fondo_sala" prendia el MTI y guardaba una captura.
 
-### No hay mediciones reales en la maquina
+### Archivos nuevos por corrida, y la columna de controles se acuerda
+
+Cambiado el 2026-09-18 (Martin). Tres cosas, solo en `vivo_rapido.py`:
+
+- **Cada corrida graba un par de CSV nuevos**, `datos/captura_<sello>.csv` y
+  `datos/triangular_<sello>.csv`, con el sello `dd-mm-aaaa_hh-mm-ss` del
+  momento de arrancar. Nada se pisa. `vivo.py` y `grabar_rampa.py` siguen
+  escribiendo `captura.csv` / `triangular.csv`, y **`graficar_captura.py` y
+  `waterfall.py` siguen leyendo esos nombres fijos**: para reanalizar una
+  corrida hay que apuntarlos al par que corresponda (o copiarlo con ese
+  nombre). `verificar_rapido.py` no depende de las rutas y sigue pasando.
+- **La columna de controles se guarda** en `datos/vivo_config.json` (en
+  `.gitignore`, es por maquina) cada vez que se aplica un cuadro, al cambiar
+  el eje y al salir, y la corrida siguiente arranca con eso. `piso`, `techo` y
+  `margen` se guardan solo si NO hay fondo medido ni MTI: con fondo esos tres
+  valen otra cosa y la corrida siguiente arranca sin fondo. **El eje arranca
+  en Hz** la primera vez (antes en metros).
+- El rotulo del eje vertical del radargrama pasa de `Hace [s]` a
+  `Tiempo atrás [s]  (0 = ahora)`.
+
+### La triangular sale con dos lineas: es un offset del ADC, no sincronismo
+
+Visto el 2026-09-18 en el cuadro "Triangular (plegada)": dos lineas paralelas
+bien separadas, en la subida y en la bajada. Analizado sobre la
+`triangular.csv` de esa corrida (79.770 lecturas, Tprf 100 ms, ninguna linea
+perdida):
+
+- El residuo contra el triangulo ajustado es bimodal: dos grupos en +195 y
+  -190 cuentas, 47 % / 53 %, y el estado se sortea casi sin memoria de una
+  lectura a la siguiente (P(alto|alto) 0,54, P(alto|bajo) 0,41).
+- **No es un corrimiento temporal** (ni sync, ni retraso del lazo): a 1 ms
+  del vertice de arriba la separacion sigue entera (373 contra 397 cuentas en
+  media rampa). Una triangular corrida en el tiempo tiene el pico en otro
+  lado y las dos lineas se cruzarian ahi. El modelo "offset de valor" ajusta
+  en +-6 ms del vertice con RMS 114 cuentas; el de "corrimiento de +-4,5 ms",
+  con 160 a 175.
+- Tampoco es el divisor (un divisor flojo da error proporcional, y este es
+  constante a lo largo de la rampa), ni el nivel del batido de ese bloque
+  (correlacion -0,11).
+- Es un **offset aditivo de ~390 cuentas = ~0,24 V en el pin** (~0,47 V
+  referido al generador). En el vertice de abajo la separacion se achica
+  porque el grupo bajo se aplasta contra el 0 del ADC.
+
+**Experimento 1 (2026-09-18, hecho): tres lecturas pegadas del ADC por
+iteracion.** El firmware emite `#v3,<a1>,<a2>,<a3>,<us desde la iteracion
+anterior>` y `analisis/experimento_adc3.py` (`experimento_adc3.bat`) graba el
+stream crudo y lo analiza (probado contra sinteticas). Resultado sobre 60 s
+(`datos/experimento_adc3_18-09-2026_18-25-37.txt`, 11.250 iteraciones):
+
+- **El estado cambia ENTRE CONVERSIONES separadas por microsegundos**: `a3-a1`
+  salta mas de 250 cuentas en el 74 % de las iteraciones, y promediar las
+  tres achica la separacion a 0,50 de la de una sola. No es el momento del
+  lazo: el tiempo entre iteraciones es 5333 us en el 99,6 % de los casos y
+  no difiere entre estados. **El USB y el DMA quedan descartados.**
+- Dentro de las tres conversiones el estado cambia **a lo sumo una vez**
+  (0,0 % con dos saltos; los patrones +-+ y -+- no existen). Eso es una onda
+  cuadrada mas lenta que las tres lecturas juntas pero mas rapida que la
+  iteracion, con ~50 % de ciclo util (54 %/46 %).
+- Entre iteraciones hay una linea espectral neta en **61,2 Hz** (42 veces la
+  mediana del espectro en la captura de 425 s; 61,4 Hz en la de 60 s), que
+  es el alias de una perturbacion de frecuencia `187,5*k +- 61,2 Hz`. Sin
+  saber cuanto tarda un `analogRead()` no se puede fijar `k`.
+- El signo del salto NO va con el sentido de la rampa (P(>0) 0,45 a 0,49 en
+  subida y en bajada): sigue siendo un offset de valor, no un retardo.
+- Si la perturbacion estuviera sobre la SENAL del generador, pasaria x4,95
+  por el amplificador al VCO (~2,3 V de escalon = 80 a 220 MHz de salto a
+  kHz) y el radar no veria nada. Como el radar mide, lo mas probable es que
+  este del lado del ESP32: masa entre el ESP y el generador, alimentacion o
+  la referencia del ADC.
+
+**En pausa desde el 2026-09-18** (decision de Martin: seguir midiendo con
+`vivo_rapido.py`, el ADC se ve otro dia). Para el radar el defecto es
+tolerable: la triangular solo fija periodo y fase, y el ajuste es sobre
+~940 lecturas con un offset simetrico. Lo que si queda mal es la amplitud que
+informa el panel (pico a pico inflado ~0,2 V). **La placa sigue con el
+firmware del experimento cargado** y el `.ino` del repo lo tiene: la linea
+`#v3` cuesta ~20 bytes por bloque y ningun lector la mira, asi que no hace
+falta reflashear para medir. Al retomar: (a) osciloscopio en GPIO3 contra GND del ESP, y
+en la salida del generador contra su propia masa; (b) experimento 2 sin
+hardware: una rafaga de ~50 `analogRead()` seguidos con marca de tiempo,
+una vez cada 20 iteraciones, que dibuja la perturbacion directo y da su
+periodo, ciclo util y si esta enganchada al reloj del ESP (tick de 1 kHz)
+o corre libre (USB del PC, fuente externa). La linea `#v3` la ignoran todos
+los lectores; sacarla del firmware cuando termine.
+
+Aparte, encontrado en el camino: **`# retardo = N` nunca llega a la PC**. El
+firmware la emite solo al arrancar y con el comando `fs`; `vivo.py` y
+`vivo_rapido.py` abren el puerto sin resetear la placa y descartan el buffer,
+asi que `self.retardo` quedaba en 0 (el primer indice de `triangular.csv`
+era 31, no 44) y la compensacion de 13 muestras = 2,2 ms del filtro de
+diezmado no se aplicaba. **Arreglado en `vivo_rapido.py` el 2026-09-18**:
+`abrir_puerto()` manda `fs` antes de `run`. `vivo.py` y `grabar_rampa.py`
+siguen con el bug (no se tocan).
+
+### No hay mediciones reales en la maquina (ya no: desde el 2026-09-18 hay capturas en `datos/`, ignoradas por git)
 
 Buscado por tres lados el 2026-09-11: `GPRv2/datos/` vacio, ningun
 `captura.csv` ni `triangular.csv` en todo el disco, y en el historial de git

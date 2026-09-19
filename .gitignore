@@ -126,5 +126,12 @@ GPRv2/datos/*.pwl
 # es la buena, conservala con  git add -f GPRv2/datos/calibracion_distancia.json
 GPRv2/datos/calibracion_distancia.json
 
+# La configuracion de la columna de controles de vivo_rapido.py (ultimos
+# valores tipeados, eje elegido): es por maquina, como la calibracion.
+GPRv2/datos/vivo_config.json
+
+# Stream crudo del experimento de las tres lecturas del ADC (megas por minuto)
+GPRv2/datos/experimento_adc3_*.txt
+
 # La figura del diagnostico de la triangular recortada (2026-09-04)
 triangular_recortada.png
