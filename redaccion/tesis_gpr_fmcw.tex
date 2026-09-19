@@ -622,6 +622,12 @@ La prueba se considera exitosa si:
   \label{eq:criterio}
 \end{equation}
 
+Aplicado sobre la $\hat d$ cruda, este criterio falla por varios metros
+en el banco: los cables coaxiles suman un retardo constante que la
+ecuación~\eqref{eq:beat_freq_aire} no contempla. El
+Capítulo~\ref{ch:cables} deduce ese término, lo mide y muestra cómo se
+calibra. El criterio se aplica sobre la distancia ya calibrada.
+
 \section{Las dos reflexiones y el espesor de capa}
 \label{sec:dos_reflexiones}
 
@@ -1089,7 +1095,7 @@ una $f^*$ compatible con un blanco a varios metros. Este capítulo
 muestra que el desvío no es un error del modelo de la
 Sección~\ref{sec:beat_freq} sino un término que faltaba: \textbf{el
 retardo eléctrico de los cables coaxiles} que conectan el splitter con
-las antenas y con el oscilador local (LO) del mezclador. Se deduce ese
+las antenas. Se deduce ese
 término a partir de la misma ecuación de propagación ya usada en la
 Sección~\ref{sec:parametros_fmcw}
 (ecuación~\eqref{eq:velocidad_medio}), se cuantifica su efecto sobre la
@@ -1202,8 +1208,8 @@ dieléctrico.
 \begin{table}[H]
   \centering
   \caption{Factor de velocidad nominal según el dieléctrico del cable
-    coaxil (valores de catálogo típicos; a confirmar contra la hoja de
-    datos del cable efectivamente utilizado).}
+    coaxil (valores de catálogo típicos). Los medidos en los cables del
+    banco están en la Tabla~\ref{tab:cables_retardo}.}
   \label{tab:vf_cables}
   \begin{tabular}{lcc}
     \toprule
@@ -1315,10 +1321,12 @@ blanco a $d = 1\,\text{m}$, con $B = 1\,\text{GHz}$.
 La fila de $T_c = 80\,\text{ms}$ es la que se comparó contra el banco:
 el modelo predice $868\,\text{Hz}$ para un blanco a $1\,\text{m}$, y lo
 observado en la medición superaba los $800\,\text{Hz}$. El acuerdo no
-debe leerse como más fino de lo que es ---el $\text{VF}$ real sigue
-siendo un valor de catálogo, no medido--- pero deja el orden de
-magnitud fuera de discusión: el aporte de los cables es varias veces el
-del blanco.
+debe leerse como más fino de lo que es: la tabla usa el $\text{VF}$ de
+catálogo, y con el retardo medido con el analizador de redes el offset
+de este juego baja a $3{,}86\,\text{m}$
+(Sección~\ref{sub:cables_comparacion}). Pero deja el orden de magnitud
+fuera de discusión: el aporte de los cables es varias veces el del
+blanco.
 
 \section{Corrección: calibración con un punto de distancia conocida}
 \label{sec:cables_calibracion}
@@ -1376,10 +1384,10 @@ cadena. Acortar los cables reduce el retardo (Sección~\ref{sec:cables_offset})
 de $T_c$ (Capítulo~\ref{ch:senal_if}), acá no hay dos efectos en
 sentidos opuestos que haya que balancear. El valor exacto de
 atenuación en la banda de $943$ a $1982\,\text{MHz}$ depende del cable
-concreto y se mide, no se supone: queda planteado como parte de la
-caracterización de la Sección~\ref{sec:cables_plantilla}.
+concreto y se mide, no se supone: está en la
+Sección~\ref{sub:cables_s21_medido}.
 
-\section{Caracterización propuesta: cables originales vs. cables nuevos}
+\section{Caracterización: cables originales vs. cables nuevos}
 \label{sec:cables_plantilla}
 
 Se armó un segundo juego de dos cables de $1\,\text{m}$ en RG-213 para
@@ -1453,20 +1461,15 @@ medida y no de más.
     la fase de $S_{21}$, con los cuatro parámetros $S$ guardados en
     Touchstone (\texttt{.s2p}). Los largos físicos, medidos con cinta,
     coinciden aproximadamente con los nominales.
-  \item \textbf{Calibración de un punto en el radar.} \emph{Pendiente.}
-    Repetir el
-    procedimiento de la Sección~\ref{sec:cables_calibracion} con cada
-    juego de cables y comparar el $d_\text{offset}^\text{medido}$
-    contra el predicho por la ecuación~\eqref{eq:d_offset} usando el
-    $\text{VF}$ medido en el paso anterior (no el nominal), en la
-    Tabla~\ref{tab:cables_teoria_practica}.
+  \item \textbf{Calibración de un punto en el radar.} \emph{Pendiente},
+    ver Sección~\ref{sub:cables_pendiente}.
   \item \textbf{Espectro de batido, mismo blanco, los dos juegos de
-    cables.} \emph{Pendiente.} Con un blanco fijo y la misma distancia, capturar el
-    panel de espectro de \texttt{vivo.py} con los cables originales y
-    con los nuevos (plantilla en la
-    Figura~\ref{fig:cables_espectro_template}), y comparar posición del
-    pico, ancho del pico y piso de ruido.
+    cables.} \emph{Pendiente}, ver Sección~\ref{sub:cables_pendiente}.
 \end{enumerate}
+
+Los dos primeros pasos caracterizan los cables solos, con el analizador
+de redes, y son los que se reportan en lo que sigue. Los dos últimos
+miden el efecto de los cables sobre el radar completo.
 
 \subsection{Resultados: pérdida de inserción (VNA)}
 \label{sub:cables_s21_medido}
@@ -1761,37 +1764,8 @@ solo reemplazarlo. La mitad de la mejora cae delante del
 LNA, donde se descuenta uno a uno de la figura de ruido de toda la
 cadena.
 
-\subsection{Resultados: espectro de batido con blanco fijo}
-
-\begin{figure}[H]
-  \centering
-  % TODO: dos capturas del panel de FFT de vivo.py (o
-  % graficar_captura.py), mismo blanco y misma distancia, una con los
-  % cables originales y otra con los nuevos. Señalar en cada una la
-  % posición del pico, su ancho a -3 dB y el piso de ruido.
-  % \includegraphics[width=0.48\linewidth]{figuras/cables/espectro_cable_original.png}
-  % \includegraphics[width=0.48\linewidth]{figuras/cables/espectro_cable_nuevo.png}
-  \fbox{\parbox{0.9\linewidth}{\centering\vspace{3cm}
-    \textit{Pendiente: espectro de batido (\texttt{vivo.py}), mismo
-    blanco y misma distancia, cable original vs.\ cable nuevo.
-    Indicar posición del pico, ancho a $-3\,\text{dB}$ y piso de
-    ruido.}\vspace{3cm}}}
-  \caption{Efecto del cable sobre el espectro de batido: posición del
-    pico (retardo), y forma/piso de ruido (pérdida y SNR).}
-  \label{fig:cables_espectro_template}
-\end{figure}
-
-Dos efectos de los cables se superponen en esta comparación y conviene
-no confundirlos: acortar el cable \textbf{corre el pico} (menos
-retardo, Sección~\ref{sec:cables_offset}) y, si además reduce la
-atenuación, \textbf{puede subir el piso de SNR} (menos pérdida de
-inserción antes del LNA, Sección~\ref{sec:cables_perdidas}). Son
-efectos independientes: el primero se lee en el eje de frecuencia
-(dónde cae el pico) y el segundo en el eje de amplitud (cuánto se
-levanta el pico sobre el piso de ruido). La comparación debe reportar
-ambos por separado, no un único número.
-
 \subsection{Comparación teoría vs.\ práctica: tabla resumen}
+\label{sub:cables_comparacion}
 
 \begin{table}[H]
   \centering
@@ -1800,7 +1774,7 @@ ambos por separado, no un único número.
     y el $\text{VF}$ de catálogo) y el valor medido con el VNA a partir
     de la fase de $S_{21}$, para ambos juegos de cables.}
   \label{tab:cables_teoria_practica}
-  \small\setlength{\tabcolsep}{4pt}
+  \small\setlength{\tabcolsep}{3pt}
   \begin{tabular}{lcccc}
     \toprule
     & \multicolumn{2}{c}{\textbf{Juego original (2 RG-58)}}
@@ -1812,7 +1786,7 @@ ambos por separado, no un único número.
     $\tau_\text{TX}+\tau_\text{RX}$ {[}ns{]}  & $28{,}3$ & $26{,}0$ & $10{,}1$ & $9{,}96$ \\
     $L_\text{TX}+L_\text{RX}$ {[}m{]}         & $5{,}60$ & $5{,}15$ & $2{,}00$ & $1{,}97$ \\
     $d_\text{offset}$ {[}m{]}\textsuperscript{\S} & $4{,}20$ & $\bm{3{,}86}$ & $1{,}48$ & $\bm{1{,}45}$ \\
-    Atenuación del par @ $1{,}5\,\text{GHz}$ {[}dB{]} & $3{,}64$ & $5{,}47$\textsuperscript{\ddag} & $0{,}69$ & $0{,}75$ \\
+    Pérdida del par @ $1{,}46\,\text{GHz}$ {[}dB{]} & $3{,}59$ & $5{,}47$\textsuperscript{\ddag} & $0{,}68$ & $0{,}75$ \\
     \bottomrule
   \end{tabular}
 
@@ -1867,6 +1841,78 @@ $2{,}6\,\text{m}$ bastante más, por el daño descripto en la
 Sección~\ref{sub:cables_defectuoso}. Por eso con ese juego la teoría
 queda alta. El largo no es la causa: medidos con cinta, los cables
 tienen aproximadamente su largo nominal.
+
+\subsection{Mediciones pendientes con el radar}
+\label{sub:cables_pendiente}
+
+Todo lo anterior caracteriza los cables solos, con el analizador de
+redes. Faltan los dos pasos del procedimiento que miden su efecto sobre
+el radar completo, y que requieren el banco armado con cada juego de
+cables:
+
+\begin{itemize}
+  \item \textbf{Calibración de un punto con cada juego.} Repetir el
+    procedimiento de la Sección~\ref{sec:cables_calibracion} con un
+    blanco a distancia conocida, con los cables originales y con los
+    nuevos, y comparar el $d_\text{offset}^\text{medido}$ contra la
+    columna ``medido'' de la Tabla~\ref{tab:cables_teoria_practica}.
+    Con dos puntos a distancias distintas, verificar además que la
+    pendiente dé $\approx 1$.
+  \item \textbf{Espectro de batido con el mismo blanco.} Con un blanco
+    fijo a la misma distancia, capturar el espectro con cada juego de
+    cables y reportar la posición del pico, su ancho a
+    $-3\,\text{dB}$ y el piso de ruido.
+\end{itemize}
+
+En esa segunda comparación se superponen dos efectos que conviene no
+confundir. Acortar el cable \textbf{corre el pico}, por el menor
+retardo (Sección~\ref{sec:cables_offset}). Y al reducir la atenuación
+\textbf{puede subir la relación señal a ruido}, por la menor pérdida
+antes del LNA (Sección~\ref{sec:cables_perdidas}). El primero se lee en
+el eje de frecuencia y el segundo en el de amplitud, así que la
+comparación debe reportarlos por separado y no como un único número.
+Con los valores medidos, se espera que el pico se corra unos
+$2{,}4\,\text{m}$ de distancia aparente y que la señal suba del orden de
+$4{,}7\,\text{dB}$, de los cuales $1{,}9$ se deben a haber sacado el
+cable dañado.
+
+% Plantilla para cuando esten las capturas (vivo_rapido.py, boton
+% "guardar captura PNG"): mismo blanco y misma distancia, una con cada
+% juego de cables.
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.48\linewidth]{figuras/cables/espectro_cable_original.png}
+%   \hfill
+%   \includegraphics[width=0.48\linewidth]{figuras/cables/espectro_cable_nuevo.png}
+%   \caption{Espectro de batido con el mismo blanco y la misma distancia.
+%     Izquierda: cables originales. Derecha: cables nuevos.}
+%   \label{fig:cables_espectro}
+% \end{figure}
+
+\section{Conclusiones del capítulo}
+\label{sec:cables_conclusiones}
+
+\begin{itemize}
+  \item \textbf{Un radar FMCW mide diferencias de retardo, no
+    distancias.} Los cables de antena se suman al retardo del blanco
+    como un offset constante, $d_\text{offset} = D/(2\,\text{VF})$,
+    que no cambia la pendiente ni la resolución. Es lo que explica el
+    desvío observado en la prueba de validación.
+  \item \textbf{El offset está medido sin suponer nada.} Con la fase
+    de $S_{21}$ da $3{,}86\,\text{m}$ para el juego original y
+    $1{,}45\,\text{m}$ para el nuevo, a menos de un $8$\,\% y un
+    $2$\,\% del modelo con valores de catálogo.
+  \item \textbf{Los cables nuevos mejoran las dos cosas a la vez.}
+    Bajan el offset de $3{,}86$ a $1{,}45\,\text{m}$ y recuperan
+    $4{,}7\,\text{dB}$ de pérdida, la mitad delante del LNA.
+  \item \textbf{Acortar no alcanza para dejar de calibrar.} El offset
+    de los cables nuevos sigue siendo diez veces la resolución. Hace
+    falta un punto de calibración, o emparejar el camino del LO para
+    anularlo de raíz.
+  \item \textbf{El RG-58 de $2{,}6\,\text{m}$ está dañado} y no debe
+    volver al banco. Solo ese cable explicaba $1{,}9\,\text{dB}$ de
+    pérdida.
+\end{itemize}
 
 %============================================================
 %  APÉNDICES
