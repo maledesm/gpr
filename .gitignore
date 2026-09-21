@@ -114,6 +114,13 @@ beat_gpr.wav
 datos/*.csv
 GPRv2/datos/*.csv
 
+# Las capturas PNG de vivo_rapido.py (boton "guardar captura PNG", tecla 's')
+# SI se versionan: son las figuras del banco para la tesis y la comparacion
+# con las simulaciones, pesan ~180 KB cada una, y si no se suben no llegan a
+# las otras maquinas (paso: las de la placa a 1 m quedaron solo en la PC del
+# banco). Pisa el *.png global de mas arriba.
+!GPRv2/datos/capturas/*.png
+
 # Configuracion local del grabador (es por maquina)
 adquisicion/config.json
 adquisicion_audio/config.json
