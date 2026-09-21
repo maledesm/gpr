@@ -1,0 +1,333 @@
+"""
+GPRv2 - Escena FDTD: dos bocinas mirando a una placa metalica
+==============================================================
+
+Corre en WSL, en el env conda `meep`:
+
+    wsl -d Ubuntu -- bash -lc 'source ~/miniconda3/etc/profile.d/conda.sh \\
+        && conda activate meep \\
+        && cd /mnt/c/Users/mogic/Tesis/gpr/GPRv2/simulaciones_meep \\
+        && python escena.py'
+
+(o directamente `correr_meep.sh`, que hace eso mismo).
+
+
+Por que banda ancha y no un chirp
+---------------------------------
+
+Las simulaciones viejas (`~/meep/Simulaciones/Simulaciones chirp/chirp_v7.py`)
+metian el chirp como fuente de MEEP y despues mezclaban en software. Eso
+obliga a que el barrido dure MUCHO mas que el retardo que se quiere medir, y
+en este banco no da: el ida y vuelta a la placa mas los cables son ~16 ns, y
+el chirp de chirp_v7 duraba 40 u.MEEP = 20 ns. El retardo era el 80 % del
+barrido y la aproximacion de batido se rompe.
+
+Aca se hace al reves. La escena es lineal e invariante en el tiempo (un radar
+FMCW sobre un blanco quieto, como dice el capitulo de arquitectura de la
+tesis: sin Doppler), asi que queda completamente descripta por su funcion de
+transferencia H(f) entre la sonda de la bocina TX y la de la RX. Se la mide
+con UN pulso de banda ancha y despues `radar.py` sintetiza el batido para el
+Tprf que sea. Ventajas:
+
+  - El resultado no depende del barrido: cambiar de 100 ms a otra cosa NO
+    obliga a volver a correr el FDTD.
+  - Se puede usar el Tprf REAL de 100 ms, con sus 300 muestras por rampa y
+    la no linealidad real del VCO, cosa que con un chirp de MEEP es
+    imposible por varios ordenes de magnitud.
+  - Es 100 veces mas barato: una corrida de 8000 pasos en vez de una por
+    cada configuracion.
+
+La aproximacion que se usa al sintetizar (cuasi-estatica, "stretch") esta
+documentada en radar.py, y es MUCHISIMO mejor aca que en un chirp de MEEP:
+el error va con alpha*tau^2, y con la rampa real de 50 ms eso es ~5e-9.
+
+
+Que se guarda
+-------------
+
+Un .npz por escena en `salidas/`, con:
+
+    f_hz     frecuencias [Hz], N_FREQ puntos entre F_MIN y F_MAX
+    H        funcion de transferencia compleja TX->RX (solo el aire)
+    ez, t    la traza cruda en la sonda RX, por si hace falta rehacer algo
+    meta     los parametros con los que se corrio
+
+H NO incluye cables ni el retardo interno: eso lo agrega radar.py, que es
+donde estan los .s2p medidos. Asi una sola corrida de MEEP sirve para
+comparar juegos de cables distintos.
+"""
+
+import os
+import sys
+import time
+
+import numpy as np
+import meep as mp
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import parametros as P                                        # noqa: E402
+
+mp.verbosity(1)
+
+# --- Pulso de la fuente ----------------------------------------------------
+#
+# Gaussiana modulada, definida aca y no con mp.GaussianSource para poder
+# calcularle la DFT con EXACTAMENTE el mismo codigo que a la traza de Rx: asi
+# cualquier sesgo del muestreo se cancela en el cociente H = Rx/fuente, y no
+# hay que depender de como define meep su envolvente.
+#
+# FC en el centro de la banda, y ANCHO tal que la gaussiana llegue a los
+# bordes con amplitud suficiente: sigma_f = 1/(2*pi*ANCHO). Con ANCHO 0,6 son
+# 0,265 u.MEEP = 530 MHz, y los bordes de la banda (+-575 MHz del centro)
+# quedan a 1,08 sigma, o sea al 56 % del pico. El cociente H = Rx/fuente es
+# exacto sea cual sea la forma del pulso; lo unico que hace falta es que la
+# fuente tenga energia en toda la banda para que el cociente no amplifique
+# ruido numerico.
+FC     = (P.f_meep(P.F_MIN) + P.f_meep(P.F_MAX)) / 2.0
+ANCHO  = 0.6                                                # u.MEEP de tiempo
+T0     = 5.0 * ANCHO                                        # arranque del pulso
+DT_REC = 0.05                                               # muestreo de la traza
+
+
+def pulso(t):
+    """Gaussiana modulada, real. t en unidades MEEP."""
+    env = np.exp(-((t - T0) ** 2) / (2.0 * ANCHO ** 2))
+    return float(env * np.cos(2.0 * np.pi * FC * (t - T0)))
+
+
+# --- Geometria -------------------------------------------------------------
+
+def _pared(p1, p2, espesor):
+    """Prisma metalico recto entre dos puntos, con espesor perpendicular.
+
+    p1 y p2 son (x, y) en unidades MEEP. La pared se engorda mitad para cada
+    lado del segmento, asi que el segmento es su linea media.
+    """
+    (x1, y1), (x2, y2) = p1, p2
+    dx, dy = x2 - x1, y2 - y1
+    largo = np.hypot(dx, dy)
+    # normal unitaria al segmento
+    nx, ny = -dy / largo, dx / largo
+    h = espesor / 2.0
+    v = [mp.Vector3(x1 + nx * h, y1 + ny * h),
+         mp.Vector3(x2 + nx * h, y2 + ny * h),
+         mp.Vector3(x2 - nx * h, y2 - ny * h),
+         mp.Vector3(x1 - nx * h, y1 - ny * h)]
+    return mp.Prism(v, height=mp.inf, material=mp.metal)
+
+
+def bocina(xc, y_fondo):
+    """Bocina piramidal 2D apuntando a +y, centrada en xc.
+
+    Tres tramos, con las cotas del croquis (ver parametros.py):
+      - el corto del fondo,
+      - las dos paredes de la guia de onda, de largo GUIA_LARGO,
+      - las dos paredes del flare, que abren de GUIA_ANCHO a APERTURA.
+    """
+    g  = P.a_meep(P.GUIA_ANCHO) / 2.0        # media guia
+    ap = P.a_meep(P.APERTURA) / 2.0          # media apertura
+    lg = P.a_meep(P.GUIA_LARGO)
+    lt = P.a_meep(P.LARGO_TOTAL)
+    e  = P.a_meep(P.PARED)
+
+    piezas = [_pared((xc - g, y_fondo), (xc + g, y_fondo), e)]   # corto
+    for s in (-1, +1):
+        piezas.append(_pared((xc + s * g, y_fondo),
+                             (xc + s * g, y_fondo + lg), e))     # guia
+        piezas.append(_pared((xc + s * g, y_fondo + lg),
+                             (xc + s * ap, y_fondo + lt), e))    # flare
+    return piezas
+
+
+def construir(con_placa, dist_placa=None, dist_celda=None):
+    """Devuelve (geometria, cell, dy, tx, rx) en unidades MEEP.
+
+    `dist_placa` es la distancia del plano de apertura a la placa [m]; por
+    defecto, la de parametros.py. `dist_celda` es la distancia con la que se
+    DIMENSIONA la celda, que puede ser mayor: al barrer la distancia de la
+    placa conviene que todas las corridas compartan la grilla y la posicion
+    del PML, para que las diferencias entre ellas sean la placa y nada mas.
+
+    Se construye con el fondo de las bocinas en y=0 y despues se corre todo
+    en `dy` para que la celda quede centrada en el origen, que es lo que
+    espera meep. El corrimiento se aplica a mano al armar cada pieza en vez
+    de con .shift(), que segun la version de meep devuelve el objeto o lo
+    muta en el lugar.
+    """
+    if dist_placa is None:
+        dist_placa = P.DIST_PLACA
+    if dist_celda is None:
+        dist_celda = dist_placa
+
+    lt  = P.a_meep(P.LARGO_TOTAL)
+    ap  = P.a_meep(P.APERTURA) / 2.0
+    e   = P.a_meep(P.PARED)
+    sep = P.a_meep(P.SEP_ANTENAS)
+
+    y_placa = lt + P.a_meep(dist_placa)
+    y_fin   = lt + P.a_meep(dist_celda) + P.a_meep(P.PLACA_ESPESOR)
+
+    # Extension util antes de agregar margen y PML.
+    #
+    # La celda NO depende de con_placa: las dos escenas tienen que correr en
+    # la MISMA grilla, con el mismo PML a la misma distancia, para que la
+    # resta H_placa - H_vacio sea exactamente el eco de la placa y no ademas
+    # la diferencia entre dos discretizaciones distintas.
+    y_lo = 0.0 - e
+    y_hi = y_fin
+    # Lo mas ancho entre las bocinas y la placa: una placa de 70 cm (+-35 cm)
+    # es mas ancha que las dos bocinas juntas (+-31,5 cm), y si la celda solo
+    # mirara las bocinas los bordes de la placa quedarian dentro del PML.
+    x_ext = max(sep / 2.0 + ap + e, P.a_meep(P.PLACA_ANCHO) / 2.0 + e)
+
+    borde = P.MARGEN + P.DPML
+    # Redondeado para arriba a un numero entero de celdas: si no, meep lo
+    # redondea solo y avisa con un "Warning" que asusta y no significa nada.
+    # Se divide por la resolucion en vez de multiplicar por 1/resolucion:
+    # 164 * 0.05 da 8.200000000000001, que meep ya no considera entero.
+    def _entero(u):
+        return float(np.ceil(u * P.RESOLUCION - 1e-6)) / P.RESOLUCION
+    cell = mp.Vector3(_entero(2 * (x_ext + borde)),
+                      _entero((y_hi - y_lo) + 2 * borde), 0)
+    dy = -(y_lo + y_hi) / 2.0          # corrimiento para centrar la celda
+
+    x_tx, x_rx = -sep / 2.0, +sep / 2.0
+    geom = bocina(x_tx, dy) + bocina(x_rx, dy)
+
+    if con_placa:
+        geom.append(mp.Block(
+            size=mp.Vector3(P.a_meep(P.PLACA_ANCHO),
+                            P.a_meep(P.PLACA_ESPESOR), mp.inf),
+            center=mp.Vector3(0.0, y_placa + P.a_meep(P.PLACA_ESPESOR) / 2.0 + dy),
+            material=mp.metal))
+
+    # Sondas, adentro de la guia, a SONDA_FONDO del corto
+    y_sonda = P.a_meep(P.SONDA_FONDO) + dy
+    tx = mp.Vector3(x_tx, y_sonda)
+    rx = mp.Vector3(x_rx, y_sonda)
+    return geom, cell, dy, tx, rx
+
+
+# --- Corrida ---------------------------------------------------------------
+
+def correr(con_placa, etiqueta, dist_placa=None, dist_celda=None):
+    if dist_placa is None:
+        dist_placa = P.DIST_PLACA
+    geom, cell, dy, tx, rx = construir(con_placa, dist_placa, dist_celda)
+
+    fuente = mp.Source(
+        src=mp.CustomSource(src_func=pulso, start_time=0.0,
+                            end_time=2.0 * T0,
+                            center_frequency=FC,
+                            fwidth=P.f_meep(P.F_MAX - P.F_MIN)),
+        component=mp.Ez,
+        center=tx)
+
+    sim = mp.Simulation(cell_size=cell,
+                        boundary_layers=[mp.PML(P.DPML)],
+                        geometry=geom,
+                        sources=[fuente],
+                        resolution=P.RESOLUCION,
+                        force_complex_fields=False)
+
+    muestras = []
+    def _rec(s):
+        muestras.append(s.get_field_point(mp.Ez, rx).real)
+
+    print(f"\n=== escena '{etiqueta}' ===")
+    print(f"  celda {cell.x:.2f} x {cell.y:.2f} u.MEEP = "
+          f"{P.a_metros(cell.x):.2f} x {P.a_metros(cell.y):.2f} m")
+    print(f"  {int(cell.x*P.RESOLUCION)} x {int(cell.y*P.RESOLUCION)} celdas, "
+          f"{int(P.T_CORRIDA/(0.5/P.RESOLUCION))} pasos")
+
+    # Tres fotos del campo Ez para la figura: el pulso saliendo, llegando a
+    # la placa y volviendo. Los tiempos salen de la geometria (en unidades
+    # MEEP la luz recorre 1 u por unidad de tiempo): el pulso esta centrado
+    # en T0, recorre la bocina (sonda -> boca) y despues el aire.
+    d_boc = P.a_meep(P.LARGO_TOTAL - P.SONDA_FONDO)
+    d_aire = P.a_meep(dist_placa)
+    t_fotos = {"sale":   T0 + d_boc + 0.35 * d_aire,
+               "placa":  T0 + d_boc + 1.00 * d_aire,
+               "vuelve": T0 + d_boc + 1.65 * d_aire}
+    fotos = {}
+    def _foto(nombre):
+        def f(s):
+            fotos[nombre] = s.get_array(component=mp.Ez, center=mp.Vector3(),
+                                        size=cell).astype(np.float32)
+        return f
+
+    t0 = time.time()
+    sim.run(mp.at_every(DT_REC, _rec),
+            *[mp.at_time(tt, _foto(k)) for k, tt in t_fotos.items()],
+            until=P.T_CORRIDA)
+    print(f"  FDTD: {time.time()-t0:.1f} s")
+    eps = sim.get_array(component=mp.Dielectric, center=mp.Vector3(),
+                        size=cell).astype(np.float32)
+    # Extension de las fotos en METROS, con el origen en el plano de la boca
+    # de las bocinas (y = 0) y la placa en y = dist_placa. En la construccion
+    # el fondo de las bocinas esta en y_u = dy y la boca en dy + largo total.
+    lt = P.a_meep(P.LARGO_TOTAL)
+    extent_m = np.array([-cell.x / 2, cell.x / 2,
+                         -cell.y / 2 - dy - lt, cell.y / 2 - dy - lt]) * P.A_MEEP
+
+    ez = np.array(muestras)
+    t  = np.arange(len(ez)) * DT_REC
+    src = np.array([pulso(tt) for tt in t])
+
+    # DFT directa a las frecuencias que se piden, no una FFT: asi el paso en
+    # frecuencia no lo ata el largo de la corrida, y la misma cuenta se le
+    # aplica a la traza y a la fuente (cualquier sesgo se cancela).
+    f_meep = np.linspace(P.f_meep(P.F_MIN), P.f_meep(P.F_MAX), P.N_FREQ)
+    fase = np.exp(-2j * np.pi * np.outer(f_meep, t))
+    H = (fase @ ez) / (fase @ src)
+
+    f_hz = np.linspace(P.F_MIN, P.F_MAX, P.N_FREQ)
+    os.makedirs(P.SALIDAS, exist_ok=True)
+    destino = os.path.join(P.SALIDAS, f"H_{etiqueta}.npz")
+    np.savez_compressed(
+        destino, f_hz=f_hz, H=H, ez=ez, t=t, src=src,
+        fotos=np.array([fotos[k] for k in ("sale", "placa", "vuelve")]),
+        fotos_t=np.array([t_fotos[k] for k in ("sale", "placa", "vuelve")]),
+        eps=eps, extent_m=extent_m, dpml_m=P.DPML * P.A_MEEP,
+        dist_placa=dist_placa,
+        meta=np.array([
+            f"escena={etiqueta}", f"con_placa={con_placa}",
+            f"a_meep={P.A_MEEP}", f"resolucion={P.RESOLUCION}",
+            f"T_corrida={P.T_CORRIDA}", f"dt_rec={DT_REC}",
+            f"dist_placa={dist_placa}",
+            f"sep_antenas={P.SEP_ANTENAS}",
+            f"apertura={P.APERTURA}", f"placa_ancho={P.PLACA_ANCHO}",
+        ]))
+    print(f"  |H| medio {20*np.log10(np.abs(H).mean()):.1f} dB  ->  {destino}")
+    return destino
+
+
+def main():
+    """Escenas por linea de comandos.
+
+        python escena.py                    placa a DIST_PLACA, y vacio
+        python escena.py vacio              solo el acoplamiento directo
+        python escena.py barrido            placa a cada distancia de P.BARRIDO
+                                            mas el vacio, TODAS en la misma
+                                            grilla (celda dimensionada para
+                                            la distancia mayor)
+    """
+    args = sys.argv[1:] or ["placa", "vacio"]
+
+    if args == ["barrido"]:
+        distancias = list(P.BARRIDO)
+        celda = max(distancias)
+        for d in distancias:
+            correr(True, f"placa_{d:.2f}".replace(".", "p"),
+                   dist_placa=d, dist_celda=celda)
+        correr(False, "vacio_barrido", dist_placa=celda, dist_celda=celda)
+        return
+
+    for e in args:
+        if e not in ("placa", "vacio"):
+            raise SystemExit(f"escena desconocida: {e} (placa | vacio | barrido)")
+        correr(con_placa=(e == "placa"), etiqueta=e)
+
+
+if __name__ == "__main__":
+    main()
