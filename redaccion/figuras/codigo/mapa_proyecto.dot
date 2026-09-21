@@ -1,0 +1,39 @@
+digraph g {
+  rankdir=TB;
+  bgcolor="white";
+  splines=spline;
+  nodesep=0.24;  ranksep=0.60;
+  node [shape=box, style="rounded", fontname="Georgia", fontsize=10,
+        color="gray25", fontcolor="black", margin="0.11,0.06"];
+  edge [color="gray45", arrowsize=0.6, penwidth=0.8,
+        fontname="Georgia", fontsize=8, fontcolor="gray40"];
+  graph [fontname="Georgia", fontsize=9];
+  "adquisicion.ino" [label="adquisicion.ino", peripheries=2];
+  "cables_vna.py" [label="cables_vna.py", peripheries=2];
+  "correccion_no_linealidad.py" [label="correccion_no_linealidad.py"];
+  "experimento_adc3.py" [label="experimento_adc3.py", peripheries=2];
+  "generador_chirp.ino" [label="generador_chirp.ino", peripheries=2];
+  "generar_pwl_triangular.py" [label="generar_pwl_triangular.py", peripheries=2];
+  "generar_tabla_chirp.py" [label="generar_tabla_chirp.py", peripheries=2];
+  "grabar_rampa.py" [label="grabar_rampa.py", peripheries=2];
+  "graficar_captura.py" [label="graficar_captura.py", peripheries=2];
+  "proceso_rapido.py" [label="proceso_rapido.py"];
+  "tabla_chirp.h" [label="tabla_chirp.h"];
+  "verificar_rapido.py" [label="verificar_rapido.py", peripheries=2];
+  "vivo.py" [label="vivo.py", peripheries=2];
+  "vivo_rapido.py" [label="vivo_rapido.py", peripheries=2];
+  "waterfall.py" [label="waterfall.py", peripheries=2];
+  "experimento_adc3.py" -> "correccion_no_linealidad.py";
+  "experimento_adc3.py" -> "proceso_rapido.py";
+  "generador_chirp.ino" -> "tabla_chirp.h";
+  "generar_tabla_chirp.py" -> "correccion_no_linealidad.py";
+  "graficar_captura.py" -> "correccion_no_linealidad.py";
+  "verificar_rapido.py" -> "correccion_no_linealidad.py";
+  "verificar_rapido.py" -> "proceso_rapido.py";
+  "verificar_rapido.py" -> "vivo.py";
+  "verificar_rapido.py" -> "vivo_rapido.py";
+  "vivo.py" -> "correccion_no_linealidad.py";
+  "vivo_rapido.py" -> "correccion_no_linealidad.py";
+  "vivo_rapido.py" -> "proceso_rapido.py";
+  "waterfall.py" -> "correccion_no_linealidad.py";
+}

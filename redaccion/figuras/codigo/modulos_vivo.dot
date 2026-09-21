@@ -1,0 +1,22 @@
+digraph g {
+  rankdir=LR;
+  bgcolor="white";
+  splines=spline;
+  nodesep=0.24;  ranksep=0.60;
+  node [shape=box, style="rounded", fontname="Georgia", fontsize=10,
+        color="gray25", fontcolor="black", margin="0.11,0.06"];
+  edge [color="gray45", arrowsize=0.6, penwidth=0.8,
+        fontname="Georgia", fontsize=8, fontcolor="gray40"];
+  graph [fontname="Georgia", fontsize=9];
+  "analisis_vivo_calibracion" [label="Calibracion\nvivo.py:L353  (7 metodos)"];
+  "analisis_vivo_lector" [label="Lector\nvivo.py:L226  (4 metodos)"];
+  "analisis_vivo_vivo" [label="Vivo\nvivo.py:L422  (33 metodos)"];
+  "analisis_vivo_abrir_puerto" [label="abrir_puerto()\nvivo.py:L322"];
+  "analisis_vivo_main" [label="main()\nvivo.py:L1223", peripheries=2];
+  "analisis_vivo_lector" -> "analisis_vivo_vivo" [label="2"];
+  "analisis_vivo_main" -> "analisis_vivo_calibracion";
+  "analisis_vivo_main" -> "analisis_vivo_abrir_puerto";
+  "analisis_vivo_main" -> "analisis_vivo_lector";
+  "analisis_vivo_main" -> "analisis_vivo_vivo";
+  "analisis_vivo_vivo" -> "analisis_vivo_calibracion";
+}

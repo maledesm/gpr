@@ -1,0 +1,77 @@
+
+digraph firmware {
+  rankdir=TB;
+
+  fontname="Helvetica"; fontsize=12;
+  newrank=true; compound=true; nodesep=0.35; ranksep=0.42;
+  node [shape=box, fontname="Helvetica", fontsize=11, color="black",
+        penwidth=1.3, margin="0.16,0.07"];
+  edge [fontname="Helvetica", fontsize=9.5, color="black", penwidth=1.0,
+        arrowsize=0.75];
+
+  // Entradas fisicas, arriba de la columna que las recibe
+  beat_in [label="Señal de batido
+(salida del mezclador)", shape=plaintext];
+  tri_in  [label="Triangular del generador
+(divisor 4k7 / 4k7 a GPIO3)", shape=plaintext];
+  sync_in [label="Sync del generador
+(hoy no llega)", shape=plaintext, fontcolor="gray40"];
+
+  subgraph cluster_hw {
+    label="HARDWARE
+corre solo, sin usar la CPU";
+    style="dashed"; color="gray35"; penwidth=1.1; labeljust="l"; fontsize=11;
+    pcm [label="PCM1808
+convierte a digital
+24 bits, 48 000 muestras/s"];
+    dma [label="DMA del I2S
+llena bloques de 256 muestras
+(uno cada 5,3 ms)"];
+    pcm -> dma;
+  }
+
+  subgraph cluster_loop {
+    label="LAZO PRINCIPAL
+una vuelta por bloque, ~187 por segundo";
+    style="dashed"; color="gray35"; penwidth=1.1; labeljust="l"; fontsize=11;
+    cmd    [label="1. Atender comandos de la PC
+(run / stop / fs)"];
+    tomar  [label="2. Esperar el bloque del DMA
+y anotar la hora"];
+    leertri[label="3. Leer la triangular
+(una lectura del ADC)"];
+    filtro [label="4. Filtro antialias + diezmado ×8
+48 000 → 6 000 muestras/s
+(entran 256, salen 32)"];
+    fase   [label="5. A cada muestra: tiempo desde
+el último flanco de sync
+(-1 si nunca llegó)"];
+    enviar [label="6. Mandar por USB
+32 líneas  \"batido,sync\"
+1 línea  \"#v,triangular,índice\""];
+    cmd -> tomar -> leertri -> filtro -> fase -> enviar;
+  }
+
+  subgraph cluster_isr {
+    label="INTERRUPCIÓN
+en cualquier momento";
+    style="dashed"; color="gray35"; penwidth=1.1; labeljust="l"; fontsize=11;
+    isr [label="Anotar la hora
+del flanco", style="dashed"];
+  }
+
+  pc [label="PC  —  vivo_rapido.py
+6 000 líneas por segundo, ~78 kB/s", peripheries=2];
+
+  beat_in -> pcm;
+  tri_in  -> leertri;
+  sync_in -> isr [style=dashed, color="gray40"];
+  dma -> tomar [label=" bloque
+ lleno"];
+  isr -> fase  [style=dashed, color="gray40", fontcolor="gray40", label=" horas de
+ los flancos"];
+  enviar -> pc [label=" USB"];
+
+  { rank=same; beat_in; tri_in; sync_in; }
+  { rank=same; pcm; cmd; isr; }
+}

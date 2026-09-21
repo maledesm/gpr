@@ -1,0 +1,22 @@
+digraph g {
+  rankdir=LR;
+  bgcolor="white";
+  splines=spline;
+  nodesep=0.24;  ranksep=0.60;
+  node [shape=box, style="rounded", fontname="Georgia", fontsize=10,
+        color="gray25", fontcolor="black", margin="0.11,0.06"];
+  edge [color="gray45", arrowsize=0.6, penwidth=0.8,
+        fontname="Georgia", fontsize=8, fontcolor="gray40"];
+  graph [fontname="Georgia", fontsize=9];
+  "analisis_proceso_rapido_remuestreador" [label="Remuestreador\nproceso_rapido.py:L80  (3 metodos)"];
+  "analisis_proceso_rapido_armonico" [label="_armonico()\nproceso_rapido.py:L171"];
+  "analisis_proceso_rapido_maximo_aureo" [label="_maximo_aureo()\nproceso_rapido.py:L177"];
+  "analisis_proceso_rapido_pot_armonico" [label="_pot_armonico()\nproceso_rapido.py:L149"];
+  "analisis_proceso_rapido_ajustar_triangular_rapido" [label="ajustar_triangular_rapido()\nproceso_rapido.py:L203"];
+  "analisis_proceso_rapido_espectros" [label="espectros()\nproceso_rapido.py:L140"];
+  "analisis_proceso_rapido_largo_fft" [label="largo_fft()\nproceso_rapido.py:L127"];
+  "analisis_proceso_rapido_pico_parabolico" [label="pico_parabolico()\nproceso_rapido.py:L246"];
+  "analisis_proceso_rapido_ajustar_triangular_rapido" -> "analisis_proceso_rapido_pot_armonico";
+  "analisis_proceso_rapido_ajustar_triangular_rapido" -> "analisis_proceso_rapido_armonico";
+  "analisis_proceso_rapido_ajustar_triangular_rapido" -> "analisis_proceso_rapido_maximo_aureo";
+}

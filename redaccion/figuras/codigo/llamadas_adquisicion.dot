@@ -1,0 +1,30 @@
+digraph g {
+  rankdir=LR;
+  bgcolor="white";
+  splines=spline;
+  nodesep=0.24;  ranksep=0.60;
+  node [shape=box, style="rounded", fontname="Georgia", fontsize=10,
+        color="gray25", fontcolor="black", margin="0.11,0.06"];
+  edge [color="gray45", arrowsize=0.6, penwidth=0.8,
+        fontname="Georgia", fontsize=8, fontcolor="gray40"];
+  graph [fontname="Georgia", fontsize=9];
+  "firmware_adquisicion_adquisicion_comando" [label="comando()\nadquisicion.ino:L307"];
+  "firmware_adquisicion_adquisicion_diezmar" [label="diezmar()\nadquisicion.ino:L184"];
+  "firmware_adquisicion_adquisicion_filtroreiniciar" [label="filtroReiniciar()\nadquisicion.ino:L157"];
+  "firmware_adquisicion_adquisicion_hbempujar" [label="hbEmpujar()\nadquisicion.ino:L137"];
+  "firmware_adquisicion_adquisicion_i2sarrancar" [label="i2sArrancar()\nadquisicion.ino:L225"];
+  "firmware_adquisicion_adquisicion_informar" [label="informar()\nadquisicion.ino:L283"];
+  "firmware_adquisicion_adquisicion_isrsync" [label="isrSync()\nadquisicion.ino:L217", peripheries=2];
+  "firmware_adquisicion_adquisicion_leerconsola" [label="leerConsola()\nadquisicion.ino:L331"];
+  "firmware_adquisicion_adquisicion_loop" [label="loop()\nadquisicion.ino:L369", peripheries=2];
+  "firmware_adquisicion_adquisicion_setup" [label="setup()\nadquisicion.ino:L351", peripheries=2];
+  "firmware_adquisicion_adquisicion_comando" -> "firmware_adquisicion_adquisicion_informar";
+  "firmware_adquisicion_adquisicion_comando" -> "firmware_adquisicion_adquisicion_i2sarrancar";
+  "firmware_adquisicion_adquisicion_diezmar" -> "firmware_adquisicion_adquisicion_hbempujar";
+  "firmware_adquisicion_adquisicion_i2sarrancar" -> "firmware_adquisicion_adquisicion_filtroreiniciar";
+  "firmware_adquisicion_adquisicion_leerconsola" -> "firmware_adquisicion_adquisicion_comando";
+  "firmware_adquisicion_adquisicion_loop" -> "firmware_adquisicion_adquisicion_leerconsola";
+  "firmware_adquisicion_adquisicion_loop" -> "firmware_adquisicion_adquisicion_diezmar";
+  "firmware_adquisicion_adquisicion_setup" -> "firmware_adquisicion_adquisicion_i2sarrancar";
+  "firmware_adquisicion_adquisicion_setup" -> "firmware_adquisicion_adquisicion_informar";
+}

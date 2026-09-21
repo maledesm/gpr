@@ -1,0 +1,27 @@
+digraph g {
+  rankdir=LR;
+  bgcolor="white";
+  splines=spline;
+  nodesep=0.24;  ranksep=0.60;
+  node [shape=box, style="rounded", fontname="Georgia", fontsize=10,
+        color="gray25", fontcolor="black", margin="0.11,0.06"];
+  edge [color="gray45", arrowsize=0.6, penwidth=0.8,
+        fontname="Georgia", fontsize=8, fontcolor="gray40"];
+  graph [fontname="Georgia", fontsize=9];
+  "analisis_vivo_rapido_calibracion" [label="Calibracion\nvivo_rapido.py:L460  (8 metodos)"];
+  "analisis_vivo_rapido_lector" [label="Lector\nvivo_rapido.py:L292  (4 metodos)"];
+  "analisis_vivo_rapido_vivo" [label="Vivo\nvivo_rapido.py:L528  (47 metodos)"];
+  "analisis_vivo_rapido_abrir_puerto" [label="abrir_puerto()\nvivo_rapido.py:L406"];
+  "analisis_vivo_rapido_archivos_de_salida" [label="archivos_de_salida()\nvivo_rapido.py:L441"];
+  "analisis_vivo_rapido_cargar_config" [label="cargar_config()\nvivo_rapido.py:L448"];
+  "analisis_vivo_rapido_main" [label="main()\nvivo_rapido.py:L1836", peripheries=2];
+  "analisis_vivo_rapido_lector" -> "analisis_vivo_rapido_vivo" [label="2"];
+  "analisis_vivo_rapido_main" -> "analisis_vivo_rapido_calibracion";
+  "analisis_vivo_rapido_main" -> "analisis_vivo_rapido_abrir_puerto";
+  "analisis_vivo_rapido_main" -> "analisis_vivo_rapido_archivos_de_salida";
+  "analisis_vivo_rapido_main" -> "analisis_vivo_rapido_cargar_config";
+  "analisis_vivo_rapido_main" -> "analisis_vivo_rapido_lector";
+  "analisis_vivo_rapido_main" -> "analisis_vivo_rapido_vivo";
+  "analisis_vivo_rapido_vivo" -> "analisis_vivo_rapido_cargar_config";
+  "analisis_vivo_rapido_vivo" -> "analisis_vivo_rapido_calibracion";
+}

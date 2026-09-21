@@ -1,0 +1,22 @@
+digraph g {
+  rankdir=LR;
+  bgcolor="white";
+  splines=spline;
+  nodesep=0.24;  ranksep=0.60;
+  node [shape=box, style="rounded", fontname="Georgia", fontsize=10,
+        color="gray25", fontcolor="black", margin="0.11,0.06"];
+  edge [color="gray45", arrowsize=0.6, penwidth=0.8,
+        fontname="Georgia", fontsize=8, fontcolor="gray40"];
+  graph [fontname="Georgia", fontsize=9];
+  "analisis_experimento_adc3_abrir_puerto" [label="abrir_puerto()\nexperimento_adc3.py:L70"];
+  "analisis_experimento_adc3_analizar" [label="analizar()\nexperimento_adc3.py:L146"];
+  "analisis_experimento_adc3_grabar" [label="grabar()\nexperimento_adc3.py:L97"];
+  "analisis_experimento_adc3_leer" [label="leer()\nexperimento_adc3.py:L114"];
+  "analisis_experimento_adc3_main" [label="main()\nexperimento_adc3.py:L271", peripheries=2];
+  "analisis_experimento_adc3_separacion" [label="separacion()\nexperimento_adc3.py:L140"];
+  "analisis_experimento_adc3_analizar" -> "analisis_experimento_adc3_leer";
+  "analisis_experimento_adc3_analizar" -> "analisis_experimento_adc3_separacion";
+  "analisis_experimento_adc3_grabar" -> "analisis_experimento_adc3_abrir_puerto";
+  "analisis_experimento_adc3_main" -> "analisis_experimento_adc3_grabar";
+  "analisis_experimento_adc3_main" -> "analisis_experimento_adc3_analizar";
+}

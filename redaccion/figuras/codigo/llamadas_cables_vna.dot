@@ -1,0 +1,45 @@
+digraph g {
+  rankdir=LR;
+  bgcolor="white";
+  splines=spline;
+  nodesep=0.24;  ranksep=0.60;
+  node [shape=box, style="rounded", fontname="Georgia", fontsize=10,
+        color="gray25", fontcolor="black", margin="0.11,0.06"];
+  edge [color="gray45", arrowsize=0.6, penwidth=0.8,
+        fontname="Georgia", fontsize=8, fontcolor="gray40"];
+  graph [fontname="Georgia", fontsize=9];
+  "analisis_cables_vna_ajuste_perdida" [label="ajuste_perdida()\ncables_vna.py:L183"];
+  "analisis_cables_vna_cargar_todo" [label="cargar_todo()\ncables_vna.py:L419"];
+  "analisis_cables_vna_coma" [label="coma()\ncables_vna.py:L221"];
+  "analisis_cables_vna_db" [label="db()\ncables_vna.py:L128"];
+  "analisis_cables_vna_en_banda" [label="en_banda()\ncables_vna.py:L207"];
+  "analisis_cables_vna_figura_impacto" [label="figura_impacto()\ncables_vna.py:L356"];
+  "analisis_cables_vna_figura_insercion" [label="figura_insercion()\ncables_vna.py:L226"];
+  "analisis_cables_vna_figura_retorno" [label="figura_retorno()\ncables_vna.py:L262"];
+  "analisis_cables_vna_figura_tiempo" [label="figura_tiempo()\ncables_vna.py:L308"];
+  "analisis_cables_vna_leer_s2p" [label="leer_s2p()\ncables_vna.py:L91"];
+  "analisis_cables_vna_main" [label="main()\ncables_vna.py:L490", peripheries=2];
+  "analisis_cables_vna_marcar_banda" [label="marcar_banda()\ncables_vna.py:L211"];
+  "analisis_cables_vna_perfil_tiempo" [label="perfil_tiempo()\ncables_vna.py:L147"];
+  "analisis_cables_vna_resumen" [label="resumen()\ncables_vna.py:L438"];
+  "analisis_cables_vna_retardo_fase" [label="retardo_fase()\ncables_vna.py:L132"];
+  "analisis_cables_vna_retardo_rizado" [label="retardo_rizado()\ncables_vna.py:L162"];
+  "analisis_cables_vna_cargar_todo" -> "analisis_cables_vna_leer_s2p";
+  "analisis_cables_vna_cargar_todo" -> "analisis_cables_vna_retardo_fase";
+  "analisis_cables_vna_cargar_todo" -> "analisis_cables_vna_db";
+  "analisis_cables_vna_cargar_todo" -> "analisis_cables_vna_ajuste_perdida";
+  "analisis_cables_vna_cargar_todo" -> "analisis_cables_vna_retardo_rizado";
+  "analisis_cables_vna_figura_impacto" -> "analisis_cables_vna_coma";
+  "analisis_cables_vna_figura_insercion" -> "analisis_cables_vna_marcar_banda";
+  "analisis_cables_vna_figura_retorno" -> "analisis_cables_vna_marcar_banda";
+  "analisis_cables_vna_figura_retorno" -> "analisis_cables_vna_coma";
+  "analisis_cables_vna_figura_tiempo" -> "analisis_cables_vna_perfil_tiempo";
+  "analisis_cables_vna_figura_tiempo" -> "analisis_cables_vna_coma";
+  "analisis_cables_vna_main" -> "analisis_cables_vna_cargar_todo";
+  "analisis_cables_vna_main" -> "analisis_cables_vna_resumen";
+  "analisis_cables_vna_resumen" -> "analisis_cables_vna_en_banda";
+  "analisis_cables_vna_main" -> "analisis_cables_vna_figura_insercion"[style=dashed];
+  "analisis_cables_vna_main" -> "analisis_cables_vna_figura_retorno"[style=dashed];
+  "analisis_cables_vna_main" -> "analisis_cables_vna_figura_tiempo"[style=dashed];
+  "analisis_cables_vna_main" -> "analisis_cables_vna_figura_impacto"[style=dashed];
+}

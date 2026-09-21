@@ -1,0 +1,40 @@
+digraph g {
+  rankdir=LR;
+  bgcolor="white";
+  splines=spline;
+  nodesep=0.24;  ranksep=0.60;
+  node [shape=box, style="rounded", fontname="Georgia", fontsize=10,
+        color="gray25", fontcolor="black", margin="0.11,0.06"];
+  edge [color="gray45", arrowsize=0.6, penwidth=0.8,
+        fontname="Georgia", fontsize=8, fontcolor="gray40"];
+  graph [fontname="Georgia", fontsize=9];
+  "analisis_correccion_no_linealidad_ajustar_triangular" [label="ajustar_triangular()\ncorreccion_no_linealidad.py:L205"];
+  "analisis_correccion_no_linealidad_buscar_periodo" [label="buscar_periodo()\ncorreccion_no_linealidad.py:L167"];
+  "analisis_correccion_no_linealidad_cargar_curva_vco" [label="cargar_curva_vco()\ncorreccion_no_linealidad.py:L106"];
+  "analisis_correccion_no_linealidad_correr_csv" [label="correr_csv()\ncorreccion_no_linealidad.py:L422"];
+  "analisis_correccion_no_linealidad_correr_sintetico" [label="correr_sintetico()\ncorreccion_no_linealidad.py:L399"];
+  "analisis_correccion_no_linealidad_eje_theta" [label="eje_theta()\ncorreccion_no_linealidad.py:L115"];
+  "analisis_correccion_no_linealidad_extraer_rampas" [label="extraer_rampas()\ncorreccion_no_linealidad.py:L320"];
+  "analisis_correccion_no_linealidad_fs_theta" [label="fs_theta()\ncorreccion_no_linealidad.py:L296"];
+  "analisis_correccion_no_linealidad_generar_beat_sintetico" [label="generar_beat_sintetico()\ncorreccion_no_linealidad.py:L376"];
+  "analisis_correccion_no_linealidad_graficar" [label="graficar()\ncorreccion_no_linealidad.py:L453"];
+  "analisis_correccion_no_linealidad_medir_rampa" [label="medir_rampa()\ncorreccion_no_linealidad.py:L140"];
+  "analisis_correccion_no_linealidad_perfil_distancia" [label="perfil_distancia()\ncorreccion_no_linealidad.py:L311"];
+  "analisis_correccion_no_linealidad_rampas_desde_triangular" [label="rampas_desde_triangular()\ncorreccion_no_linealidad.py:L248"];
+  "analisis_correccion_no_linealidad_remuestrear" [label="remuestrear()\ncorreccion_no_linealidad.py:L289"];
+  "analisis_correccion_no_linealidad_correr_csv" -> "analisis_correccion_no_linealidad_cargar_curva_vco";
+  "analisis_correccion_no_linealidad_correr_csv" -> "analisis_correccion_no_linealidad_medir_rampa";
+  "analisis_correccion_no_linealidad_correr_csv" -> "analisis_correccion_no_linealidad_eje_theta";
+  "analisis_correccion_no_linealidad_correr_csv" -> "analisis_correccion_no_linealidad_extraer_rampas";
+  "analisis_correccion_no_linealidad_correr_csv" -> "analisis_correccion_no_linealidad_perfil_distancia";
+  "analisis_correccion_no_linealidad_correr_csv" -> "analisis_correccion_no_linealidad_remuestrear";
+  "analisis_correccion_no_linealidad_correr_csv" -> "analisis_correccion_no_linealidad_graficar";
+  "analisis_correccion_no_linealidad_correr_sintetico" -> "analisis_correccion_no_linealidad_cargar_curva_vco";
+  "analisis_correccion_no_linealidad_correr_sintetico" -> "analisis_correccion_no_linealidad_generar_beat_sintetico";
+  "analisis_correccion_no_linealidad_correr_sintetico" -> "analisis_correccion_no_linealidad_eje_theta";
+  "analisis_correccion_no_linealidad_correr_sintetico" -> "analisis_correccion_no_linealidad_perfil_distancia";
+  "analisis_correccion_no_linealidad_correr_sintetico" -> "analisis_correccion_no_linealidad_remuestrear";
+  "analisis_correccion_no_linealidad_correr_sintetico" -> "analisis_correccion_no_linealidad_graficar";
+  "analisis_correccion_no_linealidad_rampas_desde_triangular" -> "analisis_correccion_no_linealidad_buscar_periodo";
+  "analisis_correccion_no_linealidad_rampas_desde_triangular" -> "analisis_correccion_no_linealidad_ajustar_triangular";
+}

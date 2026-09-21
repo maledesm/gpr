@@ -1,0 +1,50 @@
+digraph g {
+  rankdir=LR;
+  bgcolor="white";
+  splines=spline;
+  nodesep=0.24;  ranksep=0.60;
+  node [shape=box, style="rounded", fontname="Georgia", fontsize=10,
+        color="gray25", fontcolor="black", margin="0.11,0.06"];
+  edge [color="gray45", arrowsize=0.6, penwidth=0.8,
+        fontname="Georgia", fontsize=8, fontcolor="gray40"];
+  graph [fontname="Georgia", fontsize=9];
+  "analisis_verificar_rapido_archivo" [label="Archivo\nverificar_rapido.py:L97"];
+  "analisis_verificar_rapido_puerto" [label="Puerto\nverificar_rapido.py:L103"];
+  "analisis_verificar_rapido_dibujar" [label="_dibujar()\nverificar_rapido.py:L351"];
+  "analisis_verificar_rapido_correr" [label="correr()\nverificar_rapido.py:L274"];
+  "analisis_verificar_rapido_generar_stream" [label="generar_stream()\nverificar_rapido.py:L55"];
+  "analisis_verificar_rapido_juzgar" [label="juzgar()\nverificar_rapido.py:L47"];
+  "analisis_verificar_rapido_main" [label="main()\nverificar_rapido.py:L669", peripheries=2];
+  "analisis_verificar_rapido_probar_ajuste" [label="probar_ajuste()\nverificar_rapido.py:L174"];
+  "analisis_verificar_rapido_probar_archivos" [label="probar_archivos()\nverificar_rapido.py:L472"];
+  "analisis_verificar_rapido_probar_cadena_offline" [label="probar_cadena_offline()\nverificar_rapido.py:L513"];
+  "analisis_verificar_rapido_probar_captura" [label="probar_captura()\nverificar_rapido.py:L599"];
+  "analisis_verificar_rapido_probar_lector" [label="probar_lector()\nverificar_rapido.py:L240"];
+  "analisis_verificar_rapido_probar_pico_subbin" [label="probar_pico_subbin()\nverificar_rapido.py:L215"];
+  "analisis_verificar_rapido_probar_punta_a_punta" [label="probar_punta_a_punta()\nverificar_rapido.py:L377"];
+  "analisis_verificar_rapido_probar_remuestreo" [label="probar_remuestreo()\nverificar_rapido.py:L121"];
+  "analisis_verificar_rapido_correr" -> "analisis_verificar_rapido_archivo";
+  "analisis_verificar_rapido_correr" -> "analisis_verificar_rapido_dibujar";
+  "analisis_verificar_rapido_main" -> "analisis_verificar_rapido_generar_stream";
+  "analisis_verificar_rapido_main" -> "analisis_verificar_rapido_probar_remuestreo";
+  "analisis_verificar_rapido_main" -> "analisis_verificar_rapido_probar_ajuste";
+  "analisis_verificar_rapido_main" -> "analisis_verificar_rapido_probar_pico_subbin";
+  "analisis_verificar_rapido_main" -> "analisis_verificar_rapido_probar_lector";
+  "analisis_verificar_rapido_main" -> "analisis_verificar_rapido_probar_punta_a_punta";
+  "analisis_verificar_rapido_main" -> "analisis_verificar_rapido_probar_archivos";
+  "analisis_verificar_rapido_main" -> "analisis_verificar_rapido_probar_cadena_offline";
+  "analisis_verificar_rapido_main" -> "analisis_verificar_rapido_probar_captura";
+  "analisis_verificar_rapido_probar_ajuste" -> "analisis_verificar_rapido_juzgar";
+  "analisis_verificar_rapido_probar_archivos" -> "analisis_verificar_rapido_puerto";
+  "analisis_verificar_rapido_probar_archivos" -> "analisis_verificar_rapido_juzgar";
+  "analisis_verificar_rapido_probar_cadena_offline" -> "analisis_verificar_rapido_juzgar";
+  "analisis_verificar_rapido_probar_captura" -> "analisis_verificar_rapido_archivo";
+  "analisis_verificar_rapido_probar_captura" -> "analisis_verificar_rapido_juzgar";
+  "analisis_verificar_rapido_probar_lector" -> "analisis_verificar_rapido_puerto";
+  "analisis_verificar_rapido_probar_lector" -> "analisis_verificar_rapido_archivo";
+  "analisis_verificar_rapido_probar_lector" -> "analisis_verificar_rapido_juzgar";
+  "analisis_verificar_rapido_probar_pico_subbin" -> "analisis_verificar_rapido_juzgar";
+  "analisis_verificar_rapido_probar_punta_a_punta" -> "analisis_verificar_rapido_correr";
+  "analisis_verificar_rapido_probar_punta_a_punta" -> "analisis_verificar_rapido_juzgar";
+  "analisis_verificar_rapido_probar_remuestreo" -> "analisis_verificar_rapido_juzgar";
+}

@@ -1,0 +1,90 @@
+
+digraph vivo_rapido {
+  rankdir=TB;
+
+  fontname="Helvetica"; fontsize=12;
+  newrank=true; compound=true; nodesep=0.35; ranksep=0.42;
+  node [shape=box, fontname="Helvetica", fontsize=11, color="black",
+        penwidth=1.3, margin="0.16,0.07"];
+  edge [fontname="Helvetica", fontsize=9.5, color="black", penwidth=1.0,
+        arrowsize=0.75];
+
+  esp [label="ESP32-C3  —  adquisicion.ino
+batido: 6 000 muestras/s   triangular: ~187 lecturas/s",
+       peripheries=2];
+
+  subgraph cluster_lector {
+    label="HILO 1: LECTOR
+corre todo el tiempo";
+    style="dashed"; color="gray35"; penwidth=1.1; labeljust="l"; fontsize=11;
+    leer    [label="Leer lo que va
+llegando al puerto"];
+    separar [label="Separar las líneas
+batido  |  triangular"];
+    guardar [label="Escribir todo a disco,
+tal cual llega"];
+    leer -> separar -> guardar;
+    nota [shape=plaintext, fontsize=10, label="Los dos hilos corren a la vez:
+mientras el hilo 2 hace las FFT
+y dibuja, el hilo 1 sigue
+recibiendo y grabando, así
+no se pierde ninguna muestra."];
+    guardar -> nota [style=invis];
+  }
+
+  disco [label="captura_<fecha>.csv
+triangular_<fecha>.csv", shape=cylinder];
+  cola  [label="Cola
+compartida", style="bold"];
+
+  subgraph cluster_grafico {
+    label="HILO 2: GRÁFICO
+se despierta cada 200 ms y procesa lo que se juntó";
+    style="dashed"; color="gray35"; penwidth=1.1; labeljust="l"; fontsize=11;
+    tomar  [label="1. Sacar todo lo nuevo de la cola"];
+    ajuste [label="2. Ajustar la triangular (período y fase)
+al arrancar lo busca con 4 s de datos,
+después lo corrige cada 2 s"];
+    cortar [label="3. Cortar el batido en rampas
+las bajadas se dan vuelta y quedan como subidas"];
+    remu   [label="4. Remuestrear en θ
+corrige que el VCO no barre lineal"];
+    fft    [label="5. Ventana de Hann + FFT
+cada rampa → un perfil de distancia"];
+    buffer [label="6. Guardar el perfil
+(quedan los últimos 20 a 120 s)"];
+    prom   [label="7. Promediar N rampas por fila"];
+    fondo  [label="8. Restar el fondo (si hay) y pasar a dB
+→ radargrama"];
+    pico   [label="9. ¿Hay blanco? (energía sobre el fondo)
+si hay: pico → distancia calibrada"];
+    dibu   [label="10. Actualizar la pantalla
+(solo lo que cambió)"];
+
+    tomar -> ajuste [label=" triangular"];
+    tomar -> cortar [label=" batido"];
+    ajuste -> cortar [label=" dónde empieza
+ cada rampa"];
+    cortar -> remu -> fft -> buffer -> prom -> fondo -> pico -> dibu;
+  }
+
+  vco     [label="Curva del VCO
+(medida en el banco)", shape=note];
+  usuario [label="Controles del usuario
+N, ventana, alcance,
+medir fondo / MTI,
+calibrar distancia", shape=note];
+
+  esp -> leer [label=" USB"];
+  guardar -> disco;
+  separar -> cola;
+  cola -> tomar;
+  vco -> remu [style=dashed];
+  usuario -> prom [style=dashed];
+  usuario -> fondo [style=dashed];
+  usuario -> pico [style=dashed];
+
+  { rank=same; separar; cola; tomar; }
+  { rank=same; remu; vco; }
+  { rank=same; fondo; usuario; }
+}
