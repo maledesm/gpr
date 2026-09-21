@@ -38,7 +38,7 @@ Dos modos, elegís abajo en MODO:
 
                   adquisicion.ino manda la salida ya diezmada a 6000
                   muestras/s fijas (ver SPS_SALIDA en el .ino), no la fs
-                  real del ADC. Con T_sweep = 20 ms eso da 120 muestras por
+                  real del ADC. Con T_sweep = 50 ms eso da 300 muestras por
                   rampa, y alcanza: el ancho de bin de la FFT vale c/(2·BW)
                   cualquiera sea fs, o sea que el diezmado NO cuesta
                   resolución. Lo que fs fija es el alcance no ambiguo.
@@ -69,14 +69,24 @@ FS_CSV      = 6000.0   # sps de la salida diezmada de adquisicion.ino
 # asume que V(t) es una rampa lineal genuina de V_MIN a V_MAX en T_SWEEP.
 
 VCO_CSV  = os.path.join("..", "..", "VCO", "Caracteristica VCO.csv")
-# 20 ms: punto medio elegido para las primeras mediciones reales de
-# laboratorio (no es lo que emite el banco casero de Martin, que sigue en
-# 10 ms - ver GPRv2/CLAUDE.md). Con 50 ms el acoplamiento directo TX->RX a
-# 0,15 m da 20,8 Hz, pegado al corte de 19 Hz del pasabajos post-mezclador;
-# con 10 ms sobra margen pero quedan la mitad de muestras por rampa para el
-# remuestreo. A 20 ms el mismo acoplamiento da 52 Hz (3x el corte, comodo) y
-# hay el doble de muestras que a 10 ms para la misma FS_CSV.
-T_SWEEP  = 20e-3          # s, rampa de subida (ver GPRv2/CLAUDE.md)
+# 50 ms: la rampa con la que viene midiendo el banco de laboratorio. El
+# generador esta en Tprf 100 ms, o sea 50 de subida y 50 de bajada, y
+# T_SWEEP es SOLO la subida. No es lo que emite el banco casero de Martin,
+# que sigue en 10 ms - ver GPRv2/CLAUDE.md.
+#
+# El razonamiento viejo (2026-09-02) habia elegido 20 ms y descartado los
+# 50 porque el acoplamiento directo TX->RX a 0,15 m da 20,8 Hz, pegado al
+# corte de 19 Hz del pasabajos post-mezclador. Con los cables puestos eso
+# no pasa: el retardo de los coaxiles corre TODO el eje 1,46 m hacia arriba
+# (2 m de RG-213, capitulo de cables de la tesis), asi que el acoplamiento
+# aterriza en 1,61 m = 223 Hz, doce veces el corte. Ningun blanco puede
+# caer debajo de los 1,46 m de offset, asi que el corte de 19 Hz deja de
+# acotar por abajo mientras esos cables esten en el banco.
+#
+# A 50 ms son 300 muestras por rampa con FS_CSV 6000, y 139 Hz por metro
+# con la BW medida de 1039 MHz (la mitad que a 20 ms: el alcance no
+# ambiguo pasa de 8,7 a 21,6 m crudos).
+T_SWEEP  = 50e-3          # s, rampa de subida (ver GPRv2/CLAUDE.md)
 V_MIN    = 0.0            # V
 V_MAX    = 3.00           # V  -> con la curva medida da BW = 1039 MHz
 

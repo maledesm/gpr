@@ -15,17 +15,42 @@ sirven a dos bancos distintos que se usan en paralelo:
 - **Banco casero de Martin** (`firmware/generador_chirp`, Arduino Uno, sin
   RF): calibrado a **10 ms**, `SPS_SALIDA` 4000, `FS_DEF` 16000 — ver la
   sección de abajo, "Estado del banco".
-- **Primeras mediciones reales de laboratorio de Santiago** (VCO, mezclador,
-  antenas de verdad): **20 ms**, `SPS_SALIDA` 6000, `FS_DEF` 48000 -
-  elegido el 2026-09-02. A 10 ms sobra margen frente al corte de 19 Hz del
-  pasabajos post-mezclador pero quedan pocas muestras por rampa para el
-  remuestreo; a 20 ms el acoplamiento directo a 0,15 m sigue 3x arriba del
-  corte (52 Hz) y hay más margen. `SPS_SALIDA` se subió de 4000 a 6000
-  (dec exacto ×8 con `FS_DEF`=48000) porque a 20 ms sobraba presupuesto de
-  ancho de banda: 6000 sps da 120 muestras/rampa a ~78 kB/s, todavía lejos
-  de los ~128 kB/s donde el CDC empieza a desbordar. No es una discrepancia
-  con el punto de abajo: son bancos distintos, midiendo cosas distintas, en
+- **Mediciones reales de laboratorio de Santiago** (VCO, mezclador, antenas
+  de verdad): **50 ms**, `SPS_SALIDA` 6000, `FS_DEF` 48000. El generador
+  está en **Tprf 100 ms**: sube en 50 y baja en 50, y `T_SWEEP` es SOLO la
+  subida. `SPS_SALIDA` se subió de 4000 a 6000 (dec exacto ×8 con
+  `FS_DEF`=48000): 6000 sps da **300 muestras/rampa** a ~78 kB/s, lejos de
+  los ~128 kB/s donde el CDC empieza a desbordar. No es una discrepancia con
+  el punto de arriba: son bancos distintos, midiendo cosas distintas, en
   paralelo.
+
+**Los 50 ms son lo que se viene usando en TODAS las últimas mediciones**
+(confirmado por el usuario el 2026-09-20). El valor que había en el código
+eran 20 ms, elegidos el 2026-09-02 con un razonamiento que ya no aplica: se
+habían descartado los 50 ms porque el acoplamiento directo a 0,15 m da
+20,8 Hz, pegado al corte de 19 Hz del pasabajos post-mezclador. **Con los
+cables puestos ese problema no existe**: el retardo de los coaxiles corre
+todo el eje 1,46 m hacia arriba (2 m de RG-213), así que el acoplamiento
+aterriza en 1,61 m = **223 Hz**, doce veces el corte, y ningún blanco puede
+caer por debajo del offset. Ver la sección de los cables, más abajo.
+
+Lo que cambia al pasar de 20 a 50 ms:
+
+| | 20 ms (viejo) | **50 ms (actual)** |
+|---|---|---|
+| Hz por metro (BW 1039 MHz) | 346 | **139** |
+| muestras por rampa @6000 sps | 120 | **300** |
+| alcance no ambiguo (crudo) | 8,7 m | **21,6 m** |
+| acoplamiento directo, con cables | 557 Hz | **223 Hz** |
+| placa a 1 m, con cables (2,46 m ap.) | 850 Hz | **340 Hz** |
+
+**El ajuste de la triangular a 100 ms está verificado** (2026-09-20).
+`buscar_periodo()` ya tenía el caso medido en la tabla de "Cambiar el Tprf
+del generador" (+11 ppm), y ahora `verificar_rapido.py` corre también
+`ajustar_triangular_rapido()` a 100 ms: −17,3 ppm de error contra la verdad
+con span 0,01 y −12,6 ppm con span 0,10, del mismo orden que los casos de
+80 ms que ya estaban. Con reajuste cada 2 s eso son ~34 µs de error en el
+límite de rampa, 0,07 % de una rampa de 50 ms.
 
 **`adquisicion.ino` es el MISMO archivo para los dos bancos** - si alguno de
 los dos necesita sus propios `FS_DEF`/`SPS_SALIDA` para seguir midiendo,
@@ -277,6 +302,11 @@ Lo que lo logro, en orden de cuanto aporto:
 Cuadro de texto `captura` + boton `guardar captura PNG`, o la tecla `s`. Se
 tipea un nombre ("placa_1m"), se aprieta, y queda en
 `datos/capturas/<nombre>.png` a 200 dpi (~2190x1509 px, ~180 KB).
+
+**Las capturas PNG SÍ entran a git** (desde el 2026-09-21; antes las tapaba
+el `*.png` global del `.gitignore` y las de la placa a 1 m quedaron solo en
+la PC del banco). Después de medir: `git add GPRv2/datos/capturas/` y
+commitear. Los CSV de la corrida siguen fuera (son megas por minuto).
 
 - **Nunca sobrescribe**: si el nombre ya existe sale `<nombre>_2.png`. Los
   caracteres que Windows no acepta se reemplazan por `_`; nombre vacio ->

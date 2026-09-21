@@ -48,7 +48,8 @@ resolución = c / (2 · BW)
 Con `BW = 1039 MHz` eso son **6,93 / T_rampa** Hz por metro, y **14,4 cm** de
 resolución en aire (4,8 cm en suelo con εr ≈ 9).
 
-Con la rampa de ~50 ms que vamos a usar: **139 Hz por metro**.
+Con la rampa de **50 ms** que usa el banco (generador en Tprf 100 ms, 50 de
+subida y 50 de bajada): **139 Hz por metro**.
 
 ---
 
@@ -106,8 +107,12 @@ Generador de funciones ──> amplificador ──> VCO ──> splitter ──�
   coaxiles de TX y RX se suman al retardo del blanco. Con **VF = 2/3, cada
   metro de coaxil son 0,75 m de offset** en la distancia leída.
 - Con 3 m por antena: `D̃ = (3/2)·6 m = 9 m` → **offset de 4,5 m**. A `T_PRF`
-  40 ms eso agrega **1500 Hz** al batido, contra los 333 Hz que da un blanco
+  100 ms eso agrega **624 Hz** al batido, contra los 139 Hz que da un blanco
   a 1 m.
+- ⚠️ Esos 4,5 m son la estimación cruda del 2026-09-05 y son los cables
+  VIEJOS. El banco usa ahora **2 m de RG-213**, medidos con el VNA:
+  **1,46 m de offset** = 202 Hz a `T_PRF` 100 ms. La cuenta fina, con las
+  longitudes y el VF medidos, está en el capítulo de cables de la tesis.
 - Es un **offset puro**: la pendiente sigue siendo 1 y la resolución no se
   toca. Se saca con un punto de calibración en `vivo.py`.
 - Derivación completa, diagramas y tablas: **`GPRv2/docs/CABLES/retardo_cables.md`**.

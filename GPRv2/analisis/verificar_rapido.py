@@ -174,8 +174,11 @@ def probar_remuestreo(curva):
 def probar_ajuste():
     print("\n--- 2. ajuste de periodo y fase de la triangular ---")
     rng = np.random.default_rng(7)
-    casos = ((80e-3, 0.01), (80e-3, 0.10), (40e-3, 0.01),
-             (20e-3, 0.10), (12.5e-3, 0.10))
+    # 100e-3 es el Tprf real del banco (rampa de 50 ms). Va primero porque
+    # es el unico caso que importa para las mediciones de verdad; el resto
+    # cubre el rango en el que el buscador de periodo tiene que funcionar.
+    casos = ((100e-3, 0.01), (100e-3, 0.10), (80e-3, 0.01), (80e-3, 0.10),
+             (40e-3, 0.01), (20e-3, 0.10), (12.5e-3, 0.10))
     peor_T = peor_t0 = 0.0
     tv = tr = 0.0
     for T, span in casos:

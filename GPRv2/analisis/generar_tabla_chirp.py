@@ -22,7 +22,7 @@ Uso
 import os
 import numpy as np
 
-from correccion_no_linealidad import cargar_curva_vco, T_SWEEP, V_MIN, V_MAX, C
+from correccion_no_linealidad import cargar_curva_vco, V_MIN, V_MAX, C
 
 # ─── Parámetros ───────────────────────────────────────────────────────────
 
@@ -31,6 +31,14 @@ from correccion_no_linealidad import cargar_curva_vco, T_SWEEP, V_MIN, V_MAX, C
 # no rompe el que ya estaba casi bien.
 BLANCOS   = [0.60, 1.20]   # m
 FS_UNO    = 16000     # Hz, tasa del ISR del Uno. 16 MHz / 1000 exactos.
+# ESTE banco es el de Martin, calibrado a 10 ms, y NO comparte la rampa con
+# el de laboratorio. Antes se importaba T_RAMPA de correccion_no_linealidad,
+# que es el parametro del OTRO banco: cuando ese paso de 10 a 20 ms
+# (2026-09-02) y despues a 50 (2026-09-20), este script quedo generando una
+# tabla de 320 y de 800 valores para una placa que corre a 160. La tabla
+# commiteada tiene CHIRP_N 160, o sea que se genero antes del primer cambio.
+# Ver "T_RAMPA y SPS_SALIDA tienen dos valores en paralelo" en CLAUDE.md.
+T_RAMPA   = 10e-3     # s, rampa del banco casero (NO tocar con T_RAMPA)
 # AMPLITUD va de la mano con RUIDO en generador_chirp.ino: los dos comparten
 # el rango de 8 bits del PWM y AMPLITUD + RUIDO no puede pasar de 127.
 #
@@ -50,9 +58,9 @@ SALIDA  = os.path.join(AQUI, "..", "firmware", "generador_chirp", "tabla_chirp.h
 def main():
     curva = cargar_curva_vco(VCO_CSV)
 
-    n = int(round(T_SWEEP * FS_UNO))
-    t = np.linspace(0, T_SWEEP, n, endpoint=False)
-    v = V_MIN + (V_MAX - V_MIN) * (t / T_SWEEP)
+    n = int(round(T_RAMPA * FS_UNO))
+    t = np.linspace(0, T_RAMPA, n, endpoint=False)
+    v = V_MIN + (V_MAX - V_MIN) * (t / T_RAMPA)
     f = curva(v)
     g = f - f[0]
 
@@ -68,8 +76,8 @@ def main():
     for r in BLANCOS:
         fi = (2.0 * r / C) * dg
         print(f"blanco {r:.2f} m    f_beat {fi.min():.0f} a {fi.max():.0f} Hz "
-              f"(media {(2.0*r/C)*bw/T_SWEEP:.0f} Hz)")
-    print(f"tabla           {n} valores a {FS_UNO} Hz = {T_SWEEP*1e3:.0f} ms")
+              f"(media {(2.0*r/C)*bw/T_RAMPA:.0f} Hz)")
+    print(f"tabla           {n} valores a {FS_UNO} Hz = {T_RAMPA*1e3:.0f} ms")
 
     with open(SALIDA, "w", encoding="utf-8") as fh:
         fh.write("// Generado por GPRv2/analisis/generar_tabla_chirp.py -- no editar a mano.\n")
