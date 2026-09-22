@@ -292,8 +292,10 @@ medir.bat / graficar.bat / pruebas.bat / medir_audio.bat   Accesos en la raíz
   se puede mover o clonar en otra máquina y siguen andando. (Ojo: en `cmd.exe`
   un `cd` a otra unidad **no cambia de unidad** sin `/d`.)
 - `.gitignore` excluye `*.png`, `*.pdf`, `*.svg`, `datos/*.csv`, los venv y las
-  simulaciones pesadas. Las figuras que son **resultado final** se agregan a mano
-  con `git add -f` y quedan listadas en un comentario del propio `.gitignore`.
+  simulaciones pesadas, **salvo en `redaccion/`**: el PDF de la tesis y todas sus
+  figuras se suben siempre, sin `git add -f`. Fuera de `redaccion/`, las figuras
+  que son **resultado final** se agregan a mano con `git add -f` y quedan
+  listadas en un comentario del propio `.gitignore`.
 - Los archivos generados llevan un encabezado que dice que son generados y qué
   script los produce (`tabla_vco.h` es el ejemplo).
 

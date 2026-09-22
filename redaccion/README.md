@@ -31,11 +31,13 @@ pdflatex -interaction=nonstopmode -halt-on-error tesis_gpr_fmcw.tex
 1. `git pull` antes de tocar el `.tex` (avisarse si van a editar la misma
    sección al mismo tiempo, como con el resto del repo).
 2. Editar `tesis_gpr_fmcw.tex`, compilar con `compilar.bat` y revisar el PDF.
-3. `git add` / `commit` / `push` del `.tex` **y del `tesis_gpr_fmcw.pdf`**.
+3. `git add` / `commit` / `push` del `.tex`, **del `tesis_gpr_fmcw.pdf` y de
+   las figuras nuevas o cambiadas**.
 
-**El `.pdf` compilado sí se sube** (tiene su excepción en `.gitignore`): el que
-cambia el `.tex` lo recompila y lo commitea en el mismo commit, así el otro
-tiene el PDF al día sin compilar.
+**El `.pdf` compilado y todas las figuras se suben siempre**: todo `redaccion/`
+tiene su excepción en `.gitignore`, así que no hace falta `git add -f`. El que
+cambia el `.tex` lo recompila y lo commitea en el mismo commit junto con las
+figuras, así el otro tiene el PDF al día sin compilar y la tesis le compila.
 
 Los archivos auxiliares de la compilación (`.aux`, `.log`, etc.) no se suben y
 no tienen que quedar en la carpeta: `compilar.bat` los borra solo. Si corrés
