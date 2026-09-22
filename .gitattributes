@@ -12,6 +12,13 @@
 # repo, aplica automáticamente a los dos: no hay que configurar nada.
 * text=auto eol=lf
 
+# Excepción: los .bat se sacan con CRLF. Adentro del repo siguen en LF como
+# todo lo demás (no hay cambios fantasma), pero cmd.exe con finales LF puede
+# errarle a los saltos a etiquetas (goto / call :etiqueta), y simular.bat los
+# usa. Solo afecta al sacar el archivo: los .bat no se corren desde WSL.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
 # Los CSV del osciloscopio son texto, pero conviene declararlos explícito
 *.CSV text
 *.csv text
