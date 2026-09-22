@@ -46,6 +46,7 @@ de MEEP, donde el barrido dura nanosegundos y esa correccion es enorme.
 
 import os
 import sys
+from contextlib import contextmanager, redirect_stdout
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -69,6 +70,11 @@ try:
     from cables_vna import leer_s2p                               # noqa: E402
 finally:
     os.chdir(_cwd0)
+
+# El .bat puede pedir otro Tprf (TPRF_MS) para ver como cambian los Hz por
+# metro sin tocar analisis/. T_SWEEP es la subida sola: la mitad del Tprf.
+if P.TPRF:
+    T_SWEEP = P.TPRF / 2.0
 
 FS = 6000.0          # sps de la salida diezmada del firmware (SPS_SALIDA)
 
@@ -197,6 +203,7 @@ def guardar_figura(fig, destino, dpi=130):
     corrida entera. Devuelve la ruta con la que quedo.
     """
     import time
+    os.makedirs(os.path.dirname(destino), exist_ok=True)
     tmp = destino + ".tmp.png"
     fig.savefig(tmp, dpi=dpi)
     try:
@@ -214,19 +221,45 @@ def guardar_figura(fig, destino, dpi=130):
 def anotar_para_abrir(destino):
     """simular.bat abre al terminar las figuras que se anotan aca."""
     if os.environ.get("GPR_SIM_ABRIR") == "1":
-        with open(os.path.join(P.SALIDAS, "_abrir.txt"), "a",
+        with open(os.path.join(P.SALIDAS_RAIZ, "_abrir.txt"), "a",
                   encoding="utf-8") as fh:
             fh.write(destino + "\n")
 
 
+class _Tee:
+    def __init__(self, *salidas):
+        self.salidas = salidas
+
+    def write(self, x):
+        for s in self.salidas:
+            s.write(x)
+
+    def flush(self):
+        for s in self.salidas:
+            s.flush()
+
+
+@contextmanager
+def copiar_consola(archivo):
+    """Lo que se imprime adentro va a la consola Y a <carpeta>/<archivo>.
+
+    El .txt arranca con los parametros de la corrida (P.resumen()), asi los
+    numeros quedan guardados junto a las figuras y dicen con que se sacaron.
+    """
+    os.makedirs(P.SALIDAS, exist_ok=True)
+    with open(os.path.join(P.SALIDAS, archivo), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(P.resumen()) + "\n\n")
+        with redirect_stdout(_Tee(sys.stdout, fh)):
+            yield
+
+
 def cargar(etiqueta):
-    """Lee salidas/H_<etiqueta>.npz -> (f_hz, H)."""
+    """Lee <carpeta de la corrida>/H_<etiqueta>.npz -> (f_hz, H)."""
     ruta = os.path.join(P.SALIDAS, f"H_{etiqueta}.npz")
     if not os.path.exists(ruta):
         raise SystemExit(
-            f"falta {ruta}. Corre primero la simulacion:\n"
-            f"    wsl -d Ubuntu -- bash "
-            f"/mnt/c/Users/mogic/Tesis/gpr/GPRv2/simulaciones_meep/correr_meep.sh")
+            f"falta {ruta}.\nCorre primero la parte de MEEP con los mismos "
+            f"parametros (GPRv2/simular.bat, QUE=todo).")
     d = np.load(ruta)
     return d["f_hz"], d["H"]
 

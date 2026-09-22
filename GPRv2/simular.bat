@@ -11,6 +11,9 @@ rem  Para probar otra cosa, cambia los valores del bloque de abajo y volve a
 rem  correrlo. NO hace falta tocar ningun .py: los valores de referencia (los
 rem  del croquis y del VNA) viven en simulaciones_meep\parametros.py, y lo que
 rem  se ponga aca los pisa solo para esta corrida.
+rem
+rem  Cada corrida queda en su propia carpeta, simulaciones_meep\salidas\<NOMBRE>\
+rem  (ver NOMBRE abajo), asi probar otra cosa no borra lo anterior.
 rem ===========================================================================
 title GPRv2 - Simulacion MEEP
 
@@ -19,6 +22,22 @@ rem ##                    LO QUE SE PUEDE CAMBIAR                            ##
 rem ##  Dejar un valor VACIO (ej: "set TAU_INTERNO_NS=") usa el de           ##
 rem ##  parametros.py. Se acepta coma o punto decimal.                       ##
 rem ###########################################################################
+
+rem Nombre de la corrida. Todo lo que genera va a una carpeta con este nombre:
+rem
+rem    simulaciones_meep\salidas\<NOMBRE>\
+rem        escena.png            el campo en tres instantes (placa)
+rem        espectro.png          la FFT con los picos A-E explicados (placa)
+rem        barrido.png           frecuencia contra distancia (barrido)
+rem        resumen_placa.txt     los numeros de la consola, con los
+rem        resumen_barrido.txt     parametros que se usaron
+rem        H_*.npz               lo que calculo MEEP
+rem
+rem VACIO = se arma solo con los parametros de abajo, por ejemplo
+rem    placa1.00m_hueco10cm_ancho70cm
+rem    barrido0.75-1.50m_hueco10cm_ancho70cm_cable-ideal
+rem Si la carpeta ya existe, se pisa. Espacios y  \ / : * ? " < > |  pasan a _
+set NOMBRE=
 
 rem Que correr:
 rem    placa    placa a DIST_PLACA + escena vacia      (~10 s)
@@ -39,6 +58,17 @@ set SEPARACION_BOCAS=0.10
 rem Ancho de la placa en el plano de la simulacion [m]
 set PLACA_ANCHO=0.70
 
+rem Carga de la sonda de las bocinas:
+rem    adaptada  la sonda tiene su carga de 50 ohm, como en el banco: lo que
+rem              vuelve a entrar a una bocina se absorbe y no sale de nuevo.
+rem              (En MEEP: la guia no tiene corto y sigue hasta el borde
+rem              absorbente de la celda.)
+rem    corto     la bocina del croquis tal cual, con el corto del fondo y sin
+rem              carga: es una cavidad cerrada, devuelve todo lo que le entra
+rem              y exagera los rebotes D, CD y E. Es lo que habia antes.
+rem El banco real esta entre las dos.
+set SONDA=adaptada
+
 rem Cables:  medido  = S21 de los RG-213 medido con el VNA (lo mas real)
 rem          ideal   = retardo puro, sin perdidas
 rem          ninguno = sin cables
@@ -50,6 +80,11 @@ set TAU_INTERNO_NS=0
 
 rem Celdas por unidad MEEP (0,15 m). 20 = 7,5 mm. 30 es mas fino y tarda ~3x.
 set RESOLUCION=20
+
+rem Periodo de la triangular del generador [ms]: sube en la mitad y baja en la
+rem otra. VACIO = el de analisis\ (100 ms, el del banco). Solo cambia el
+rem procesamiento, no el FDTD: los Hz por metro son 4B/(c*Tprf), 138,6 a 100 ms.
+set TPRF_MS=
 
 rem ###########################################################################
 rem ##                  DE ACA PARA ABAJO NO HACE FALTA TOCAR                ##
@@ -67,9 +102,13 @@ set "GPR_SIM_PLACA_ANCHO=%PLACA_ANCHO%"
 set "GPR_SIM_CABLE=%CABLE%"
 set "GPR_SIM_TAU_INTERNO_NS=%TAU_INTERNO_NS%"
 set "GPR_SIM_RESOLUCION=%RESOLUCION%"
+set "GPR_SIM_TPRF_MS=%TPRF_MS%"
+set "GPR_SIM_SONDA=%SONDA%"
+set "GPR_SIM_QUE=%QUE%"
+set "GPR_SIM_NOMBRE=%NOMBRE%"
 rem Los scripts de Windows abren solos la figura que generan.
 set "GPR_SIM_ABRIR=1"
-set "VARS=GPR_SIM_DIST_PLACA:GPR_SIM_BARRIDO:GPR_SIM_SEPARACION_BOCAS:GPR_SIM_PLACA_ANCHO:GPR_SIM_CABLE:GPR_SIM_TAU_INTERNO_NS:GPR_SIM_RESOLUCION"
+set "VARS=GPR_SIM_DIST_PLACA:GPR_SIM_BARRIDO:GPR_SIM_SEPARACION_BOCAS:GPR_SIM_PLACA_ANCHO:GPR_SIM_CABLE:GPR_SIM_TAU_INTERNO_NS:GPR_SIM_RESOLUCION:GPR_SIM_TPRF_MS:GPR_SIM_SONDA:GPR_SIM_QUE:GPR_SIM_NOMBRE"
 if defined WSLENV (set "WSLENV=%WSLENV%:%VARS%") else (set "WSLENV=%VARS%")
 
 if /i not "%QUE%"=="placa" if /i not "%QUE%"=="barrido" if /i not "%QUE%"=="todo" (
@@ -80,15 +119,31 @@ if /i not "%QUE%"=="placa" if /i not "%QUE%"=="barrido" if /i not "%QUE%"=="todo
 
 call :buscar_python || goto :fin_error
 
+rem El nombre de la carpeta lo resuelve parametros.py (el mismo que usan MEEP
+rem y el radar), asi hay un solo lugar donde se arma. De paso valida todos
+rem los valores: si alguno esta mal, Python avisa cual y no sale nombre.
+set "CARPETA="
+for /f "delims=" %%N in ('call "%PY%" "%SIM%\parametros.py" --nombre') do set "CARPETA=%%N"
+if not defined CARPETA (
+    echo.
+    echo  [ERROR] Algun valor del bloque de arriba no es valido: ver el mensaje.
+    goto :fin_error
+)
+set "NOMBRE=%CARPETA%"
+set "GPR_SIM_NOMBRE=%NOMBRE%"
+
 echo.
 echo  ==========================================================
 echo   GPRv2 - Simulacion MEEP de la placa metalica
 echo  ==========================================================
+echo   corrida       %NOMBRE%
 echo   que           %QUE%
 echo   placa a       %DIST_PLACA% m     (barrido: %BARRIDO%)
 echo   hueco bocas   %SEPARACION_BOCAS% m    ancho placa %PLACA_ANCHO% m
+echo   sonda         %SONDA%
 echo   cables        %CABLE%        tau interno %TAU_INTERNO_NS% ns
 echo   resolucion    %RESOLUCION% celdas/u
+if defined TPRF_MS echo   Tprf          %TPRF_MS% ms
 echo  ==========================================================
 
 echo.
@@ -134,7 +189,7 @@ if exist "%SIM%\salidas\_abrir.txt" (
 
 
 echo.
-echo  Listo. Las figuras y los .npz quedan en simulaciones_meep\salidas\
+echo  Listo. Todo quedo en simulaciones_meep\salidas\%NOMBRE%\
 echo.
 pause
 exit /b 0

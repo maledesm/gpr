@@ -3,73 +3,114 @@
 Recrea la medición de las bocinas contra la placa metálica, con los cables y
 el procesamiento reales del banco.
 
+> **La explicación completa** (la física, cada paso, cada parámetro, cómo leer
+> cada figura y qué es cada pico) está en **[COMO_FUNCIONA.md](COMO_FUNCIONA.md)**.
+> Este README es solo para correrlo.
+
 ## Cómo se corre
 
 **Doble click en `GPRv2/simular.bat`.** Arriba de todo tiene un bloque con lo
-que se puede cambiar (distancia de la placa, barrido, separación de las
-bocinas, ancho de la placa, cables, retardo interno, resolución). Corre MEEP
-en WSL, después el procesamiento en Windows, y abre las figuras. Los valores
-del `.bat` pisan los de `parametros.py` solo para esa corrida, vía variables
-`GPR_SIM_*`; dejar uno vacío usa el de `parametros.py`.
+que se puede cambiar: nombre de la corrida, qué correr, distancia de la placa,
+barrido, hueco entre las bocas, ancho de la placa, carga de la sonda, cables,
+retardo interno, resolución y Tprf. Corre MEEP en WSL, después el
+procesamiento en Windows, y abre las figuras. Los valores del `.bat` pisan los
+de `parametros.py` solo para esa corrida, vía variables `GPR_SIM_*`; dejar uno
+vacío usa el de `parametros.py`.
 
-A mano, paso por paso:
+Cada corrida queda en **su propia carpeta**, `salidas/<NOMBRE>/`:
+
+| archivo | qué es |
+|---|---|
+| `escena.png` | el campo Ez en tres instantes, con el metal encima |
+| `espectro.png` | la FFT en Hz, con cada pico explicado |
+| `barrido.png` | frecuencia del eco contra distancia real, con la recta ideal `4B·d/(c·Tprf)` |
+| `resumen_placa.txt`, `resumen_barrido.txt` | lo que sale por consola, encabezado con los parámetros usados |
+| `H_*.npz` | lo que calculó MEEP |
+
+Nada de `salidas/` entra a git: se regenera corriendo el `.bat`.
+
+`NOMBRE` vacío arma el nombre solo con los parámetros (`nombre_auto()` en
+`parametros.py`): siempre la geometría, y el resto solo si se aparta de la
+referencia. Por ejemplo `placa1.00m_hueco10cm_ancho70cm`,
+`placa1.00m_hueco10cm_ancho70cm_sonda-corto` o
+`barrido0.75-1.50m_hueco10cm_ancho70cm_cable-ideal_tau1.5ns`. Con el mismo
+nombre, la corrida nueva pisa a la anterior.
+
+A mano, paso por paso (sin `GPR_SIM_NOMBRE`, los dos lados arman el mismo
+nombre automático):
 
 ```bash
-# 1. FDTD, en WSL (env conda `meep`). ~3 s por escena.
+# 1. FDTD, en WSL (env conda `meep`). ~4 s por escena.
 wsl -d Ubuntu -- bash /mnt/c/Users/mogic/Tesis/gpr/GPRv2/simulaciones_meep/correr_meep.sh            # placa a 1 m + vacío
 wsl -d Ubuntu -- bash /mnt/c/Users/mogic/Tesis/gpr/GPRv2/simulaciones_meep/correr_meep.sh barrido    # placa a 0,75/1/1,25/1,5 m
 
 # 2. Radar, en el Python de Windows (el mismo de vivo_rapido.py)
-python correr.py      # placa a 1 m: picos contra el modelo -> salidas/placa_1m.png
-python barrido.py     # recta d_ap = a*d_real + b         -> salidas/barrido_distancia.png
+python correr.py      # placa a 1 m: escena.png, espectro.png, resumen_placa.txt
+python barrido.py     # recta d_ap = a*d_real + b -> barrido.png, resumen_barrido.txt
 ```
 
 ## Cómo está armado
 
 | archivo | corre en | qué hace |
 |---|---|---|
-| `parametros.py` | los dos | geometría (del croquis `GPRv2/medidas.png`), banda, retardos. Sin nada del barrido |
-| `escena.py` | WSL / meep | FDTD 2D de banda ancha → `H(f)` sonda TX → sonda RX, en `salidas/H_*.npz` |
+| `parametros.py` | los dos | geometría (del croquis `GPRv2/medidas.png`), banda, retardos, lo que pisa el `.bat`, nombre de la carpeta |
+| `escena.py` | WSL / meep | FDTD 2D de banda ancha → `H(f)` sonda TX → sonda RX |
 | `radar.py` | Windows | `H(f)` + cables (S21 **medido** con el VNA) + τ interno → batido → pipeline de `analisis/` |
-| `correr.py`, `barrido.py` | Windows | las dos comparaciones |
+| `correr.py`, `barrido.py` | Windows | placa a una distancia, y barrido de distancias |
 
 **Por qué banda ancha y no un chirp como `chirp_v7.py`.** La escena es
 lineal e invariante, así que queda descripta por `H(f)`, y el batido es
-`½·Re{H(f(t))}` leído a lo largo de la rampa (derivación en `radar.py`). Con
-eso el FDTD no depende del Tprf, se usa la rampa real de 50 ms con la curva
-medida del VCO, y el batido sintético pasa por **las mismas funciones** que
-una captura: `eje_theta()`, `remuestrear()`, `fs_theta()`.
+`½·Re{H(f(t))}` leído a lo largo de la rampa. Con eso el FDTD no depende del
+Tprf, se usa la rampa real de 50 ms con la curva medida del VCO, y el batido
+sintético pasa por **las mismas funciones** que una captura: `eje_theta()`,
+`remuestrear()`, `fs_theta()`. Derivación en
+[COMO_FUNCIONA.md](COMO_FUNCIONA.md#2-la-idea-central-hf-en-vez-de-un-chirp).
+
+**La carga de la sonda (`SONDA`).** En el banco cada sonda está conectada a
+50 Ω y se lleva lo que vuelve a entrar a la bocina; en MEEP no hay 50 Ω. Con
+`adaptada` (la de siempre) la guía no tiene corto y termina en el PML, que
+absorbe como una carga perfecta. Con `corto` la bocina es una cavidad cerrada
+que devuelve todo. El banco está entre las dos. Ver
+[COMO_FUNCIONA.md](COMO_FUNCIONA.md#5-la-carga-de-la-sonda-sonda).
 
 ## Resultados (2026-09-21, 2D, resolución 20)
 
-Rampa 50 ms (Tprf 100 ms), 138,6 Hz/m, resolución 14,4 cm.
+Placa de 70 cm, bocas separadas 10 cm (centros a 40,5 cm), 2 m de RG-213
+con el S21 medido. Rampa 50 ms (Tprf 100 ms): **138,6 Hz/m =
+4B/(c·Tprf)** con B = 1039,6 MHz; resolución 14,4 cm.
 
-| | modelo | simulado |
-|---|---|---|
-| placa a 1 m, sin cables | 1,466 m | **1,637 m** |
-| placa a 1 m, con 2 m de RG-213 | 2,921 m | **3,093 m = 429 Hz** |
-| acoplamiento directo, con cables | 2,074 m | 2,085 m = 289 Hz |
+| placa a 1 m | modelo | sonda adaptada | sonda corto |
+|---|---|---|---|
+| eco, sin cables | 1,466 m | **1,586 m** | 1,648 m |
+| eco, con cables | 2,921 m | **3,042 m = 422 Hz** | 3,104 m = 430 Hz |
+| acoplamiento directo, con cables | 2,124 m | 2,083 m = 289 Hz | 2,142 m = 297 Hz |
+| rebote adentro de la bocina (D) | — | −30 dB | −4 dB |
 
 Barrido de distancia, `d_ap = a·d_real + b`:
 
-- **pendiente a = 0,993** → todo lo que no es aire es un offset puro.
+- **pendiente a = 0,997** → 138,2 Hz/m simulados contra 138,6 del ideal.
+  Todo lo que no es aire es un offset puro. La pendiente no depende del
+  Tprf (a 80 ms: 172,8 contra 173,3 Hz/m) ni de la sonda.
 - **offset de los cables: 1,456 m** simulado contra 1,455 m del VNA.
-- **offset de las bocinas: 0,652 m**, de los cuales 0,466 m es el largo
-  físico sonda→apertura y **0,186 m (1,24 ns ida y vuelta) es exceso**: la
-  guía de 18 cm tiene el corte TE10 en 833 MHz y el VCO arranca en 942, así
-  que viaja lenta cerca del corte. Eso explica ~7 cm; el resto es el flare y
-  el centro de fase de la bocina (no está separado todavía).
+- **offset de las bocinas: 0,588 m** (adaptada) o **0,658 m** (corto). De eso,
+  0,466 m es el largo físico sonda→apertura, y el resto (0,12 a 0,19 m) es
+  exceso: cerca del corte del modo guiado la onda viaja más lenta que c, y
+  con el corto se suma la parte que va y vuelve al fondo.
 
 ## Limitaciones que hay que tener presentes
 
 - **2D.** Pierde el 1/r² y el recorte de la placa en la otra dimensión: las
   POSICIONES valen, los NIVELES no se comparan con el banco.
-- **El acoplamiento directo sale 40 dB por debajo del eco**, y en el banco es
+- **El acoplamiento directo sale ~46 dB por debajo del eco**, y en el banco es
   lo más fuerte de la pantalla. MEEP solo ve el camino por el aire; en el
   banco domina la fuga interna (splitter, mezclador, cables juntos). Es lo que
   trata `docs/refs/park2018_leakage_internal_delay.pdf`.
 - **`TAU_INTERNO = 0`.** Splitter, mezclador y LNA no están medidos. Con una
   captura real de la placa a 1 m: `b` de la calibración − 1,456 (cables) −
-  0,652 (bocinas) = retardo interno, sin suponer nada.
-- Cotas del croquis a confirmar: sonda a 5,9 cm del corto y separación entre
-  bocinas = una apertura (30,5 cm). Ver `parametros.py`.
+  0,588 a 0,658 (bocinas) = retardo interno, sin suponer nada.
+- **La sonda es un extremo o el otro**: el banco adapta bien a ~1,5 GHz y peor
+  en los bordes de la banda.
+- Las paredes de 1 cm van **centradas** en las cotas del croquis: la guía
+  queda de 17 cm por dentro (corte en 882 MHz). Cotas a confirmar: la sonda a
+  5,9 cm del corto. El hueco de 10 cm entre bocas y la placa de 70 cm son
+  datos del banco. Ver `parametros.py`.

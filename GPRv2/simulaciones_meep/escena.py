@@ -45,7 +45,8 @@ el error va con alpha*tau^2, y con la rampa real de 50 ms eso es ~5e-9.
 Que se guarda
 -------------
 
-Un .npz por escena en `salidas/`, con:
+Un .npz por escena en la carpeta de la corrida (`salidas/<NOMBRE>/`,
+ver parametros.py), con:
 
     f_hz     frecuencias [Hz], N_FREQ puntos entre F_MIN y F_MAX
     H        funcion de transferencia compleja TX->RX (solo el aire)
@@ -67,7 +68,10 @@ import meep as mp
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import parametros as P                                        # noqa: E402
 
-mp.verbosity(1)
+# 0 = meep no imprime nada propio. Con 1 volcaba las coordenadas de cada una
+# de las 11 paredes en cada escena (~70 lineas por escena) y tapaba lo que
+# importa. Lo nuestro (celda, tiempo de FDTD, destino) sale con print().
+mp.verbosity(0)
 
 # --- Pulso de la fuente ----------------------------------------------------
 #
@@ -116,13 +120,19 @@ def _pared(p1, p2, espesor):
     return mp.Prism(v, height=mp.inf, material=mp.metal)
 
 
-def bocina(xc, y_fondo):
+def bocina(xc, y_fondo, y_carga=None):
     """Bocina piramidal 2D apuntando a +y, centrada en xc.
 
     Tres tramos, con las cotas del croquis (ver parametros.py):
       - el corto del fondo,
       - las dos paredes de la guia de onda, de largo GUIA_LARGO,
       - las dos paredes del flare, que abren de GUIA_ANCHO a APERTURA.
+
+    Con `y_carga` (SONDA = "adaptada") NO hay corto: las paredes de la guia
+    siguen derecho hacia abajo hasta y_carga, que se elige afuera de la
+    celda, o sea que la guia atraviesa el PML del borde. El PML absorbe el
+    modo guiado sin reflejarlo: es la carga de 50 ohm de la sonda. Ver
+    SONDA en parametros.py.
     """
     g  = P.a_meep(P.GUIA_ANCHO) / 2.0        # media guia
     ap = P.a_meep(P.APERTURA) / 2.0          # media apertura
@@ -130,9 +140,14 @@ def bocina(xc, y_fondo):
     lt = P.a_meep(P.LARGO_TOTAL)
     e  = P.a_meep(P.PARED)
 
-    piezas = [_pared((xc - g, y_fondo), (xc + g, y_fondo), e)]   # corto
+    if y_carga is None:
+        piezas = [_pared((xc - g, y_fondo), (xc + g, y_fondo), e)]   # corto
+        y_ini = y_fondo
+    else:
+        piezas = []
+        y_ini = y_carga
     for s in (-1, +1):
-        piezas.append(_pared((xc + s * g, y_fondo),
+        piezas.append(_pared((xc + s * g, y_ini),
                              (xc + s * g, y_fondo + lg), e))     # guia
         piezas.append(_pared((xc + s * g, y_fondo + lg),
                              (xc + s * ap, y_fondo + lt), e))    # flare
@@ -192,7 +207,11 @@ def construir(con_placa, dist_placa=None, dist_celda=None):
     dy = -(y_lo + y_hi) / 2.0          # corrimiento para centrar la celda
 
     x_tx, x_rx = -sep / 2.0, +sep / 2.0
-    geom = bocina(x_tx, dy) + bocina(x_rx, dy)
+    # Sonda adaptada: la guia sigue hasta medio u.MEEP por DEBAJO del borde
+    # de la celda, asi cruza entero el PML de abajo. La celda no cambia: la
+    # guia pasa por el MARGEN de aire que ya habia debajo de las bocinas.
+    y_carga = -cell.y / 2.0 - 0.5 if P.SONDA == "adaptada" else None
+    geom = bocina(x_tx, dy, y_carga) + bocina(x_rx, dy, y_carga)
 
     if con_placa:
         geom.append(mp.Block(
@@ -289,14 +308,16 @@ def correr(con_placa, etiqueta, dist_placa=None, dist_celda=None):
         fotos=np.array([fotos[k] for k in ("sale", "placa", "vuelve")]),
         fotos_t=np.array([t_fotos[k] for k in ("sale", "placa", "vuelve")]),
         eps=eps, extent_m=extent_m, dpml_m=P.DPML * P.A_MEEP,
-        dist_placa=dist_placa,
+        dist_placa=dist_placa, sonda=P.SONDA,
         meta=np.array([
+            f"corrida={P.NOMBRE}",
             f"escena={etiqueta}", f"con_placa={con_placa}",
             f"a_meep={P.A_MEEP}", f"resolucion={P.RESOLUCION}",
             f"T_corrida={P.T_CORRIDA}", f"dt_rec={DT_REC}",
             f"dist_placa={dist_placa}",
             f"sep_antenas={P.SEP_ANTENAS}",
             f"apertura={P.APERTURA}", f"placa_ancho={P.PLACA_ANCHO}",
+            f"sonda={P.SONDA}",
         ]))
     print(f"  |H| medio {20*np.log10(np.abs(H).mean()):.1f} dB  ->  {destino}")
     return destino

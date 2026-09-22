@@ -2,8 +2,10 @@
 GPRv2 - Barrido de distancia de la placa: la pendiente tiene que dar 1
 ======================================================================
 
-    wsl ... correr_meep.sh barrido     (una vez, deja salidas/H_placa_*.npz)
-    python barrido.py
+    GPRv2/simular.bat con QUE=barrido o QUE=todo
+
+(a mano: `correr_meep.sh barrido` en WSL y despues `python barrido.py`).
+Escribe barrido.png y resumen_barrido.txt en la carpeta de la corrida.
 
 Es la version simulada de la verificacion de la seccion
 `sec:cables_calibracion` de la tesis: con varios puntos a distancias
@@ -51,42 +53,54 @@ def main():
         filas.append(fila)
     tab = np.array(filas)
 
-    d_bocina = P.LARGO_TOTAL - P.SONDA_FONDO
-    print("=" * 70)
-    print("Barrido de la placa: d_aparente = a * d_real + b")
-    print("=" * 70)
-    print(f"  {'d real':>7s} {'geom.':>7s} {'sin cables':>11s} {'con cables':>11s}")
-    for d, s, c in tab:
-        # camino geometrico biestatico: sonda->apertura + oblicuo a la placa
-        geo = d_bocina + np.hypot(P.SEP_ANTENAS / 2, d)
-        print(f"  {d:6.2f}m {geo:6.3f}m {s:10.3f}m {c:10.3f}m")
-
-    print()
-    ajustes = {}
-    for k, nombre in ((1, "sin cables"), (2, "con cables")):
-        a, b = np.polyfit(tab[:, 0], tab[:, k], 1)
-        res = tab[:, k] - (a * tab[:, 0] + b)
-        ajustes[nombre] = (a, b)
-        print(f"  {nombre:11s}  a = {a:.4f}   b = {b:+.3f} m   "
-              f"residuo rms {np.sqrt(np.mean(res**2))*1000:.1f} mm")
-
-    b_cab = ajustes["con cables"][1] - ajustes["sin cables"][1]
-    b_sin = ajustes["sin cables"][1]
-    print()
-    print(f"  offset de los cables (b con - b sin)  {b_cab:.3f} m   "
-          f"(tesis, medido con VNA: {P.C0*P.tau_cables()/2:.3f} m)")
-    print(f"  offset de bocinas + geometria         {b_sin:.3f} m   "
-          f"(largo fisico sonda->apertura: {d_bocina:.3f} m)")
-    print(f"    -> exceso sobre el largo fisico     {b_sin - d_bocina:+.3f} m "
-          f"= {(b_sin - d_bocina)*2/P.C0*1e9:.2f} ns de ida y vuelta")
-
-    # --- figura, en Hz como vivo_rapido -------------------------------------
+    # Hz por metro del radar ideal: f = 4*B*d/(c*Tprf), con Tprf = 2*T_SWEEP
+    # y B = alpha0*T_SWEEP. Es lo mismo que 2*alpha0/c.
     _t, _b, _th, alpha0 = R.sintetizar(f, H_vacio, curva=curva)
     hz_por_m = 2 * alpha0 / R.C
-    print(f"\n  {hz_por_m:.1f} Hz por metro: la pendiente en Hz es "
-          f"{ajustes['con cables'][0]*hz_por_m:.1f} Hz por metro de placa")
+    bw = alpha0 * R.T_SWEEP
+    tprf = 2 * R.T_SWEEP
 
-    fig, ax = plt.subplots(figsize=(8, 5.5))
+    with R.copiar_consola("resumen_barrido.txt"):
+        d_bocina = P.LARGO_TOTAL - P.SONDA_FONDO
+        print("=" * 70)
+        print("Barrido de la placa: d_aparente = a * d_real + b")
+        print("=" * 70)
+        print(f"  {'d real':>7s} {'geom.':>7s} {'sin cables':>11s} "
+              f"{'con cables':>11s} {'Hz':>7s}")
+        for d, s, c in tab:
+            # camino geometrico biestatico: sonda->apertura + oblicuo a la placa
+            geo = d_bocina + np.hypot(P.SEP_ANTENAS / 2, d)
+            print(f"  {d:6.2f}m {geo:6.3f}m {s:10.3f}m {c:10.3f}m "
+                  f"{c*hz_por_m:7.1f}")
+
+        print()
+        ajustes = {}
+        for k, nombre in ((1, "sin cables"), (2, "con cables")):
+            a, b = np.polyfit(tab[:, 0], tab[:, k], 1)
+            res = tab[:, k] - (a * tab[:, 0] + b)
+            ajustes[nombre] = (a, b)
+            print(f"  {nombre:11s}  a = {a:.4f}   b = {b:+.3f} m   "
+                  f"residuo rms {np.sqrt(np.mean(res**2))*1000:.1f} mm")
+
+        b_cab = ajustes["con cables"][1] - ajustes["sin cables"][1]
+        b_sin = ajustes["sin cables"][1]
+        print()
+        print(f"  offset de los cables (b con - b sin)  {b_cab:.3f} m   "
+              f"(tesis, medido con VNA: {P.C0*P.tau_cables()/2:.3f} m)")
+        print(f"  offset de bocinas + geometria         {b_sin:.3f} m   "
+              f"(largo fisico sonda->apertura: {d_bocina:.3f} m)")
+        print(f"    -> exceso sobre el largo fisico     {b_sin - d_bocina:+.3f} m "
+              f"= {(b_sin - d_bocina)*2/P.C0*1e9:.2f} ns de ida y vuelta")
+
+        a_con = ajustes["con cables"][0]
+        print()
+        print(f"  pendiente ideal 4B/(c*Tprf) = 4 * {bw/1e6:.1f} MHz / "
+              f"(c * {tprf*1e3:g} ms) = {hz_por_m:.1f} Hz/m")
+        print(f"  pendiente simulada          = {a_con*hz_por_m:.1f} Hz/m   "
+              f"(a = {a_con:.4f})")
+
+    # --- figura, en Hz como vivo_rapido -------------------------------------
+    fig, ax = plt.subplots(figsize=(8.5, 5.8))
     x = np.linspace(min(DISTANCIAS) - 0.15, max(DISTANCIAS) + 0.1, 50)
     etiquetas = {"con cables": f"con cables ({P.MODO_CABLE}) — lo que mide el banco",
                  "sin cables": "sin cables (solo aire + bocinas)"}
@@ -101,26 +115,29 @@ def main():
                         textcoords="offset points", xytext=(6, -12),
                         fontsize=7.5, color=col)
     ax.plot(x, x * hz_por_m, "k:", lw=1,
-            label="radar ideal: sin cables ni bocinas (4Bd/cT)")
+            label=f"radar ideal, sin cables ni bocinas: 4Bd/(c·Tprf)\n"
+                  f"   {hz_por_m:.1f} Hz/m  (B = {bw/1e6:.1f} MHz, "
+                  f"Tprf = {tprf*1e3:g} ms)")
     ax.set_xlabel("distancia real, de la boca de las bocinas a la placa [m]")
     ax.set_ylabel("frecuencia de batido del eco de la placa [Hz]")
     der = ax.secondary_yaxis("right", functions=(lambda h: h / hz_por_m,
                                                  lambda m: m * hz_por_m))
     der.set_ylabel("distancia aparente, sin calibrar [m]", fontsize=8)
-    ax.set_ylim(0, None)
+    # Techo con lugar para la leyenda arriba de la recta roja, que si no
+    # tapa el punto de la distancia del medio.
+    ax.set_ylim(0, 1.3 * tab[:, 2].max() * hz_por_m)
     ax.set_title(
-        f"Moviendo la placa: el pico sube {ajustes['con cables'][0]*hz_por_m:.0f} "
-        f"Hz por metro (pendiente ≈ 1)\n"
-        "y todo lo demás —cables y bocinas— es un corrimiento fijo, que se "
+        f"Moviendo la placa: el pico sube {a_con*hz_por_m:.1f} Hz por metro, "
+        f"contra {hz_por_m:.1f} del ideal (a = {a_con:.3f})\n"
+        "Todo lo demás —cables y bocinas— es un corrimiento fijo, que se "
         "saca calibrando con un punto", fontsize=9.5)
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8, loc="upper left")
     fig.tight_layout()
-    destino = R.guardar_figura(
-        fig, os.path.join(P.SALIDAS, "barrido_distancia.png"))
+    destino = R.guardar_figura(fig, os.path.join(P.SALIDAS, "barrido.png"))
+    plt.close(fig)
     print(f"\n  figura -> {destino}")
     R.anotar_para_abrir(destino)
-
 
 if __name__ == "__main__":
     main()
