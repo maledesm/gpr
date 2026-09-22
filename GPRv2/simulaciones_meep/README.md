@@ -11,8 +11,9 @@ el procesamiento reales del banco.
 
 **Doble click en `GPRv2/simular.bat`.** Arriba de todo tiene un bloque con lo
 que se puede cambiar: nombre de la corrida, qué correr, distancia de la placa,
-barrido, hueco entre las bocas, ancho de la placa, carga de la sonda, cables,
-retardo interno, resolución y Tprf. Corre MEEP en WSL, después el
+barrido, hueco entre las bocas, ancho de la placa, **las medidas de la bocina**
+(en cm y por fuera, como el croquis), carga de la sonda, cables, retardo
+interno, resolución y Tprf. Corre MEEP en WSL, después el
 procesamiento en Windows, y abre las figuras. Los valores del `.bat` pisan los
 de `parametros.py` solo para esa corrida, vía variables `GPR_SIM_*`; dejar uno
 vacío usa el de `parametros.py`.
@@ -53,7 +54,7 @@ python barrido.py     # recta d_ap = a*d_real + b -> barrido.png, resumen_barrid
 
 | archivo | corre en | qué hace |
 |---|---|---|
-| `parametros.py` | los dos | geometría (del croquis `GPRv2/medidas.png`), banda, retardos, lo que pisa el `.bat`, nombre de la carpeta |
+| `parametros.py` | los dos | geometría (del croquis [`mediciones/mediciones_antena.png`](../mediciones/mediciones_antena.png), leído en [`mediciones/README.md`](../mediciones/README.md)), banda, retardos, lo que pisa el `.bat`, nombre de la carpeta |
 | `escena.py` | WSL / meep | FDTD 2D de banda ancha → `H(f)` sonda TX → sonda RX |
 | `radar.py` | Windows | `H(f)` + cables (S21 **medido** con el VNA) + τ interno → batido → pipeline de `analisis/` |
 | `correr.py`, `barrido.py` | Windows | placa a una distancia, y barrido de distancias |
@@ -73,18 +74,24 @@ absorbe como una carga perfecta. Con `corto` la bocina es una cavidad cerrada
 que devuelve todo. El banco está entre las dos. Ver
 [COMO_FUNCIONA.md](COMO_FUNCIONA.md#5-la-carga-de-la-sonda-sonda).
 
-## Resultados (2026-09-21, 2D, resolución 20)
+## Resultados (2026-09-22, 2D, resolución 20)
 
-Placa de 70 cm, bocas separadas 10 cm (centros a 40,5 cm), 2 m de RG-213
-con el S21 medido. Rampa 50 ms (Tprf 100 ms): **138,6 Hz/m =
+Bocina de 18 cm de guía, 33,5 de tramo recto, 19 de flare y boca de 30,5
+(por fuera, chapa de 1 mm). Placa de 70 cm, bocas separadas 10 cm (centros a
+40,5 cm), 2 m de RG-213 con el S21 medido. Rampa 50 ms (Tprf 100 ms): **138,6 Hz/m =
 4B/(c·Tprf)** con B = 1039,6 MHz; resolución 14,4 cm.
 
 | placa a 1 m | modelo | sonda adaptada | sonda corto |
 |---|---|---|---|
-| eco, sin cables | 1,466 m | **1,586 m** | 1,648 m |
-| eco, con cables | 2,921 m | **3,042 m = 422 Hz** | 3,104 m = 430 Hz |
-| acoplamiento directo, con cables | 2,124 m | 2,083 m = 289 Hz | 2,142 m = 297 Hz |
+| eco, sin cables | 1,469 m | **1,593 m** | 1,662 m |
+| eco, con cables | 2,924 m | **3,049 m = 423 Hz** | 3,119 m = 432 Hz |
+| acoplamiento directo, con cables | 2,126 m | 2,088 m = 290 Hz | 2,156 m = 299 Hz |
 | rebote adentro de la bocina (D) | — | −30 dB | −4 dB |
+
+La tabla es **sin retardo interno** (`TAU_INTERNO_NS=0`), para separar lo
+que pone cada pieza. Con los **4 ns por defecto** todo se corre +0,60 m =
++83 Hz: el eco con cables cae en **506 Hz**, y la captura del banco lo da
+en ~505.
 
 Barrido de distancia, `d_ap = a·d_real + b`:
 
@@ -92,8 +99,8 @@ Barrido de distancia, `d_ap = a·d_real + b`:
   Todo lo que no es aire es un offset puro. La pendiente no depende del
   Tprf (a 80 ms: 172,8 contra 173,3 Hz/m) ni de la sonda.
 - **offset de los cables: 1,456 m** simulado contra 1,455 m del VNA.
-- **offset de las bocinas: 0,588 m** (adaptada) o **0,658 m** (corto). De eso,
-  0,466 m es el largo físico sonda→apertura, y el resto (0,12 a 0,19 m) es
+- **offset de las bocinas: 0,595 m** (adaptada) o **0,660 m** (corto). De eso,
+  0,469 m es el largo físico sonda→apertura, y el resto (0,13 a 0,19 m) es
   exceso: cerca del corte del modo guiado la onda viaja más lenta que c, y
   con el corto se suma la parte que va y vuelve al fondo.
 
@@ -105,12 +112,15 @@ Barrido de distancia, `d_ap = a·d_real + b`:
   lo más fuerte de la pantalla. MEEP solo ve el camino por el aire; en el
   banco domina la fuga interna (splitter, mezclador, cables juntos). Es lo que
   trata `docs/refs/park2018_leakage_internal_delay.pdf`.
-- **`TAU_INTERNO = 0`.** Splitter, mezclador y LNA no están medidos. Con una
-  captura real de la placa a 1 m: `b` de la calibración − 1,456 (cables) −
-  0,588 a 0,658 (bocinas) = retardo interno, sin suponer nada.
+- **`TAU_INTERNO = 4 ns` está ajustado, no medido**: es lo que hace
+  coincidir el eco con la captura del banco (cables de 1 m, placa a 1 m,
+  ~505 Hz), y depende del modelo de la sonda (3,5 a 4 ns). Para medirlo
+  directo: barrel entre los cables de TX y RX, sin antenas. Ver
+  [COMO_FUNCIONA.md](COMO_FUNCIONA.md#comparación-con-el-banco-2026-09-22).
 - **La sonda es un extremo o el otro**: el banco adapta bien a ~1,5 GHz y peor
   en los bordes de la banda.
-- Las paredes de 1 cm van **centradas** en las cotas del croquis: la guía
-  queda de 17 cm por dentro (corte en 882 MHz). Cotas a confirmar: la sonda a
-  5,9 cm del corto. El hueco de 10 cm entre bocas y la placa de 70 cm son
-  datos del banco. Ver `parametros.py`.
+- Las paredes se simulan de 1 cm (la grilla no resuelve 1 mm), puestas
+  **hacia afuera** de la cara interior: la guía queda de 17,8 cm por dentro,
+  como la real. Falta confirmar el espesor de la chapa, cuál conector es el
+  de TX y si las bocinas están paralelas: ver
+  [`mediciones/README.md`](../mediciones/README.md).

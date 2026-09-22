@@ -27,7 +27,7 @@ rem Nombre de la corrida. Todo lo que genera va a una carpeta con este nombre:
 rem
 rem    simulaciones_meep\salidas\<NOMBRE>\
 rem        escena.png            el campo en tres instantes (placa)
-rem        espectro.png          la FFT con los picos A-E explicados (placa)
+rem        espectro.png          la FFT con cada pico explicado (placa)
 rem        barrido.png           frecuencia contra distancia (barrido)
 rem        resumen_placa.txt     los numeros de la consola, con los
 rem        resumen_barrido.txt     parametros que se usaron
@@ -58,6 +58,23 @@ set SEPARACION_BOCAS=0.10
 rem Ancho de la placa en el plano de la simulacion [m]
 set PLACA_ANCHO=0.70
 
+rem --- La bocina: EN CENTIMETROS y POR FUERA. Croquis en mediciones\mediciones_antena.png ---
+rem La simulacion pone la superficie interior en (medida - chapa), que es la
+rem que ve la onda. Las dos bocinas son iguales salvo el conector.
+rem Ancho de la guia (el lado de 18; el de 9 queda fuera del plano 2D)
+set BOC_GUIA_ANCHO=18
+rem Boca, cuadrada
+set BOC_BOCA=30.5
+rem Largo total, del fondo a la boca
+set BOC_LARGO=52.5
+rem Tramo recto de la guia, del fondo hasta donde se abre (flare = el resto)
+set BOC_GUIA_LARGO=33.5
+rem Conector (sonda) de cada bocina, desde el fondo. No se sabe cual es cual.
+set BOC_CONECTOR_TX=5.9
+set BOC_CONECTOR_RX=5.4
+rem Espesor de la chapa [cm] (0,1 = 1 mm)
+set BOC_CHAPA=0.1
+
 rem Carga de la sonda de las bocinas:
 rem    adaptada  la sonda tiene su carga de 50 ohm, como en el banco: lo que
 rem              vuelve a entrar a una bocina se absorbe y no sale de nuevo.
@@ -74,9 +91,11 @@ rem          ideal   = retardo puro, sin perdidas
 rem          ninguno = sin cables
 set CABLE=medido
 
-rem Retardo interno del radar (splitter, mezclador, LNA) [ns]. No esta
-rem medido: 0 hasta tener una captura real de la placa para despejarlo.
-set TAU_INTERNO_NS=0
+rem Retardo interno del radar (splitter, mezclador, LNA, latiguillos) [ns].
+rem 4 = AJUSTADO contra la captura del banco con cables de 1 m y placa a 1 m
+rem (eco en ~505 Hz). No esta medido directo: se mide con un barrel entre los
+rem cables de TX y RX, sin antenas. 0 = el radar sin electronica.
+set TAU_INTERNO_NS=4
 
 rem Celdas por unidad MEEP (0,15 m). 20 = 7,5 mm. 30 es mas fino y tarda ~3x.
 set RESOLUCION=20
@@ -104,11 +123,18 @@ set "GPR_SIM_TAU_INTERNO_NS=%TAU_INTERNO_NS%"
 set "GPR_SIM_RESOLUCION=%RESOLUCION%"
 set "GPR_SIM_TPRF_MS=%TPRF_MS%"
 set "GPR_SIM_SONDA=%SONDA%"
+set "GPR_SIM_BOC_GUIA_ANCHO=%BOC_GUIA_ANCHO%"
+set "GPR_SIM_BOC_BOCA=%BOC_BOCA%"
+set "GPR_SIM_BOC_LARGO=%BOC_LARGO%"
+set "GPR_SIM_BOC_GUIA_LARGO=%BOC_GUIA_LARGO%"
+set "GPR_SIM_BOC_CONECTOR_TX=%BOC_CONECTOR_TX%"
+set "GPR_SIM_BOC_CONECTOR_RX=%BOC_CONECTOR_RX%"
+set "GPR_SIM_BOC_CHAPA=%BOC_CHAPA%"
 set "GPR_SIM_QUE=%QUE%"
 set "GPR_SIM_NOMBRE=%NOMBRE%"
 rem Los scripts de Windows abren solos la figura que generan.
 set "GPR_SIM_ABRIR=1"
-set "VARS=GPR_SIM_DIST_PLACA:GPR_SIM_BARRIDO:GPR_SIM_SEPARACION_BOCAS:GPR_SIM_PLACA_ANCHO:GPR_SIM_CABLE:GPR_SIM_TAU_INTERNO_NS:GPR_SIM_RESOLUCION:GPR_SIM_TPRF_MS:GPR_SIM_SONDA:GPR_SIM_QUE:GPR_SIM_NOMBRE"
+set "VARS=GPR_SIM_DIST_PLACA:GPR_SIM_BARRIDO:GPR_SIM_SEPARACION_BOCAS:GPR_SIM_PLACA_ANCHO:GPR_SIM_CABLE:GPR_SIM_TAU_INTERNO_NS:GPR_SIM_RESOLUCION:GPR_SIM_TPRF_MS:GPR_SIM_SONDA:GPR_SIM_BOC_GUIA_ANCHO:GPR_SIM_BOC_BOCA:GPR_SIM_BOC_LARGO:GPR_SIM_BOC_GUIA_LARGO:GPR_SIM_BOC_CONECTOR_TX:GPR_SIM_BOC_CONECTOR_RX:GPR_SIM_BOC_CHAPA:GPR_SIM_QUE:GPR_SIM_NOMBRE"
 if defined WSLENV (set "WSLENV=%WSLENV%:%VARS%") else (set "WSLENV=%VARS%")
 
 if /i not "%QUE%"=="placa" if /i not "%QUE%"=="barrido" if /i not "%QUE%"=="todo" (
@@ -140,7 +166,8 @@ echo   corrida       %NOMBRE%
 echo   que           %QUE%
 echo   placa a       %DIST_PLACA% m     (barrido: %BARRIDO%)
 echo   hueco bocas   %SEPARACION_BOCAS% m    ancho placa %PLACA_ANCHO% m
-echo   sonda         %SONDA%
+echo   bocina        guia %BOC_GUIA_ANCHO%  boca %BOC_BOCA%  largo %BOC_LARGO%  recta %BOC_GUIA_LARGO% cm (por fuera)
+echo   sonda         %SONDA%   conectores a %BOC_CONECTOR_TX% / %BOC_CONECTOR_RX% cm del fondo
 echo   cables        %CABLE%        tau interno %TAU_INTERNO_NS% ns
 echo   resolucion    %RESOLUCION% celdas/u
 if defined TPRF_MS echo   Tprf          %TPRF_MS% ms

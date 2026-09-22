@@ -14,7 +14,8 @@ distintas se ajusta d_ap = a*d_real + b. Si a ~= 1, todo lo que no es aire
 de calibracion. `b` es ese offset, y aca se lo puede partir en pedazos:
 
     b (sin cables)  = lo que agregan las bocinas y la geometria biestatica
-    b (con cables)  - b (sin cables) = el offset de los cables
+                      (solo aire: sin cables NI retardo interno)
+    b (con cables)  - b (sin cables) = cables + retardo interno
 
 Resta la escena vacia (misma grilla) para quedarse con el eco de la placa.
 """
@@ -45,8 +46,10 @@ def main():
         f2, H = R.cargar(f"placa_{d:.2f}".replace(".", "p"))
         H_solo = H - H_vacio
         fila = [d]
-        for modo in ("ninguno", P.MODO_CABLE):
-            rr, ee = R.perfil(f, R.aplicar_cadena(f, H_solo, modo),
+        # "sin cables" es solo aire + bocinas: sin el retardo interno
+        # tampoco, asi b (sin cables) es el offset de las bocinas y nada mas.
+        for modo, tau in (("ninguno", 0.0), (P.MODO_CABLE, P.TAU_INTERNO)):
+            rr, ee = R.perfil(f, R.aplicar_cadena(f, H_solo, modo, tau),
                               relleno=RELLENO, curva=curva)
             pico, _ = R.pico(rr, ee, desde=0.3, hasta=6.0)
             fila.append(pico)
@@ -61,7 +64,7 @@ def main():
     tprf = 2 * R.T_SWEEP
 
     with R.copiar_consola("resumen_barrido.txt"):
-        d_bocina = P.LARGO_TOTAL - P.SONDA_FONDO
+        d_bocina = P.d_bocina()
         print("=" * 70)
         print("Barrido de la placa: d_aparente = a * d_real + b")
         print("=" * 70)
@@ -85,8 +88,11 @@ def main():
         b_cab = ajustes["con cables"][1] - ajustes["sin cables"][1]
         b_sin = ajustes["sin cables"][1]
         print()
-        print(f"  offset de los cables (b con - b sin)  {b_cab:.3f} m   "
-              f"(tesis, medido con VNA: {P.C0*P.tau_cables()/2:.3f} m)")
+        d_vna = P.C0 * P.tau_cables() / 2
+        d_int = P.C0 * P.TAU_INTERNO / 2
+        print(f"  offset de cables + interno (b con - b sin)  {b_cab:.3f} m   "
+              f"(cables del VNA {d_vna:.3f} + interno {d_int:.3f} = "
+              f"{d_vna + d_int:.3f} m)")
         print(f"  offset de bocinas + geometria         {b_sin:.3f} m   "
               f"(largo fisico sonda->apertura: {d_bocina:.3f} m)")
         print(f"    -> exceso sobre el largo fisico     {b_sin - d_bocina:+.3f} m "
@@ -102,8 +108,9 @@ def main():
     # --- figura, en Hz como vivo_rapido -------------------------------------
     fig, ax = plt.subplots(figsize=(8.5, 5.8))
     x = np.linspace(min(DISTANCIAS) - 0.15, max(DISTANCIAS) + 0.1, 50)
-    etiquetas = {"con cables": f"con cables ({P.MODO_CABLE}) — lo que mide el banco",
-                 "sin cables": "sin cables (solo aire + bocinas)"}
+    etiquetas = {"con cables": f"con cables ({P.MODO_CABLE}) y τ interno "
+                               f"{P.TAU_INTERNO*1e9:g} ns — lo que mide el banco",
+                 "sin cables": "sin cables ni electrónica (solo aire + bocinas)"}
     for k, nombre, col in ((2, "con cables", "C3"), (1, "sin cables", "C0")):
         a, b = ajustes[nombre]
         ax.plot(tab[:, 0], tab[:, k] * hz_por_m, "o", color=col, ms=7)
@@ -129,8 +136,8 @@ def main():
     ax.set_title(
         f"Moviendo la placa: el pico sube {a_con*hz_por_m:.1f} Hz por metro, "
         f"contra {hz_por_m:.1f} del ideal (a = {a_con:.3f})\n"
-        "Todo lo demás —cables y bocinas— es un corrimiento fijo, que se "
-        "saca calibrando con un punto", fontsize=9.5)
+        "Todo lo demás —cables, electrónica y bocinas— es un corrimiento fijo, "
+        "que se saca calibrando con un punto", fontsize=9.5)
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8, loc="upper left")
     fig.tight_layout()

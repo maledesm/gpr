@@ -4,9 +4,10 @@ Este documento explica **qué hace el simulador, por qué está armado así y c�
 leer lo que produce**. Para correrlo alcanza con el [README](README.md); esto
 es para entenderlo y poder explicarlo.
 
-Números de referencia: corrida del 2026-09-21 con placa de 70 cm a 1 m, hueco
+Números de referencia: corrida del 2026-09-22 con placa de 70 cm a 1 m, hueco
 de 10 cm entre bocas, sonda adaptada, 2 m de RG-213 con el S21 medido y rampa
-de 50 ms (Tprf 100 ms).
+de 50 ms (Tprf 100 ms). Las medidas de la bocina y cómo se leen están en
+[`../mediciones/README.md`](../mediciones/README.md).
 
 ---
 
@@ -48,7 +49,7 @@ El banco real, de punta a punta:
 | bocinas, aire, placa | **MEEP** (`escena.py`) | FDTD 2D, de la sonda TX a la sonda RX |
 | cables TX y RX | `radar.py` | el S21 **medido** con el VNA (módulo y fase), o un retardo ideal |
 | camino del LO | `radar.py` | 0,25 ns que **restan** (es la otra entrada del mezclador) |
-| splitter, mezclador, LNA | `radar.py` | un retardo `TAU_INTERNO`, hoy 0 porque no está medido |
+| splitter, mezclador, LNA, latiguillos | `radar.py` | un retardo `TAU_INTERNO` = **4 ns**, ajustado contra la captura del banco (sección 8) |
 | curva del VCO, remuestreo, FFT | `analisis/` | las MISMAS funciones que usa `vivo_rapido.py` |
 
 Un FMCW no mide la distancia al blanco: mide la **diferencia de retardo entre
@@ -153,8 +154,11 @@ MEEP trabaja sin dimensiones. Se eligió **a = 0,15 m** (λ en aire a 2 GHz):
 
 ### Geometría
 
-2D, polarización **Ez** (el campo sale del plano). Cotas del croquis
-`GPRv2/medidas.png`:
+2D, polarización **Ez** (el campo sale del plano). El plano simulado corta la
+guía por su lado de 18 cm; el de 9 cm queda fuera. Medidas del croquis
+[`mediciones/mediciones_antena.png`](../mediciones/mediciones_antena.png),
+todas **por fuera** (lectura cota por cota en
+[`mediciones/README.md`](../mediciones/README.md)):
 
 ```
                     placa: 70 cm de ancho, 1 cm de espesor
@@ -162,20 +166,25 @@ MEEP trabaja sin dimensiones. Se eligió **a = 0,15 m** (λ en aire a 2 GHz):
                               ▲
                               │ DIST_PLACA (1,00 m)
                               │
-   y = 0  ─ ─ ─\─ ─ ─ ─ ─ /─ ─ ┼ ─ \─ ─ ─ ─ ─ /─ ─ ─   boca de las bocinas (apertura 30,5 cm)
-                \  flare  /    │    \         /          flare: 23 cm de largo
+   y = 0  ─ ─ ─\─ ─ ─ ─ ─ /─ ─ ┼ ─ \─ ─ ─ ─ ─ /─ ─ ─   boca de las bocinas: 30,5 × 30,5 cm
+                \  flare  /    │    \         /          flare: 19 cm de largo
                  │       │ ◄──►│     │       │           hueco entre bocas: 10 cm
-                 │ guía  │     │     │ guía  │           guía: 18 cm, 29,5 cm de largo
-                 │   ●   │     │     │   ●   │           ● sonda a 5,9 cm del fondo
+                 │ guía  │     │     │ guía  │           guía: 18 cm de ancho, 33,5 cm de largo
+                 │   ●   │     │     │   ●   │           ● sonda: 5,9 cm (TX) y 5,4 cm (RX) del fondo
                  │   TX  │           │   RX  │
                  └───────┘           └───────┘           corto (solo con SONDA = corto)
 ```
 
 - Largo total de la bocina: 52,5 cm, del fondo al plano de la boca.
-- Paredes: metal perfecto de 1 cm, **centradas** sobre la cota del croquis.
-  Por dentro, la guía queda de 17 cm y la apertura de 29,5 cm (ver
-  Limitaciones).
-- Centros de las bocinas: apertura + hueco = 40,5 cm.
+- La bocina es de chapa (~1 mm). La onda ve la cara **interior**, así que se
+  resta la chapa: guía de **17,8 cm** por dentro (corte del modo guiado en
+  842 MHz), boca de 30,3 cm y largo de 52,4 cm.
+- Las paredes se simulan de 1 cm, porque la grilla de 7,5 mm no resuelve
+  1 mm, pero se engordan **hacia afuera** de la cara interior: lo que ve la
+  onda queda en la medida real.
+- Centros de las bocinas: boca (por fuera) + hueco = 40,5 cm.
+- Todas estas medidas se cambian desde el bloque "La bocina" del `.bat`, en
+  centímetros y por fuera, como el croquis.
 
 ### La celda y el PML
 
@@ -244,9 +253,9 @@ hacia los bordes. Los dos modelos son los extremos que encierran al banco.
 |---|---|---|
 | rebote adentro D (respecto de B) | −4 dB | **−30 dB** |
 | dos rebotes adentro E | −12 dB | **−37 dB** |
-| energía de la traza RX después de 40 ns | −14 dB | −32 dB |
-| eco B, sin cables | 1,648 m | 1,586 m |
-| offset de las bocinas (`barrido.py`) | 0,658 m | 0,588 m |
+| energía de la traza RX después de 40 ns | −12 dB | −31 dB |
+| eco B, sin cables | 1,662 m | 1,593 m |
+| offset de las bocinas (`barrido.py`) | 0,660 m | 0,595 m |
 
 Los **niveles** de los rebotes de adentro cambian muchísimo, que es lo que se
 buscaba. Pero también **el eco se corre ~6 cm**. Con el corto, parte de la
@@ -328,24 +337,53 @@ revisar es que el Tprf del panel coincida con el del generador.
 
 ```
 d_aparente = d_real + d_bocinas + c·τ_cables/2 + c·τ_interno/2
-             1,000  +  0,588    +    1,456     +     0
-           = 3,044 m   →   × 138,6 Hz/m = 422 Hz
+             1,000  +  0,595    +    1,456     +   0,600
+           = 3,651 m   →   × 138,6 Hz/m = 506 Hz
 ```
 
 - **`d_bocinas`**: el camino dentro de las bocinas. Tiene dos partes:
-  - el **largo físico** sonda→boca, 52,5 − 5,9 = **0,466 m**;
-  - un **exceso** de 0,122 m (adaptada) o 0,192 m (corto). Cerca del corte
+  - el **largo físico** sonda→boca, promediando las dos sondas:
+    52,4 − (5,8 + 5,3)/2 = **0,469 m**;
+  - un **exceso** de 0,127 m (adaptada) o 0,192 m (corto). Cerca del corte
     del modo guiado la onda viaja más lenta que c (dispersión de la guía),
     y el flare y el centro de fase suman algo más. Con el corto se agrega la
     componente que va y vuelve al fondo.
 - **Cables**: 1,456 m simulados contra 1,455 m del VNA. Es la validación más
   fuerte: el simulador y el VNA coinciden al milímetro.
-- **Retardo interno**: no medido. Con una captura real de la placa a 1 m:
-  `b` de la calibración − 1,456 (cables) − `d_bocinas` = retardo interno,
-  sin suponer nada.
+- **Retardo interno**: **4 ns = 0,60 m**, ajustado contra el banco (ver
+  abajo). No está medido directo.
 
 Todo eso es un **offset**: no depende de la distancia. Por eso un solo punto
 de calibración alcanza, y dos o más sirven para verificar la pendiente.
+
+### Comparación con el banco (2026-09-22)
+
+Captura `datos/capturas/captura_1m_cf.png`: cables RG-213 de 1 m, placa a
+1 m, sin restar el fondo. Picos leídos del PNG (±3 Hz):
+
+| | medido | simulado, τ_interno = 0 | simulado, τ_interno = 4 ns |
+|---|---|---|---|
+| **B**, eco de la placa | **~505 Hz**, 0 dB | 423 Hz | **506 Hz** |
+| **A**, acoplamiento directo | zona elevada de 340 a 400 Hz, −8 a −10 dB | 289 Hz, −46 dB | 372 Hz, −46 dB |
+| pico sin identificar | 433 Hz, −4 dB | — | — |
+| pico sin identificar | 580 Hz, −14 dB | — | — |
+
+- **De ahí salen los 4 ns.** Sin retardo interno el eco cae 82 Hz abajo:
+  82 / 138,6 = 0,59 m aparentes = 3,95 ns. Con `SONDA = corto` serían 3,5 ns:
+  el valor arrastra la incertidumbre del modelo de la bocina.
+- **4 ns son ~80 cm de coaxil equivalentes**, más de lo que explican
+  splitter, mezclador y LNA solos: probablemente hay latiguillos o
+  adaptadores en el camino de RF. Para medirlo sin depender de la bocina:
+  unir los cables de TX y RX con un barrel y un atenuador, sin antenas.
+- **El acoplamiento cae donde lo pone la simulación**, pero ~35 dB más
+  fuerte: en el banco se suma la fuga interna entre TX y RX.
+- **El resto es la sala.** La captura del fondo, sin placa
+  (`captura_1m_fondo.png`), tiene un pico en 547 Hz tan fuerte como el eco,
+  y ecos a −5/−10 dB en toda la banda. Son fijos en el tiempo (franjas quietas
+  en el radargrama): es clutter, no ruido. La simulación no lo tiene, porque
+  la celda termina en PML (espacio libre).
+- **Para confirmar que 505 Hz es la placa** y no un eco de la sala: medirla a
+  otra distancia. A 1,5 m tendría que caer en ~574 Hz.
 
 ---
 
@@ -386,13 +424,13 @@ placa.**
 
 | pico | camino | se corre | adaptada | corto |
 |---|---|---|---|---|
-| **A** | TX → aire → RX, sin tocar la placa | 0× | 289 Hz, −46 dB | 297 Hz, −47 dB |
-| **B** | TX → placa → RX: **el eco, el que se calibra** | 1× | 422 Hz, 0 dB | 430 Hz, 0 dB |
-| **C** | un rebote en la **boca** (el metal alrededor de la apertura): TX → placa → boca → placa → RX | 2× | 568 Hz, −13 dB | 578 Hz, −13 dB |
-| **D** | un rebote **adentro** de una bocina: entra, vuelve a salir, otro viaje | 2× | 621 Hz, −30 dB | 656 Hz, −4 dB |
-| **C2** | dos rebotes en la boca: cae en B + 2·(C − B) | 3× | 715 Hz, −25 dB | 728 Hz, −21 dB |
-| **CD** | uno en la boca y uno adentro: cae en C + D − B | 3× | (< −40 dB) | 803 Hz, −12 dB |
-| **E** | dos rebotes adentro (tercer viaje completo): 3 veces B | 3× | 859 Hz, −37 dB | 879 Hz, −12 dB |
+| **A** | TX → aire → RX, sin tocar la placa | 0× | 289 Hz, −46 dB | 299 Hz, −47 dB |
+| **B** | TX → placa → RX: **el eco, el que se calibra** | 1× | 423 Hz, 0 dB | 432 Hz, 0 dB |
+| **C** | un rebote en la **boca** (el metal alrededor de la apertura): TX → placa → boca → placa → RX | 2× | 566 Hz, −14 dB | 576 Hz, −14 dB |
+| **D** | un rebote **adentro** de una bocina: entra, vuelve a salir, otro viaje | 2× | 619 Hz, −30 dB | 660 Hz, −4 dB |
+| **C2** | dos rebotes en la boca: cae en B + 2·(C − B) | 3× | 714 Hz, −26 dB | 729 Hz, −20 dB |
+| **CD** | uno en la boca y uno adentro: cae en C + D − B | 3× | (< −40 dB) | 804 Hz, −12 dB |
+| **E** | dos rebotes adentro (tercer viaje completo): 3 veces B | 3× | 854 Hz, −37 dB | 884 Hz, −12 dB |
 
 - Los rebotes **de adentro** (D, CD, E) son los que dependen de la carga de la
   sonda, porque es la sonda la que se los lleva. Con el corto, D sale casi tan
@@ -406,8 +444,10 @@ placa.**
   fuga interna (splitter, mezclador, cables juntos). Es lo que trata
   `docs/refs/park2018_leakage_internal_delay.pdf`.
 
-Solo se rotulan los máximos locales de verdad y más fuertes que −40 dB, para
-no ponerle nombre al piso.
+Solo se rotulan máximos locales de verdad y más fuertes que −40 dB, para no
+ponerle nombre al piso. En cada ventana se toma el máximo local más alto, no
+el máximo a secas: al lado de D con el corto (−4 dB), la falda de D es más
+alta que C2.
 
 ### `barrido.png`: la recta de calibración
 
@@ -440,8 +480,11 @@ acepta coma o punto decimal.
 | `SEPARACION_BOCAS` | hueco entre bocas, borde a borde [m] | 0,10 | sí |
 | `PLACA_ANCHO` | ancho de la placa [m] | 0,70 | sí |
 | `SONDA` | `adaptada` o `corto` (sección 5) | `adaptada` | sí |
+| `BOC_GUIA_ANCHO`, `BOC_BOCA`, `BOC_LARGO`, `BOC_GUIA_LARGO` | la bocina, **en cm y por fuera**: ancho de la guía, boca, largo total, tramo recto | 18, 30,5, 52,5, 33,5 | sí |
+| `BOC_CONECTOR_TX`, `BOC_CONECTOR_RX` | conector (sonda) de cada bocina al fondo [cm] | 5,9, 5,4 | sí |
+| `BOC_CHAPA` | espesor de la chapa [cm] | 0,1 | sí |
 | `CABLE` | `medido`, `ideal` o `ninguno` | `medido` | no |
-| `TAU_INTERNO_NS` | retardo de la electrónica [ns] | 0 | no |
+| `TAU_INTERNO_NS` | retardo de la electrónica [ns], ajustado contra el banco | 4 | no |
 | `RESOLUCION` | celdas por 15 cm (20 = 7,5 mm; 30 tarda ~3×) | 20 | sí |
 | `TPRF_MS` | Tprf del generador [ms] (vacío = el de `analisis/`, 100) | vacío | no |
 
@@ -481,17 +524,16 @@ y `.txt` de `salidas/` no entran a git: se regeneran corriendo el `.bat`.
   **Las posiciones valen; los niveles no se comparan directo con el banco.**
 - **El acoplamiento directo (A) sale muy chico.** En el banco domina la fuga
   interna, que no es un camino por el aire.
-- **`TAU_INTERNO = 0`**: splitter, mezclador y LNA no están medidos.
+- **`TAU_INTERNO = 4 ns` está ajustado, no medido**: sale de hacer coincidir
+  el eco con una captura, y depende del modelo de la sonda (3,5 a 4 ns).
 - **La sonda es un extremo o el otro** (sección 5); el banco está en el medio.
-  El offset de las bocinas queda entre 0,588 y 0,658 m según el modelo.
-- **Paredes centradas en la cota.** Con 1 cm de pared centrada en los 18 cm
-  del croquis, la guía queda de **17 cm por dentro**: corte del modo guiado en
-  882 MHz (con 18 cm serían 833). Si los 18 cm del croquis son la medida
-  exterior de una chapa fina, la guía real está más cerca de 18 cm por
-  dentro y viaja un poco menos lenta cerca del corte. Afecta el exceso de las
-  bocinas, no la pendiente.
-- **Cotas a confirmar:** la sonda a 5,9 cm del corto. El hueco de 10 cm y la
-  placa de 70 cm son datos del banco.
+  El offset de las bocinas queda entre 0,595 y 0,660 m según el modelo.
+- **Paredes de 1 cm en vez de chapa de 1 mm.** La cara interior está en la
+  medida real, pero el borde de la boca es 1 cm de metal en vez de 1 mm, y
+  eso puede pesar algo en el rebote C, que es justamente en la boca.
+- **Falta confirmar:** el espesor de la chapa, cuál conector es el de TX, y
+  si las bocinas están paralelas. Ver
+  [`mediciones/README.md`](../mediciones/README.md#falta-medir-o-confirmar).
 
 ---
 

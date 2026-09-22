@@ -6,6 +6,12 @@ sesión trabaje con parámetros viejos.
 `GPRv2/CONTEXTO.md` sigue siendo el documento que manda. Esto es sólo el
 estado actual del banco, que cambia más seguido.
 
+**Medidas físicas del banco** (bocinas, armado, blancos): en
+[`mediciones/README.md`](mediciones/README.md), con el croquis
+`mediciones/mediciones_antena.png` leído cota por cota. Todo se midió **por
+fuera** y la bocina es de chapa. La simulación MEEP las toma de ahí
+(`simulaciones_meep/COMO_FUNCIONA.md`).
+
 ## ⚠️ `T_SWEEP` y `SPS_SALIDA` tienen dos valores en paralelo, no confundirlos
 
 `T_SWEEP` (en `analisis/correccion_no_linealidad.py`) y `SPS_SALIDA`/`FS_DEF`

@@ -26,7 +26,7 @@ unidades MEEP se hace con `a_meep()` / `a_metros()`.
 De donde salen los numeros
 --------------------------
 
-Las medidas de la bocina y de la placa son del croquis `GPRv2/medidas.png`
+Las medidas de la bocina y de la placa son del croquis `GPRv2/mediciones/mediciones_antena.png`
 (commit cc84473, "croquis con las medidas de la placa y de la antena"). El
 croquis no esta acotado del todo, asi que lo que se interpreto de cada cota
 esta anotado abajo, cota por cota, para poder corregirlo sin releer el dibujo.
@@ -69,42 +69,61 @@ N_FREQ = 401                     # puntos de H(f): 2,9 MHz de paso
 
 # --- Bocina ---------------------------------------------------------------
 #
-# Del croquis, la bocina de abajo. Lectura de cada cota:
+# Del croquis `GPRv2/mediciones/mediciones_antena.png`, con la lectura que confirmo el usuario el
+# 2026-09-22. TODO se midio POR FUERA, y la bocina es de CHAPA fina:
 #
-#     18 cm    ancho de la seccion de guia de onda
-#     29.5 cm  largo de la seccion de guia
-#     30.5 cm  apertura (el croquis la da cuadrada, 30.5 x 30.5)
-#     52.5 cm  largo total, del fondo de la guia al plano de apertura
-#     5.9 cm   sonda de alimentacion, medida desde el fondo (corto) de la
-#              guia. El croquis dice "dist al conector: 5,9 cm y 5,4 cm",
-#              que parecen las dos coordenadas de la sonda dentro de la
-#              cara. Se toma 5,9 como la distancia al corto, que es la que
-#              importa: a 1,5 GHz un cuarto de onda son 5,0 cm, asi que el
-#              numero cierra con una sonda puesta donde corresponde.
+#     18 cm    ancho de la guia de onda (el lado que entra en el plano 2D;
+#              el otro lado, 9 cm, queda fuera del plano)
+#     30,5 cm  boca, cuadrada de 30,5 x 30,5
+#     52,5 cm  largo total, del fondo a la boca
+#     33,5 cm  tramo RECTO de la guia, del fondo hasta donde se abre. El
+#              flare es lo que queda: 52,5 - 33,5 = 19 cm
+#     5,9 y 5,4 cm   a cuanto estan los conectores (las sondas) del fondo,
+#              uno en cada bocina. No se sabe cual es cual: se toma 5,9 para
+#              TX y 5,4 para RX. Medio cm de diferencia son 2,5 mm de
+#              distancia aparente, muy abajo de la resolucion.
 #
-# ⚠️ A CONFIRMAR con el banco: si alguna de estas lecturas esta mal, el
-# unico efecto es sobre la FORMA del diagrama y la adaptacion; la posicion
-# del pico en distancia no depende de la bocina.
-GUIA_ANCHO   = 0.180             # m
-GUIA_LARGO   = 0.295             # m
-APERTURA     = 0.305             # m
-LARGO_TOTAL  = 0.525             # m
-SONDA_FONDO  = 0.059             # m, desde el corto del fondo
-PARED        = 0.010             # m, espesor de las paredes metalicas
-                                 #    (10 mm = 3,3 celdas a RESOLUCION 20;
-                                 #     mas fino que esto no lo resuelve
-                                 #     bien la grilla)
+# Lo que NO se usa del croquis: el rectangulo de arriba (30,4 x 22,4 con
+# cuatro agujeros, H = 13,5 cm) es la caja del radar; el "29,5 cm" es del
+# fondo al conector del soporte de PVC, y el "3,5 cm" es el radio de ese
+# soporte.
+#
+# Como se lleva a la simulacion: MEEP no resuelve una chapa de 1 mm con
+# celdas de 7,5 mm, asi que las paredes se simulan de PARED = 1 cm, pero se
+# ponen HACIA AFUERA de la superficie interior, que es la que ve la onda. La
+# superficie interior es la medida exterior menos CHAPA:
+#
+#     guia por dentro   = 18   - 2*0,1 = 17,8 cm   (corte del modo: 842 MHz)
+#     boca por dentro   = 30,5 - 2*0,1 = 30,3 cm
+#     largo por dentro  = 52,5 - 0,1   = 52,4 cm   (del fondo a la boca)
+#
+# Antes del 2026-09-22 las paredes de 1 cm iban CENTRADAS en la cota, y la
+# guia quedaba de 17 cm por dentro (corte en 882 MHz, muy cerca de los
+# 942 MHz donde arranca el VCO). Y el tramo recto era de 29,5 cm (el soporte
+# de PVC, mal leido): flare de 23 cm en vez de 19.
+
+# Medidas tal como se toman en el banco: POR FUERA, en metros.
+GUIA_ANCHO_EXT = 0.180           # m
+APERTURA_EXT   = 0.305           # m, la boca (cuadrada)
+LARGO_EXT      = 0.525           # m, del fondo a la boca
+GUIA_LARGO_EXT = 0.335           # m, tramo recto, del fondo a donde abre
+CONECTOR_TX    = 0.059           # m, conector de la bocina TX al fondo
+CONECTOR_RX    = 0.054           # m, conector de la bocina RX al fondo
+CHAPA          = 0.001           # m, espesor real de la chapa (a confirmar)
+PARED          = 0.010           # m, espesor de las paredes EN LA SIMULACION
+                                 #    (1,3 celdas a RESOLUCION 20; mas fino
+                                 #     que esto la grilla lo pierde)
 
 # Separacion entre las bocinas, como se mide en el banco: el HUECO entre
 # los bordes de las dos bocas. En el banco estan a unos 10 cm (dato del
-# usuario, 2026-09-21). La simulacion usa la distancia entre CENTROS, que es
-# una apertura mas ese hueco: 30,5 + 10 = 40,5 cm.
+# usuario, 2026-09-21), medido por fuera. La simulacion usa la distancia
+# entre CENTROS, que es una boca (por fuera) mas ese hueco: 30,5 + 10 =
+# 40,5 cm. Se calcula mas abajo, despues de lo que pisa el .bat.
 #
 # (Antes se habia supuesto hueco 0, bocas pegadas, porque CLAUDE.md dice que
 # el acoplamiento directo aparece "a 0,15 m" y eso cierra con 30,5 cm entre
 # centros. Ese 0,15 m es de antes de los cables y de otro armado.)
 SEPARACION_BOCAS = 0.10          # m, de borde a borde de las bocas
-SEP_ANTENAS = APERTURA + SEPARACION_BOCAS   # m, entre centros
 
 # La carga de la sonda. En el banco cada sonda esta conectada a 50 ohm: la
 # de RX al receptor, la de TX a la salida del VCO/amplificador. Lo que vuelve
@@ -118,7 +137,7 @@ SEP_ANTENAS = APERTURA + SEPARACION_BOCAS   # m, entre centros
 #               cruzar el PML del borde de la celda, que absorbe el modo
 #               guiado sin reflejarlo. Es una transicion PERFECTAMENTE
 #               adaptada en toda la banda.
-#   "corto"     la bocina del croquis tal cual, con el corto a SONDA_FONDO
+#   "corto"     la bocina del croquis tal cual, con el corto a SONDA_TX/RX
 #               detras de la sonda y sin ninguna carga. Lo que habia antes
 #               del 2026-09-21.
 #
@@ -126,12 +145,12 @@ SEP_ANTENAS = APERTURA + SEPARACION_BOCAS   # m, entre centros
 # de longitud de onda GUIADA a ~1,5 GHz (el centro de la banda), asi que
 # adapta bien ahi y peor hacia los bordes. Las dos son los extremos que
 # encierran al banco. Lo que cambia entre una y otra (placa a 1 m, medido el
-# 2026-09-21):
+# 2026-09-22):
 #
 #                               corto      adaptada
 #   rebote adentro D           -4 dB       -30 dB     (respecto del eco B)
-#   eco B, sin cables         1,648 m      1,586 m
-#   offset de las bocinas     0,658 m      0,588 m    (barrido.py)
+#   eco B, sin cables         1,662 m      1,593 m
+#   offset de las bocinas     0,660 m      0,595 m    (barrido.py)
 #
 # O sea: los NIVELES de los rebotes de adentro cambian muchisimo, y el eco
 # se corre ~6 cm porque sin corto no esta la parte de la senal que va y
@@ -167,16 +186,23 @@ TAU_TX      = 4.983e-9           # s, RG-213 A de 1 m
 TAU_RX      = 4.975e-9           # s, RG-213 B de 1 m
 TAU_LO      = 0.25e-9            # s, los 5 cm de splitter a mezclador
 
-# Retardo interno del radar: splitter, mezclador, LNA, conectores y las
-# bocinas mismas. NO ESTA MEDIDO en ningun lado del proyecto - ni en la
-# tesis ni en CLAUDE.md, que solo cuantifican los 5 cm del LO.
+# Retardo interno del radar: splitter, mezclador, LNA, conectores y todo
+# latiguillo o adaptador que haya entre ellos y los cables. No esta medido
+# directo.
 #
-# Queda en 0 a proposito. Cuando haya una captura real de la placa a 1 m, la
-# diferencia entre el `b` de la calibracion de `vivo_rapido.py` y el offset
-# de cables de aca ES el retardo interno, medido sin suponer nada - el mismo
-# argumento con el que la tesis midio los cables. El paper de referencia es
+# 4 ns AJUSTADOS contra la captura del banco (2026-09-22,
+# datos/capturas/captura_1m_cf.png: cables RG-213 de 1 m, placa a 1 m). La
+# simulacion sin retardo interno pone el eco en 423 Hz y la captura lo da en
+# ~505 Hz: 82 Hz / 138,6 Hz/m = 0,59 m aparentes = 3,95 ns. Con SONDA =
+# "corto" darian 3,5 ns, asi que el valor arrastra la incertidumbre del
+# modelo de la bocina.
+#
+# Son ~80 cm de coaxil equivalentes: mas de lo que explican splitter,
+# mezclador y LNA solos. Para medirlo sin depender de la bocina: unir los
+# cables de TX y RX con un barrel y un atenuador, sin antenas; el batido que
+# queda es cables + retardo interno. Referencia:
 # `GPRv2/docs/refs/park2018_leakage_internal_delay.pdf`.
-TAU_INTERNO = 0.0                # s
+TAU_INTERNO = 4.0e-9             # s
 
 # Los .s2p del VNA, para usar el S21 MEDIDO del cable (modulo y fase) en vez
 # de un retardo ideal. Ver MODO_CABLE en radar.py.
@@ -214,6 +240,17 @@ TPRF = 0.0                       # s
 # Valores de referencia, antes de que los pise el .bat: el nombre automatico
 # de la carpeta solo menciona lo que se aparte de estos.
 _REF_CABLE, _REF_RESOLUCION, _REF_SONDA = MODO_CABLE, RESOLUCION, SONDA
+_REF_TAU_INTERNO = TAU_INTERNO
+_BOCINA = {                      # nombre en el .bat -> (variable, rotulo)
+    "GUIA_ANCHO": ("GUIA_ANCHO_EXT", "guia"),
+    "BOCA": ("APERTURA_EXT", "boca"),
+    "LARGO": ("LARGO_EXT", "largo"),
+    "GUIA_LARGO": ("GUIA_LARGO_EXT", "recta"),
+    "CONECTOR_TX": ("CONECTOR_TX", "ctx"),
+    "CONECTOR_RX": ("CONECTOR_RX", "crx"),
+    "CHAPA": ("CHAPA", "chapa"),
+}
+_REF_BOCINA = {k: globals()[v] for k, (v, _) in _BOCINA.items()}
 
 
 # --- Lo que pisa GPRv2/simular.bat ------------------------------------------
@@ -237,7 +274,27 @@ def _env(nombre, defecto, tipo=float):
 
 DIST_PLACA   = _env("DIST_PLACA", DIST_PLACA)
 SEPARACION_BOCAS = _env("SEPARACION_BOCAS", SEPARACION_BOCAS)
-SEP_ANTENAS  = APERTURA + SEPARACION_BOCAS
+
+# Las medidas de la bocina llegan del .bat EN CENTIMETROS, como el croquis.
+for _k, (_v, _) in _BOCINA.items():
+    globals()[_v] = _env("BOC_" + _k, globals()[_v] * 100) / 100
+
+# Lo que ve la onda: la superficie INTERIOR (ver el bloque de la bocina).
+GUIA_ANCHO  = GUIA_ANCHO_EXT - 2 * CHAPA     # m, por dentro
+APERTURA    = APERTURA_EXT - 2 * CHAPA       # m, por dentro
+LARGO_TOTAL = LARGO_EXT - CHAPA              # m, fondo (por dentro) -> boca
+GUIA_LARGO  = GUIA_LARGO_EXT - CHAPA         # m, fondo (por dentro) -> flare
+SONDA_TX    = CONECTOR_TX - CHAPA            # m, sonda TX desde el fondo
+SONDA_RX    = CONECTOR_RX - CHAPA            # m, sonda RX desde el fondo
+FLARE       = LARGO_TOTAL - GUIA_LARGO       # m, largo del flare
+if not (0 < max(SONDA_TX, SONDA_RX) < GUIA_LARGO < LARGO_TOTAL):
+    raise SystemExit(
+        f"medidas de la bocina imposibles: conectores a {CONECTOR_TX*100:g} y "
+        f"{CONECTOR_RX*100:g} cm, guia de {GUIA_LARGO_EXT*100:g} cm, largo "
+        f"total {LARGO_EXT*100:g} cm (tiene que ser conector < guia < largo)")
+if APERTURA < GUIA_ANCHO:
+    raise SystemExit("la boca no puede ser mas angosta que la guia")
+SEP_ANTENAS  = APERTURA_EXT + SEPARACION_BOCAS   # m, entre centros
 PLACA_ANCHO  = _env("PLACA_ANCHO", PLACA_ANCHO)
 TAU_INTERNO  = _env("TAU_INTERNO_NS", TAU_INTERNO * 1e9) * 1e-9
 RESOLUCION   = int(_env("RESOLUCION", RESOLUCION))
@@ -282,11 +339,14 @@ def nombre_auto():
     else:
         p = [f"placa{DIST_PLACA:.2f}m"]
     p += [f"hueco{cm(SEPARACION_BOCAS)}", f"ancho{cm(PLACA_ANCHO)}"]
+    for k, (v, rot) in _BOCINA.items():
+        if abs(globals()[v] - _REF_BOCINA[k]) > 1e-9:
+            p.append(f"{rot}{cm(globals()[v])}")
     if SONDA != _REF_SONDA:
         p.append(f"sonda-{SONDA}")
     if MODO_CABLE != _REF_CABLE:
         p.append(f"cable-{MODO_CABLE}")
-    if TAU_INTERNO:
+    if abs(TAU_INTERNO - _REF_TAU_INTERNO) > 1e-15:
         p.append(f"tau{TAU_INTERNO * 1e9:g}ns")
     if RESOLUCION != _REF_RESOLUCION:
         p.append(f"res{RESOLUCION}")
@@ -329,6 +389,15 @@ def tau_extra():
     return tau_cables() + TAU_INTERNO
 
 
+def d_bocina():
+    """Distancia aparente [m] que agregan las bocinas por su largo fisico.
+
+    El eco hace sonda TX -> boca y boca -> sonda RX; la distancia aparente
+    es la mitad del camino, o sea el promedio de los dos tramos.
+    """
+    return LARGO_TOTAL - (SONDA_TX + SONDA_RX) / 2.0
+
+
 def d_offset():
     """Distancia aparente [m] que agrega tau_extra(): c*tau/2."""
     return C0 * tau_extra() / 2.0
@@ -350,8 +419,14 @@ def resumen():
         f"banda           {F_MIN/1e9:.2f} a {F_MAX/1e9:.2f} GHz "
         f"= {f_meep(F_MIN):.3f} a {f_meep(F_MAX):.3f} u.MEEP",
         f"resolucion      {RESOLUCION} celdas/u = {A_MEEP/RESOLUCION*1e3:.1f} mm",
-        f"bocina          apertura {APERTURA*100:.1f} cm, largo "
-        f"{LARGO_TOTAL*100:.1f} cm, bocas a {SEPARACION_BOCAS*100:.1f} cm "
+        f"bocina (fuera)  guia {GUIA_ANCHO_EXT*100:g} cm, boca "
+        f"{APERTURA_EXT*100:g} cm, largo {LARGO_EXT*100:g} cm (recta "
+        f"{GUIA_LARGO_EXT*100:g} + flare {FLARE*100:.1f}), conectores a "
+        f"{CONECTOR_TX*100:g} (TX) y {CONECTOR_RX*100:g} (RX) cm del fondo",
+        f"bocina (dentro) guia {GUIA_ANCHO*100:.1f} cm (corte "
+        f"{C0/(2*GUIA_ANCHO)/1e6:.0f} MHz), boca {APERTURA*100:.1f} cm, "
+        f"chapa {CHAPA*1000:g} mm",
+        f"bocas           hueco {SEPARACION_BOCAS*100:.1f} cm "
         f"(centros a {SEP_ANTENAS*100:.1f} cm)",
         f"sonda           {SONDA}   "
         + ("(guia sin corto, al PML = carga de 50 ohm)" if SONDA == "adaptada"

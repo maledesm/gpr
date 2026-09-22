@@ -57,8 +57,8 @@ Todos los rebotes de "adentro" (D, CD, E) dependen de la carga de la sonda
 (SONDA en parametros.py), porque es la sonda la que se los lleva:
 
                     D        C2       CD       E       (dB respecto de B,
-    corto         -4 dB    -21 dB   -12 dB   -12 dB     placa a 1 m)
-    adaptada     -30 dB    -25 dB    --      -37 dB
+    corto         -4 dB    -20 dB   -12 dB   -12 dB     placa a 1 m)
+    adaptada     -30 dB    -26 dB    --      -37 dB
 
 Con el corto la bocina es una cavidad cerrada, sin la carga de 50 ohm, y
 devuelve todo: D sale casi tan alto como el eco. Con la sonda adaptada lo
@@ -123,9 +123,9 @@ def dibujar_foto(ax, d, k, titulo, cotas):
     ax.set_xlabel("x [m]", fontsize=8)
 
     # Sondas: donde entra y donde se mide la senal
-    y_s = P.SONDA_FONDO - P.LARGO_TOTAL
-    for x, txt, col in ((-P.SEP_ANTENAS / 2, "TX", "#d62728"),
-                        (+P.SEP_ANTENAS / 2, "RX", "#2ca02c")):
+    for x, y_s, txt, col in (
+            (-P.SEP_ANTENAS / 2, P.SONDA_TX - P.LARGO_TOTAL, "TX", "#d62728"),
+            (+P.SEP_ANTENAS / 2, P.SONDA_RX - P.LARGO_TOTAL, "RX", "#2ca02c")):
         ax.plot(x, y_s, "o", ms=5, color=col, mec="white", mew=0.8)
         ax.text(x, y_s + 0.03, txt, color=col, ha="center", va="bottom",
                 fontsize=8, fontweight="bold")
@@ -177,17 +177,22 @@ def buscar_picos(rr, placa, solo, vacio, d_off):
     debajo de RELEVANTE_DB tampoco, para no ponerle nombre al piso.
     """
     ref = placa.max()
-    d_boc = P.LARGO_TOTAL - P.SONDA_FONDO
+    d_boc = P.d_bocina()
     D = P.DIST_PLACA
 
     def en(curva, centro, ancho):
+        # El maximo LOCAL mas alto de la ventana, no el maximo a secas: al
+        # lado de un pico grande (D con el corto, a -4 dB) la falda de ese
+        # pico puede ser mas alta que el rebote que se busca, y el maximo a
+        # secas caeria en el borde de la ventana.
         m = np.flatnonzero((rr >= centro - ancho) & (rr <= centro + ancho))
-        if len(m) < 3:
+        m = m[(m > 0) & (m < len(curva) - 1)]
+        locales = [i for i in m
+                   if curva[i] > curva[i - 1] and curva[i] >= curva[i + 1]]
+        if not locales:
             return None
-        i = m[np.argmax(curva[m])]
-        if i in (m[0], m[-1]):
-            return None
-        d, _ = R.pico(rr, curva, desde=centro - ancho, hasta=centro + ancho)
+        i = max(locales, key=lambda k: curva[k])
+        d = R.pico(rr, curva, desde=rr[i - 1], hasta=rr[i + 1])[0]
         return d, float(db_ref(placa[i], ref))
 
     picos = {}
@@ -386,7 +391,7 @@ def main():
     _t, _b, _theta, alpha0 = R.sintetizar(f, H_placa, curva=curva)
     hz_por_m = 2 * alpha0 / R.C
     bw = alpha0 * R.T_SWEEP
-    d_boc = P.LARGO_TOTAL - P.SONDA_FONDO
+    d_boc = P.d_bocina()
     d_int = P.C0 * P.TAU_INTERNO / 2
     d_cab = 0.0 if P.MODO_CABLE == "ninguno" else P.C0 * P.tau_cables() / 2
     d_off = d_cab + d_int

@@ -101,32 +101,39 @@ def pulso(t):
 
 # --- Geometria -------------------------------------------------------------
 
-def _pared(p1, p2, espesor):
-    """Prisma metalico recto entre dos puntos, con espesor perpendicular.
+def _pared_afuera(p1, p2, espesor, afuera):
+    """Pared metalica cuya cara INTERIOR es el segmento p1-p2.
 
-    p1 y p2 son (x, y) en unidades MEEP. La pared se engorda mitad para cada
-    lado del segmento, asi que el segmento es su linea media.
+    El espesor se agrega entero hacia el lado de `afuera` (un punto
+    cualquiera de ese lado), asi la superficie que ve la onda queda
+    exactamente donde dice la medida, sea cual sea el espesor simulado.
     """
     (x1, y1), (x2, y2) = p1, p2
     dx, dy = x2 - x1, y2 - y1
     largo = np.hypot(dx, dy)
-    # normal unitaria al segmento
     nx, ny = -dy / largo, dx / largo
-    h = espesor / 2.0
-    v = [mp.Vector3(x1 + nx * h, y1 + ny * h),
-         mp.Vector3(x2 + nx * h, y2 + ny * h),
-         mp.Vector3(x2 - nx * h, y2 - ny * h),
-         mp.Vector3(x1 - nx * h, y1 - ny * h)]
+    ax, ay = afuera
+    if (ax - x1) * nx + (ay - y1) * ny < 0:
+        nx, ny = -nx, -ny
+    v = [mp.Vector3(x1, y1), mp.Vector3(x2, y2),
+         mp.Vector3(x2 + nx * espesor, y2 + ny * espesor),
+         mp.Vector3(x1 + nx * espesor, y1 + ny * espesor)]
     return mp.Prism(v, height=mp.inf, material=mp.metal)
 
 
 def bocina(xc, y_fondo, y_carga=None):
     """Bocina piramidal 2D apuntando a +y, centrada en xc.
 
-    Tres tramos, con las cotas del croquis (ver parametros.py):
+    `y_fondo` es la cara INTERIOR del fondo. Tres tramos, con las medidas de
+    parametros.py (las interiores: la exterior menos la chapa):
       - el corto del fondo,
-      - las dos paredes de la guia de onda, de largo GUIA_LARGO,
-      - las dos paredes del flare, que abren de GUIA_ANCHO a APERTURA.
+      - las dos paredes de la guia, de GUIA_LARGO desde el fondo,
+      - las dos paredes del flare, que abren de GUIA_ANCHO a APERTURA y
+        terminan en la boca, a LARGO_TOTAL del fondo.
+
+    Las paredes se simulan de PARED (1 cm) porque la grilla no resuelve la
+    chapa real, pero se engordan HACIA AFUERA: la cara interior queda donde
+    corresponde, que es lo que ve la onda.
 
     Con `y_carga` (SONDA = "adaptada") NO hay corto: las paredes de la guia
     siguen derecho hacia abajo hasta y_carga, que se elige afuera de la
@@ -134,23 +141,26 @@ def bocina(xc, y_fondo, y_carga=None):
     modo guiado sin reflejarlo: es la carga de 50 ohm de la sonda. Ver
     SONDA en parametros.py.
     """
-    g  = P.a_meep(P.GUIA_ANCHO) / 2.0        # media guia
-    ap = P.a_meep(P.APERTURA) / 2.0          # media apertura
+    g  = P.a_meep(P.GUIA_ANCHO) / 2.0        # media guia, por dentro
+    ap = P.a_meep(P.APERTURA) / 2.0          # media boca, por dentro
     lg = P.a_meep(P.GUIA_LARGO)
     lt = P.a_meep(P.LARGO_TOTAL)
     e  = P.a_meep(P.PARED)
 
     if y_carga is None:
-        piezas = [_pared((xc - g, y_fondo), (xc + g, y_fondo), e)]   # corto
-        y_ini = y_fondo
+        # corto: de lado a lado, tapando tambien el espesor de las paredes
+        piezas = [_pared_afuera((xc - g - e, y_fondo), (xc + g + e, y_fondo),
+                                e, (xc, y_fondo - 1.0))]
+        y_ini = y_fondo - e
     else:
         piezas = []
         y_ini = y_carga
     for s in (-1, +1):
-        piezas.append(_pared((xc + s * g, y_ini),
-                             (xc + s * g, y_fondo + lg), e))     # guia
-        piezas.append(_pared((xc + s * g, y_fondo + lg),
-                             (xc + s * ap, y_fondo + lt), e))    # flare
+        lejos = (xc + s * 10.0, y_fondo)     # un punto del lado de afuera
+        piezas.append(_pared_afuera((xc + s * g, y_ini),
+                                    (xc + s * g, y_fondo + lg), e, lejos))
+        piezas.append(_pared_afuera((xc + s * g, y_fondo + lg),
+                                    (xc + s * ap, y_fondo + lt), e, lejos))
     return piezas
 
 
@@ -220,10 +230,9 @@ def construir(con_placa, dist_placa=None, dist_celda=None):
             center=mp.Vector3(0.0, y_placa + P.a_meep(P.PLACA_ESPESOR) / 2.0 + dy),
             material=mp.metal))
 
-    # Sondas, adentro de la guia, a SONDA_FONDO del corto
-    y_sonda = P.a_meep(P.SONDA_FONDO) + dy
-    tx = mp.Vector3(x_tx, y_sonda)
-    rx = mp.Vector3(x_rx, y_sonda)
+    # Sondas, adentro de la guia, cada una a su distancia del fondo
+    tx = mp.Vector3(x_tx, P.a_meep(P.SONDA_TX) + dy)
+    rx = mp.Vector3(x_rx, P.a_meep(P.SONDA_RX) + dy)
     return geom, cell, dy, tx, rx
 
 
@@ -263,7 +272,7 @@ def correr(con_placa, etiqueta, dist_placa=None, dist_celda=None):
     # la placa y volviendo. Los tiempos salen de la geometria (en unidades
     # MEEP la luz recorre 1 u por unidad de tiempo): el pulso esta centrado
     # en T0, recorre la bocina (sonda -> boca) y despues el aire.
-    d_boc = P.a_meep(P.LARGO_TOTAL - P.SONDA_FONDO)
+    d_boc = P.a_meep(P.LARGO_TOTAL - P.SONDA_TX)
     d_aire = P.a_meep(dist_placa)
     t_fotos = {"sale":   T0 + d_boc + 0.35 * d_aire,
                "placa":  T0 + d_boc + 1.00 * d_aire,
@@ -318,6 +327,9 @@ def correr(con_placa, etiqueta, dist_placa=None, dist_celda=None):
             f"sep_antenas={P.SEP_ANTENAS}",
             f"apertura={P.APERTURA}", f"placa_ancho={P.PLACA_ANCHO}",
             f"sonda={P.SONDA}",
+            f"bocina_ext=guia {P.GUIA_ANCHO_EXT} boca {P.APERTURA_EXT} "
+            f"largo {P.LARGO_EXT} recta {P.GUIA_LARGO_EXT} "
+            f"conectores {P.CONECTOR_TX}/{P.CONECTOR_RX} chapa {P.CHAPA}",
         ]))
     print(f"  |H| medio {20*np.log10(np.abs(H).mean()):.1f} dB  ->  {destino}")
     return destino
