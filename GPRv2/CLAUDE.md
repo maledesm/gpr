@@ -309,10 +309,25 @@ Cuadro de texto `captura` + boton `guardar captura PNG`, o la tecla `s`. Se
 tipea un nombre ("placa_1m"), se aprieta, y queda en
 `datos/capturas/<nombre>.png` a 200 dpi (~2190x1509 px, ~180 KB).
 
-**Las capturas PNG SÍ entran a git** (desde el 2026-09-21; antes las tapaba
-el `*.png` global del `.gitignore` y las de la placa a 1 m quedaron solo en
-la PC del banco). Después de medir: `git add GPRv2/datos/capturas/` y
-commitear. Los CSV de la corrida siguen fuera (son megas por minuto).
+**TODOS los datos entran a git** (desde el 2026-09-22): las capturas PNG, su
+CSV de FFT, y también las capturas crudas de cada corrida, la triangular, la
+calibración y los PWL. Antes estaban afuera "porque son megas por minuto", y
+el resultado fue que las mediciones quedaban en una sola máquina — las de la
+placa a 1 m se perdieron así. Después de medir: `git add GPRv2/datos/` y
+commitear.
+
+> ⚠️ **GitHub rechaza archivos de más de 100 MB**, y no sólo ese push: todos
+> los siguientes, hasta reescribir la historia para sacarlo. La captura crece
+> **~3,6 MB por minuto**, o sea que una corrida de más de ~28 min se pasaría.
+> Por eso `vivo_rapido.py` corta en `captura_<sello>_parte2.csv` al llegar a
+> `LIMITE_PARTE_MB` (90 MB) — ver abajo. Si grabás con otra cosa
+> (`grabar_rampa.py`, el experimento del ADC), mirá el tamaño antes de
+> commitear.
+
+La única excepción es `datos/vivo_config.json`: no es una medición sino una
+preferencia de pantalla, y se reescribe al salir de cada corrida. Versionarla
+haría que la PC del banco y la otra se la pisen todo el tiempo y que
+`git pull` se plante después de cada medición.
 
 - **Nunca sobrescribe**: si el nombre ya existe sale `<nombre>_2.png`. Los
   caracteres que Windows no acepta se reemplazan por `_`; nombre vacio ->
@@ -329,6 +344,33 @@ commitear. Los CSV de la corrida siguen fuera (son megas por minuto).
   saturacion de la triangular, el estado del fondo y el agrupado efectivo.
   Es lo que hace que la captura sirva seis meses despues.
 - `RECORTE_CAPTURA = None` guarda la ventana entera.
+
+**Junto a cada PNG va una CSV con la FFT** (desde el 2026-09-22):
+`datos/capturas/<nombre>.csv`, mismo nombre, siempre en par — si existe
+cualquiera de los dos, los dos van a `<nombre>_2`. Sirve para sacar la curva y
+superponerla con `simulaciones_meep/` (misma cadena: Hann, relleno ×8, eje en
+Hz con distancia aparente sin calibrar) o con otra captura. ~110 KB, entra a
+git con la PNG.
+
+- **Todo el eje**, hasta el Nyquist (1201 bins a 50 ms), no solo lo visible.
+- **Es SOLO la curva que se está viendo en ese momento**, no el promedio de
+  la ventana ni el fondo: eso serían otras curvas. 6 columnas: `f_hz`,
+  `d_crudo_m`, `d_cal_m`, `mag` (lineal, con el fondo ya restado si había),
+  `db_pantalla` (exacto como se ve: verificado a 5e-8 dB) y `db_norm` (0 dB
+  en el máximo de la propia curva, para superponer). ~80 KB.
+- **Va la magnitud lineal a propósito**: los dB de pantalla están referidos
+  a algo que cambia (máximo visible o pico del fondo), así que no se pueden
+  comparar entre capturas. Contra una simulación hay que normalizar igual.
+- El encabezado (`# clave = valor`) trae el estado del banco: Tprf, muestras,
+  nfft, BW, alpha0, Hz/m, rampas promediadas, calibración, fondo, qué vale
+  0 dB, el pico, y la corrida de la que salió.
+- **La fila de nombres va PRIMERO y los `#` después**: `numpy.genfromtxt(
+  names=True)` toma los nombres de la primera línea aunque sea un comentario,
+  y con los metadatos arriba agarraba "GPRv2 - FFT..." como nombre. Así se lee
+  sin parámetros raros con `pd.read_csv(ruta, comment="#")`,
+  `np.genfromtxt(ruta, delimiter=",", names=True)`, `np.loadtxt(ruta,
+  delimiter=",", skiprows=1)` o `proceso_rapido.leer_fft_captura(ruta)`, que
+  además devuelve los metadatos.
 
 **El cuadro de informacion paso de 31 a 39 lineas** (ms/cuadro, agrupado
 efectivo, modo del fondo) y ya no entraba. Entre el y la triangular habia
@@ -349,7 +391,13 @@ Cambiado el 2026-09-18 (Martin). Tres cosas, solo en `vivo_rapido.py`:
 
 - **Cada corrida graba un par de CSV nuevos**, `datos/captura_<sello>.csv` y
   `datos/triangular_<sello>.csv`, con el sello `dd-mm-aaaa_hh-mm-ss` del
-  momento de arrancar. Nada se pisa. `vivo.py` y `grabar_rampa.py` siguen
+  momento de arrancar. Nada se pisa. **Al llegar a `LIMITE_PARTE_MB` (90 MB,
+  ~25 min) la corrida sigue en `captura_<sello>_parte2.csv`** y su triangular,
+  para que ningún archivo pase los 100 MB de GitHub. Cada parte se analiza
+  SOLA, como una corrida corta: los índices de la triangular se cuentan desde
+  la primera fila de SU captura, no desde el principio de la corrida.
+  Verificado: las partes pegadas en orden dan byte a byte la captura de una
+  sola pieza, y la parte 2 sola encuentra el blanco. `vivo.py` y `grabar_rampa.py` siguen
   escribiendo `captura.csv` / `triangular.csv`, y **`graficar_captura.py` y
   `waterfall.py` siguen leyendo esos nombres fijos**: para reanalizar una
   corrida hay que apuntarlos al par que corresponda (o copiarlo con ese
@@ -437,7 +485,7 @@ diezmado no se aplicaba. **Arreglado en `vivo_rapido.py` el 2026-09-18**:
 `abrir_puerto()` manda `fs` antes de `run`. `vivo.py` y `grabar_rampa.py`
 siguen con el bug (no se tocan).
 
-### No hay mediciones reales en la maquina (ya no: desde el 2026-09-18 hay capturas en `datos/`, ignoradas por git)
+### No hay mediciones reales en la maquina (ya no: desde el 2026-09-18 hay capturas en `datos/`, y desde el 2026-09-22 van a git)
 
 Buscado por tres lados el 2026-09-11: `GPRv2/datos/` vacio, ningun
 `captura.csv` ni `triangular.csv` en todo el disco, y en el historial de git
@@ -478,7 +526,7 @@ identicos** a los de `vivo.py`, y que una captura escrita por el programa
 nuevo se **reanaliza** con la cadena vieja entera y con `waterfall.py` y
 `graficar_captura.py` sin tocarlos.
 
-Son 26 comprobaciones y tarda un minuto. Cuando se toque cualquiera de los
+Son 39 comprobaciones y tarda un minuto. Cuando se toque cualquiera de los
 dos, correr esto antes de llevarlo al banco.
 
 ## La triangular se vio recortada: era el divisor desconectado

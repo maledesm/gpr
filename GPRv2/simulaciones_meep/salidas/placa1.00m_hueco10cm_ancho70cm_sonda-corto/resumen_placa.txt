@@ -1,0 +1,44 @@
+corrida         placa1.00m_hueco10cm_ancho70cm_sonda-corto   (2026-09-22 09:30)
+carpeta         simulaciones_meep\salidas\placa1.00m_hueco10cm_ancho70cm_sonda-corto
+que             todo   (barrido: 0.75 1.00 1.25 1.50 m)
+escala          a = 0.15 m/u.MEEP
+banda           0.90 a 2.05 GHz = 0.450 a 1.026 u.MEEP
+resolucion      20 celdas/u = 7.5 mm
+bocina (fuera)  guia 18 cm, boca 30.5 cm, largo 52.5 cm (recta 33.5 + flare 19.0), conectores a 5.9 (TX) y 5.4 (RX) cm del fondo
+bocina (dentro) guia 17.8 cm (corte 842 MHz), boca 30.3 cm, chapa 1 mm
+bocas           hueco 10.0 cm (centros a 40.5 cm)
+sonda           corto   (con el corto, sin carga: cavidad cerrada)
+placa           70.0 cm a 100 cm
+cables          medido, tau 9.708 ns
+tau interno     0.000 ns
+Tprf            el de analisis/ (2*T_SWEEP)
+d_offset        1.455 m
+placa + offset  2.455 m aparentes
+acopl. directo  1.658 m aparentes
+
+========================================================================
+Placa metalica a 1.00 m del plano de apertura
+========================================================================
+  rampa            50 ms (Tprf 100 ms), 300 muestras a 6000 sps
+  alpha0           20.79 GHz/s = 138.6 Hz por metro = 4B/(c*Tprf)
+  BW del VCO       1039.6 MHz -> resolucion c/(2BW) = 14.4 cm
+  bocina           agrega 0.469 m de distancia aparente (largo fisico)
+  cables (medido)  1.455 m   |   tau interno 0.00 ns = 0.000 m
+
+  pico                            modelo  simulado    error       Hz
+  ------------------------------------------------------------------
+  acoplamiento, sin cables        0.671m    0.700m  +0.029m    97.0
+  acoplamiento, con cables        2.126m    2.156m  +0.030m   298.9
+  placa, sin cables               1.469m    1.662m  +0.194m   230.4
+  placa, con cables               2.924m    3.119m  +0.195m   432.3
+  (el 'error' de la placa es lo que agrega la bocina por encima de su
+   largo fisico; ver barrido.py)
+
+  picos de la figura (con cables):
+    A   Acoplamiento directo                  299 Hz   2.156 m  -46.7 dB
+    B   Eco de la placa                       432 Hz   3.119 m   +0.0 dB
+    C   Rebote en la boca de las bocinas      576 Hz   4.157 m  -14.3 dB
+    D   Rebote adentro de una bocina          660 Hz   4.761 m   -3.6 dB
+    C2  Dos rebotes en la boca                729 Hz   5.256 m  -20.1 dB
+    CD  Un rebote en la boca y uno adentro    804 Hz   5.802 m  -11.6 dB
+    E   Dos rebotes adentro                   884 Hz   6.380 m  -12.4 dB

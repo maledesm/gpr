@@ -102,36 +102,43 @@ desktop.ini
 beat_gpr.wav
 *.wav
 
-# Capturas: se generan en cada medicion. Conservá las importantes con:
-#     git add -f datos/2026-08-15_143000.csv
-datos/*.csv
-GPRv2/datos/*.csv
+# ---------------------------------------------------------------------------
+# Los datos de las mediciones SI van al repo (decision del 2026-09-22).
+#
+# Antes estaban todos afuera "porque son megas por minuto", y el resultado fue
+# que las mediciones quedaban en una sola maquina: las capturas de la placa a
+# 1 m se perdieron asi. Una medicion no se puede volver a hacer; un clon
+# grande se aguanta.
+#
+# Entra TODO lo de datos/: las capturas crudas (captura_*.csv), la triangular,
+# la calibracion, los PWL y el stream del experimento del ADC.
+#
+# OJO CON LOS 100 MB. GitHub rechaza cualquier archivo mas grande, y no solo
+# ese push: todos los siguientes, hasta reescribir la historia para sacarlo.
+# La captura crece ~3,6 MB por minuto. Por eso vivo_rapido.py corta la corrida
+# en captura_<sello>_parte2.csv y siguientes al llegar a LIMITE_PARTE_MB
+# (90 MB), y cada parte se analiza sola. Si grabas con otra cosa
+# (grabar_rampa.py, el experimento del ADC), fijate el tamano antes de
+# commitear.
+# ---------------------------------------------------------------------------
 
-# Las capturas PNG de vivo_rapido.py (boton "guardar captura PNG", tecla 's')
-# SI se versionan: son las figuras del banco para la tesis y la comparacion
-# con las simulaciones, pesan ~180 KB cada una, y si no se suben no llegan a
-# las otras maquinas (paso: las de la placa a 1 m quedaron solo en la PC del
-# banco). Pisa el *.png global de mas arriba.
-!GPRv2/datos/capturas/*.png
+# Todo lo que genera GPRv2 y se mira: las capturas del boton "guardar captura
+# PNG" (la figura + su CSV con la curva de la FFT) y las figuras de las
+# simulaciones. Pisa el *.png global de mas arriba.
+!GPRv2/**/*.png
+!GPRv2/**/*.svg
 
 # Configuracion local del grabador (es por maquina)
 adquisicion/config.json
 adquisicion_audio/config.json
 
-# El PWL para LTspice lo regenera GPRv2/analisis/generar_pwl_triangular.py
-# y son cientos de kB de texto: no tiene sentido versionarlo.
-GPRv2/datos/*.pwl
-
-# La calibracion de distancia es de un banco y un dia concretos: si la de hoy
-# es la buena, conservala con  git add -f GPRv2/datos/calibracion_distancia.json
-GPRv2/datos/calibracion_distancia.json
-
-# La configuracion de la columna de controles de vivo_rapido.py (ultimos
-# valores tipeados, eje elegido): es por maquina, como la calibracion.
+# La UNICA excepcion de GPRv2/datos/: la configuracion de la columna de
+# controles de vivo_rapido.py (ultimos valores tipeados, eje elegido, nombre
+# de la captura). No es una medicion: es una preferencia de pantalla, y se
+# reescribe al salir de CADA corrida. Si se versionara, la PC del banco y la
+# otra se la pisarian todo el tiempo y `git pull` se plantaria despues de
+# cada medicion con "your local changes would be overwritten".
 GPRv2/datos/vivo_config.json
-
-# Stream crudo del experimento de las tres lecturas del ADC (megas por minuto)
-GPRv2/datos/experimento_adc3_*.txt
 
 # Salidas de LTspice: se regeneran simulando el .asc (el triangular.raw pesa
 # 53 MB, mas que el limite de 50 MB a partir del cual GitHub advierte). Lo que

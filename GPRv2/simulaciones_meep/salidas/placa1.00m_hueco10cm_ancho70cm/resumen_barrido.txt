@@ -1,0 +1,36 @@
+corrida         placa1.00m_hueco10cm_ancho70cm   (2026-09-22 09:50)
+carpeta         simulaciones_meep\salidas\placa1.00m_hueco10cm_ancho70cm
+que             todo   (barrido: 0.75 1.00 1.25 1.50 m)
+escala          a = 0.15 m/u.MEEP
+banda           0.90 a 2.05 GHz = 0.450 a 1.026 u.MEEP
+resolucion      20 celdas/u = 7.5 mm
+bocina (fuera)  guia 18 cm, boca 30.5 cm, largo 52.5 cm (recta 33.5 + flare 19.0), conectores a 5.9 (TX) y 5.4 (RX) cm del fondo
+bocina (dentro) guia 17.8 cm (corte 842 MHz), boca 30.3 cm, chapa 1 mm
+bocas           hueco 10.0 cm (centros a 40.5 cm)
+sonda           adaptada   (guia sin corto, al PML = carga de 50 ohm)
+placa           70.0 cm a 100 cm
+cables          medido, tau 9.708 ns
+tau interno     4.000 ns
+Tprf            el de analisis/ (2*T_SWEEP)
+d_offset        2.055 m
+placa + offset  3.055 m aparentes
+acopl. directo  2.257 m aparentes
+
+======================================================================
+Barrido de la placa: d_aparente = a * d_real + b
+======================================================================
+   d real   geom.  sin cables  con cables      Hz
+    0.75m  1.245m      1.340m      3.397m   470.8
+    1.00m  1.489m      1.595m      3.652m   506.2
+    1.25m  1.735m      1.842m      3.899m   540.4
+    1.50m  1.982m      2.089m      4.145m   574.6
+
+  sin cables   a = 0.9971   b = +0.595 m   residuo rms 2.2 mm
+  con cables   a = 0.9970   b = +2.651 m   residuo rms 2.2 mm
+
+  offset de cables + interno (b con - b sin)  2.056 m   (cables del VNA 1.455 + interno 0.600 = 2.055 m)
+  offset de bocinas + geometria         0.595 m   (largo fisico sonda->apertura: 0.469 m)
+    -> exceso sobre el largo fisico     +0.127 m = 0.84 ns de ida y vuelta
+
+  pendiente ideal 4B/(c*Tprf) = 4 * 1039.6 MHz / (c * 100 ms) = 138.6 Hz/m
+  pendiente simulada          = 138.2 Hz/m   (a = 0.9970)

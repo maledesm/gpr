@@ -271,7 +271,7 @@ footer{margin:72px 0 0;padding-top:22px;border-top:1px solid var(--rule);
   </div>
   <div class="hl">
     <p class="k">Verificación</p>
-    <div class="v">26</div>
+    <div class="v">39</div>
     <div class="s">comprobaciones,<br>todas pasan</div>
   </div>
   <div class="hl">
@@ -507,6 +507,40 @@ footer{margin:72px 0 0;padding-top:22px;border-top:1px solid var(--rule);
   <h4>El cuadro de información no entraba</h4>
   <p>Al agregar <code>ms/cuadro</code>, <code>agrupado ef.</code> y el modo del fondo, el panel pasó de 31 a <strong>39 líneas</strong> y la última se salía del marco —<code>vivo.py</code> ya avisaba de esto en un comentario, con menos líneas—. Entre ese cuadro y la triangular había <strong>0,14 de figura sin usar</strong>. El panel ahora baja hasta <code>y=0.33</code> en vez de <code>0.42</code>, a 7 pt con interlineado 1,15. No se sacó ningún dato y no hizo falta achicar la letra hasta lo ilegible.</p>
 
+  <h3>La FFT de cada captura, en CSV</h3>
+  <p><em>Agregado el 2026-09-22.</em> Junto a cada PNG se guarda <code>datos/capturas/&lt;nombre&gt;.csv</code> con la FFT que se está viendo, para poder <strong>sacar la curva y superponerla</strong> con una simulación de <code>simulaciones_meep/</code> o con otra captura, sin digitalizar la figura. La simulación usa la misma cadena —Hann, relleno ×8, eje en Hz con la distancia aparente sin calibrar—, así que las columnas se comparan directo.</p>
+  <ul>
+    <li><strong>Siempre en par con la PNG.</strong> Si existe cualquiera de los dos, los dos van a <code>_2</code>: si no, una PNG vieja podría quedar al lado de una CSV nueva con el mismo nombre y parecerían la misma captura sin serlo.</li>
+    <li><strong>Todo el eje</strong>, hasta el Nyquist (1201 bins con rampas de 50 ms), no sólo lo que entra en pantalla: una simulación puede querer mirar más allá del alcance.</li>
+    <li><strong>Sólo la curva de ese momento.</strong> No el promedio de la ventana ni el fondo: eso serían otras curvas. La que se ve, y nada más.</li>
+    <li><strong>Magnitud lineal además de dB, a propósito.</strong> Los dB de la pantalla están referidos a algo que cambia —el máximo de la matriz visible, o el pico del fondo—, así que dos capturas en dB de pantalla no se pueden comparar entre sí. La magnitud lineal sí, dentro del mismo banco.</li>
+    <li><strong>El encabezado trae el estado del banco</strong>: Tprf, muestras por rampa, nfft, BW, <code>alpha0</code>, Hz por metro, cuántas rampas se promediaron, calibración, fondo, qué vale 0 dB, el pico y la corrida de la que salió. El archivo se explica solo, igual que la PNG.</li>
+  </ul>
+
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>Columna</th><th>Qué es</th></tr></thead>
+      <tbody>
+        <tr><td>f_hz</td><td style="text-align:left;white-space:normal">frecuencia de batido, centro del bin</td></tr>
+        <tr><td>d_crudo_m</td><td style="text-align:left;white-space:normal">distancia aparente sin calibrar — la de la simulación</td></tr>
+        <tr><td>d_cal_m</td><td style="text-align:left;white-space:normal">distancia calibrada, <code>a·d_crudo + b</code></td></tr>
+        <tr><td>mag</td><td style="text-align:left;white-space:normal">|FFT| lineal de la curva que se está viendo, con el fondo ya restado si había</td></tr>
+        <tr><td>db_pantalla</td><td style="text-align:left;white-space:normal">la misma curva en dB, exactamente como se ve</td></tr>
+        <tr><td>db_norm</td><td style="text-align:left;white-space:normal">0 dB en el máximo de la propia curva, para superponer</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note warn">
+    <p class="t">La fila de nombres va primero, y no es un capricho</p>
+    <p>La primera versión ponía los metadatos arriba, como es costumbre. El test la agarró: <code>numpy.genfromtxt(names=True)</code> toma los nombres de columna de la <strong>primera línea del archivo aunque sea un comentario</strong>, así que leía <code>GPRv2 - FFT de una captura</code> como nombre. Con los nombres primero y los <code>#</code> después se lee sin ningún parámetro raro con cualquiera de estas:</p>
+    <pre><code>pd.read_csv(ruta, comment="#")
+np.genfromtxt(ruta, delimiter=",", names=True)
+np.loadtxt(ruta, delimiter=",", skiprows=1)
+meta, c = proceso_rapido.leer_fft_captura(ruta)   # + los metadatos</code></pre>
+  </div>
+  <p class="where"><b>Dónde vive:</b> el formato, escritura y lectura juntas, en <code>proceso_rapido.escribir_fft_captura()</code> / <code>leer_fft_captura()</code> — ese módulo no importa ni <code>serial</code> ni widgets, así que un script de simulación lo puede usar sin arrastrar el programa en vivo. El armado de los datos, en <code>Vivo._guardar_fft()</code>. Entra a git con la PNG (<code>!GPRv2/datos/capturas/*.csv</code> en el <code>.gitignore</code>).</p>
+
   <h3>Dos bugs arreglados</h3>
   <p><strong>El aviso que nunca se veía.</strong> <code>TextBox.set_val()</code> dispara el callback de <em>submit</em>, o sea vuelve a entrar a <code>_escribir()</code>, que pone <code>self.aviso = ""</code>. Por eso el mensaje de <code>medir fondo</code> no llegaba a la pantalla: <code>_medir_fondo()</code> lo escribe, llama a <code>_refrescar_cajas()</code> —que mueve piso y techo— y el aviso se borra antes de dibujarse. <code>_refrescar_cajas()</code> ahora lo guarda y lo repone. <code>vivo.py</code> todavía lo tiene.</p>
 
@@ -523,7 +557,7 @@ footer{margin:72px 0 0;padding-top:22px;border-top:1px solid var(--rule);
     <p>Todo lo de arriba toca el camino de la medición. Sin una prueba de equivalencia, no vale.</p>
   </div>
 
-  <p><code>verificar_rapido.py</code> corre sin hardware. Arma un stream sintético —las mismas líneas de texto que emitiría la placa, con blancos de distancia conocida— y lo pasa por <strong>los dos programas enteros</strong>, no por funciones sueltas. Son <strong>26 comprobaciones</strong> y tardan un minuto.</p>
+  <p><code>verificar_rapido.py</code> corre sin hardware. Arma un stream sintético —las mismas líneas de texto que emitiría la placa, con blancos de distancia conocida— y lo pasa por <strong>los dos programas enteros</strong>, no por funciones sueltas. Son <strong>39 comprobaciones</strong> y tardan un minuto.</p>
 
   <pre><code>python analisis/verificar_rapido.py</code></pre>
 
@@ -611,9 +645,21 @@ footer{margin:72px 0 0;padding-top:22px;border-top:1px solid var(--rule);
     <li>Los cuatro PNG salen a 200 dpi, el más chico de 173 KB.</li>
   </ul>
 
+  <h4>Nivel 8 · la FFT de la captura</h4>
+  <p>Se corre con el banco actual (Tprf 100 ms, 300 muestras por rampa) y se prueba lo que haría quien use el archivo:</p>
+  <div class="readout">
+    <div class="cap">Blanco sintético a 1,50 m, otro a 3,20 m</div>
+    <div class="row head"><span class="lbl">qué se comprueba</span><span class="a"></span><span class="arr"></span><span class="b">resultado</span><span class="g"></span></div>
+    <div class="row"><span class="lbl">db_pantalla contra la curva que se ve</span><span class="a"></span><span class="arr"></span><span class="b">5e−8 dB</span><span class="g">sin y con fondo</span></div>
+    <div class="row"><span class="lbl">el blanco en la CSV</span><span class="a"></span><span class="arr"></span><span class="b">1,495 m</span><span class="g">207 Hz</span></div>
+    <div class="row"><span class="lbl">lectores: pandas, genfromtxt, loadtxt, propio</span><span class="a"></span><span class="arr"></span><span class="b">los 4</span><span class="g">sin parámetros</span></div>
+    <div class="row"><span class="lbl">par PNG + CSV, saltando una CSV suelta</span><span class="a"></span><span class="arr"></span><span class="b">OK</span><span class="g"></span></div>
+    <div class="row"><span class="lbl">tamaño</span><span class="a"></span><span class="arr"></span><span class="b">112 KB</span><span class="g">1201 bins</span></div>
+  </div>
+
   <div class="note">
     <p class="t">Regla de trabajo</p>
-    <p>Cuando se toque cualquiera de los dos programas, correr <code>verificar_rapido.py</code> <strong>antes</strong> de llevarlo al banco. Es un minuto, son 26 comprobaciones y cubre todo el camino de la medición, incluido que la captura siga siendo reanalizable. Corre desde cualquier directorio.</p>
+    <p>Cuando se toque cualquiera de los dos programas, correr <code>verificar_rapido.py</code> <strong>antes</strong> de llevarlo al banco. Es un minuto, son 39 comprobaciones y cubre todo el camino de la medición, incluido que la captura siga siendo reanalizable. Corre desde cualquier directorio.</p>
   </div>
 </section>
 

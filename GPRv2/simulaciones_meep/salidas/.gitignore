@@ -1,4 +1,7 @@
-*.npz
-_abrir.txt
+# Los resultados de la simulacion (H_*.npz) y los resumenes SI van al repo:
+# cada uno cuesta horas de MEEP y son <1 MB. Afuera quedan solo los
+# verdaderamente temporales.
 *.tmp.png
-resumen_*.txt
+# Lista de rutas ABSOLUTAS de esta maquina que arma el .bat para abrir las
+# figuras: no le sirve a nadie mas y se reescribe en cada corrida.
+_abrir.txt

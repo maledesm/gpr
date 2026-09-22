@@ -275,3 +275,93 @@ def pico_parabolico(y, i):
         return 0.0
     d = 0.5 * (a - c) / den
     return float(np.clip(d, -0.5, 0.5))
+
+
+# --- FFT de una captura, a CSV ---------------------------------------------
+#
+# Lo que escribe el boton de captura de vivo_rapido.py junto a la PNG, para
+# poder sacar la curva y superponerla con una simulacion (o con otra
+# captura) sin tener que digitalizar la figura. El formato se define aca, en
+# un solo lugar, con el que escribe y el que lee pegados: este modulo no
+# importa ni serial ni widgets, asi que un script de simulaciones_meep/ lo
+# puede usar sin arrastrar el programa en vivo.
+#
+# Formato:
+#
+#   f_hz,d_crudo_m,...               <- nombres de columna, SIEMPRE primero
+#   # GPRv2 - FFT de una captura de vivo_rapido.py
+#   # col nombre = que es            <- una linea por columna
+#   # clave = valor                  <- metadatos, uno por linea
+#   0,0,...                          <- datos, un bin por fila
+#
+# Los nombres van en la PRIMERA linea y los comentarios despues, no al reves,
+# y es a proposito: numpy.genfromtxt(names=True) toma los nombres de la
+# primera linea del archivo aunque sea un comentario. Con los metadatos
+# arriba agarraba "GPRv2 - FFT de una captura" como nombre de columna.
+#
+# CSV comun con punto decimal y coma separadora. Se lee, sin ayuda, con
+#     pandas.read_csv(ruta, comment="#")
+#     numpy.genfromtxt(ruta, delimiter=",", names=True)
+#     numpy.loadtxt(ruta, delimiter=",", skiprows=1)
+#     readtable(ruta, "CommentStyle", "#")                (MATLAB)
+# o con leer_fft_captura() de abajo, que ademas devuelve los metadatos.
+
+ENCABEZADO_FFT = "# GPRv2 - FFT de una captura de vivo_rapido.py"
+
+
+def escribir_fft_captura(ruta, meta, columnas, descripciones=None):
+    """Escribe el CSV de la FFT de una captura.
+
+    `meta` es un dict de metadatos (se escriben en orden, `# clave = valor`),
+    `columnas` un dict ordenado nombre -> array (todas del mismo largo) y
+    `descripciones` un dict nombre -> texto que queda en el encabezado, para
+    que el archivo se explique solo sin tener que ir a buscar este codigo.
+    """
+    nombres = list(columnas)
+    datos = np.column_stack([np.asarray(columnas[k], dtype=float)
+                             for k in nombres])
+    lineas = [",".join(nombres), ENCABEZADO_FFT]
+    for k in nombres:
+        texto = (descripciones or {}).get(k, "")
+        lineas.append(f"# col {k} = {texto}")
+    for k, v in meta.items():
+        lineas.append(f"# {k} = {v}")
+    # %.9g: sobra para un float32 (7 cifras) y no mete ceros de relleno que
+    # inflan el archivo. NaN sale como "nan", que leen pandas, numpy y MATLAB.
+    with open(ruta, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(lineas) + "\n")
+        np.savetxt(f, datos, delimiter=",", fmt="%.9g")
+
+
+def leer_fft_captura(ruta):
+    """Lee un CSV de escribir_fft_captura(). Devuelve (meta, columnas).
+
+    `meta` es un dict de texto (los valores vienen como string: convertirlos
+    es cosa de quien los use, y asi no se pierde nada de lo escrito) y
+    `columnas` un dict nombre -> array de numpy.
+
+        meta, c = leer_fft_captura("datos/capturas/placa_1m.csv")
+        plt.plot(c["d_crudo_m"], c["db_fila_norm"])
+        print(meta["tprf_ms"], meta["rampas_en_fila"])
+    """
+    meta, cabecera, filas = {}, None, []
+    with open(ruta, encoding="utf-8") as f:
+        for linea in f:
+            linea = linea.rstrip("\n")
+            if linea.startswith("#"):
+                cuerpo = linea[1:].strip()
+                if "=" in cuerpo and not cuerpo.startswith("col "):
+                    k, v = cuerpo.split("=", 1)
+                    meta[k.strip()] = v.strip()
+                continue
+            if not linea.strip():
+                continue
+            if cabecera is None:
+                cabecera = [c.strip() for c in linea.split(",")]
+                continue
+            filas.append(linea)
+    if cabecera is None:
+        raise ValueError(f"{ruta}: no tiene la linea con los nombres de columna")
+    datos = (np.loadtxt(filas, delimiter=",", ndmin=2) if filas
+             else np.empty((0, len(cabecera))))
+    return meta, {k: datos[:, i] for i, k in enumerate(cabecera)}

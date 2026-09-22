@@ -130,6 +130,17 @@ de guardar. No sobrescribe nunca: si el nombre ya existe sale <nombre>_2.png.
   figura se explica sola seis meses despues. Con RECORTE_CAPTURA = None se
   guarda la ventana entera.
 
+  JUNTO A CADA PNG VA UNA CSV CON LA FFT: datos/capturas/<nombre>.csv, mismo
+  nombre, siempre en par (si existe cualquiera de los dos, los dos van a
+  <nombre>_2). Es SOLO la curva que se esta viendo en ese momento, para poder
+  SACARLA y superponerla con una simulacion de simulaciones_meep/ o con otra
+  captura, sin digitalizar la figura. Trae todo el eje (hasta el Nyquist, no
+  solo lo visible), en Hz, en distancia cruda y calibrada, la magnitud lineal
+  y la misma curva en dB, y el estado del banco en el encabezado. El formato esta en proceso_rapido.py
+  (escribir_fft_captura / leer_fft_captura); se lee tambien con
+  pandas.read_csv(ruta, comment="#") o numpy.genfromtxt(ruta, delimiter=",",
+  names=True).
+
 ARCHIVOS NUEVOS POR CORRIDA. Cada corrida graba datos/captura_<sello>.csv y
 datos/triangular_<sello>.csv, con el sello dd-mm-aaaa_hh-mm-ss del momento de
 arrancar, asi que ninguna medicion pisa a la anterior. (vivo.py sigue
@@ -173,7 +184,7 @@ from correccion_no_linealidad import (
 )
 from proceso_rapido import (
     Remuestreador, espectros, largo_fft, ajustar_triangular_rapido,
-    pico_parabolico,
+    pico_parabolico, escribir_fft_captura,
 )
 
 PUERTO = "auto"      # "auto" o algo como "COM5"
@@ -283,6 +294,13 @@ CONFIG_JSON = os.path.join(DATOS, "vivo_config.json")
 # datos/triangular.csv por nombre fijo: para reanalizar una corrida hay que
 # apuntarlos al par que corresponda.
 FORMATO_SELLO = "%d-%m-%Y_%H-%M-%S"
+# Tope de cada archivo de captura. Todo lo de datos/ se sube a git, y GitHub
+# RECHAZA cualquier archivo de mas de 100 MB: y no solo ese push, todos los
+# que vengan despues, hasta reescribir la historia para sacarlo. La captura
+# crece ~3,6 MB por minuto, o sea que una corrida de mas de ~28 min se pasaria.
+# Al llegar a este tope la corrida sigue en captura_<sello>_parte2.csv (y su
+# triangular_<sello>_parte2.csv), y asi. Las corridas normales no se enteran.
+LIMITE_PARTE_MB = 90
 CAPTURAS = os.path.join(DATOS, "capturas")
 VCO_CSV = os.path.join(AQUI, "..", "..", "VCO", "Caracteristica VCO.csv")
 
@@ -304,13 +322,28 @@ class Lector(threading.Thread):
         exactamente lo que hacia la regex, pero sin el motor de regex.
 
     Medido sobre un segundo de stream sintetico: 12,4 ms -> 6,5 ms.
+
+    PARTES. Si se le pasa `abrir_parte(k) -> (f_cap, f_tri, nombre)` y un
+    `limite_bytes`, cuando la captura en curso llega al limite sigue en una
+    parte nueva (ver LIMITE_PARTE_MB). Cada parte es un par captura +
+    triangular que se analiza SOLO, como si fuera una corrida corta: los
+    indices de la triangular se cuentan desde la primera fila de SU captura,
+    no desde el principio de la corrida. Pegando las capturas en orden sale
+    exactamente el archivo que habria salido de una sola pieza (lo comprueba
+    verificar_rapido.py).
     """
 
-    def __init__(self, ser, f_cap, f_tri):
+    def __init__(self, ser, f_cap, f_tri, abrir_parte=None, limite_bytes=None):
         super().__init__(daemon=True)
         self.ser = ser
         self.f_cap = f_cap
         self.f_tri = f_tri
+        self.abrir_parte = abrir_parte
+        self.limite_bytes = limite_bytes
+        self.parte = 1
+        self.fila0 = 0             # fila global donde empieza la parte en curso
+        self.bytes_parte = 0
+        self.archivo_actual = None  # nombre de la captura en curso (main())
         self.lock = threading.Lock()
         self._beat = []
         self._tri = []
@@ -365,8 +398,12 @@ class Lector(threading.Thread):
                     fila = n - 1 + self.retardo
                     if fila < 0:
                         continue
+                    # En memoria, para el grafico, va la fila GLOBAL; en el
+                    # archivo, la fila dentro de ESTA parte, que es lo que
+                    # entiende el que despues lea el par captura+triangular.
                     tri.append((fila, adc))
-                    txt_tri.append(f"{adc},{fila}")
+                    if fila >= self.fila0:
+                        txt_tri.append(f"{adc},{fila - self.fila0}")
                 elif linea.startswith("# retardo"):
                     try:
                         self.retardo = int(linea.split("=")[1].split()[0])
@@ -387,13 +424,52 @@ class Lector(threading.Thread):
         self.n_filas = n
         self.descartadas += malas
         if txt_cap:
-            self.f_cap.write("\n".join(txt_cap) + "\n")
+            bloque = "\n".join(txt_cap) + "\n"
+            self.f_cap.write(bloque)
+            self.bytes_parte += len(bloque)      # ASCII: caracteres = bytes
         if txt_tri:
             self.f_tri.write("\n".join(txt_tri) + "\n")
         with self.lock:
             self._beat.extend(beat)
             self._tri.extend(tri)
+        # Se corta DESPUES de escribir el lote entero: todo lo de este lote
+        # (captura y triangular) cae en la misma parte, con el mismo fila0.
+        if (self.abrir_parte is not None and self.limite_bytes
+                and self.bytes_parte >= self.limite_bytes):
+            self._rotar()
         return resto
+
+    def _rotar(self):
+        """Cierra la parte en curso y sigue en la siguiente."""
+        try:
+            f_cap, f_tri, nombre = self.abrir_parte(self.parte + 1)
+        except OSError as e:
+            # Antes un archivo de mas que perder la medicion: se sigue
+            # escribiendo en el mismo y se avisa.
+            print(f"  [!] no pude abrir la parte {self.parte + 1} ({e}); "
+                  f"sigo en la misma. OJO: si pasa de 100 MB no entra a git")
+            self.abrir_parte = None
+            return
+        viejos = (self.f_cap, self.f_tri)
+        self.f_cap, self.f_tri = f_cap, f_tri
+        for f in viejos:
+            try:
+                f.close()
+            except Exception:
+                pass
+        self.parte += 1
+        self.fila0 = self.n_filas
+        self.bytes_parte = 0
+        self.archivo_actual = nombre
+        print(f"  la captura llego a {LIMITE_PARTE_MB} MB: sigue en {nombre}")
+
+    def cerrar(self):
+        """Cierra la parte en curso (la 1 la cierra el `with` de main())."""
+        for f in (self.f_cap, self.f_tri):
+            try:
+                f.close()
+            except Exception:
+                pass
 
     def tomar(self):
         """Devuelve (muestras, lecturas de triangular) desde la ultima vez."""
@@ -438,11 +514,17 @@ def abrir_puerto():
     return ser
 
 
-def archivos_de_salida():
-    """(captura, triangular) de ESTA corrida, con el sello de fecha y hora."""
-    sello = time.strftime(FORMATO_SELLO)
-    return (os.path.join(DATOS, f"captura_{sello}.csv"),
-            os.path.join(DATOS, f"triangular_{sello}.csv"))
+def archivos_de_salida(sello=None, parte=1):
+    """(captura, triangular) de ESTA corrida, con el sello de fecha y hora.
+
+    La parte 1 lleva el nombre de siempre; de la 2 en adelante se agrega
+    _parte<k>, con el MISMO sello, que es lo que dice que van juntas.
+    """
+    if sello is None:
+        sello = time.strftime(FORMATO_SELLO)
+    sufijo = "" if parte == 1 else f"_parte{parte}"
+    return (os.path.join(DATOS, f"captura_{sello}{sufijo}.csv"),
+            os.path.join(DATOS, f"triangular_{sello}{sufijo}.csv"))
 
 
 def cargar_config(path):
@@ -575,6 +657,11 @@ class Vivo:
         self.t_mti_ref = 0.0
 
         self._cache = {}           # se vacia al principio de cada refresco
+        self._ref_pantalla = 1.0   # que vale 0 dB en la pantalla (matriz())
+        # El CSV de datos de esta corrida (lo pone main()). Va en el
+        # encabezado de la FFT de cada captura, para poder volver a la senal
+        # cruda de la que salio la curva.
+        self.archivo_corrida = None
         self._fondos = None        # fotos del fondo para el blitting
         self._estatico = None      # que valores tenia el fondo cuando se saco
         self._recapturando = False
@@ -856,7 +943,11 @@ class Vivo:
         if self.fondo is None:
             self.energia_db = None
             V = M[:, :i1]
-            db = 20 * np.log10(V / (V.max() + 1e-12) + 1e-12)
+            # La referencia se guarda: la CSV de la captura tiene que poder
+            # reproducir EXACTAMENTE los dB de la pantalla, y sin fondo el 0 dB
+            # es el maximo de toda la matriz visible, no de la ultima fila.
+            self._ref_pantalla = float(V.max() + 1e-12)
+            db = 20 * np.log10(V / self._ref_pantalla + 1e-12)
         else:
             # Con el fondo CONGELADO la puerta se decide con la energia CRUDA
             # contra la del fondo: "la energia medida supera a la del fondo
@@ -880,6 +971,7 @@ class Vivo:
             # Referencia FIJA, la del fondo: normalizar al maximo hace que sin
             # blanco el propio fondo suba a 0 dB y aparezca un blanco donde no
             # hay nada.
+            self._ref_pantalla = self.fondo_ref
             db = 20 * np.log10(V / self.fondo_ref + 1e-12)
 
         # Span NOMINAL y no medido de las marcas de tiempo. Difieren en menos
@@ -1422,11 +1514,22 @@ class Vivo:
             self.aviso = f"no pude crear {CAPTURAS}: {e}"
             print("  [!] " + self.aviso)
             return
-        ruta = os.path.join(CAPTURAS, nombre + ".png")
+        # El nombre tiene que estar libre para el PAR: si existe cualquiera de
+        # los dos, van los dos al siguiente numero. Si no, una PNG vieja
+        # podria quedar al lado de una CSV nueva con el mismo nombre, y
+        # parecerian la misma captura sin serlo.
+        base = os.path.join(CAPTURAS, nombre)
         k = 2
-        while os.path.exists(ruta):
-            ruta = os.path.join(CAPTURAS, f"{nombre}_{k}.png")
+        while os.path.exists(base + ".png") or os.path.exists(base + ".csv"):
+            base = os.path.join(CAPTURAS, f"{nombre}_{k}")
             k += 1
+        ruta = base + ".png"
+        ruta_csv = base + ".csv"
+
+        # La FFT va PRIMERO y antes del savefig: sale de los mismos perfiles
+        # que se estan viendo (nada se procesa entre medio, el proceso corre
+        # solo en el timer), y si el PNG fallara igual quedan los numeros.
+        csv_ok = self._guardar_fft(ruta_csv, os.path.basename(ruta))
 
         recorte = self._recorte_captura()
         # Los controles se ESCONDEN mientras se guarda, en vez de confiar en
@@ -1455,8 +1558,146 @@ class Vivo:
             # Redibujar invalido la foto del fondo del blitting; el proximo
             # refresco la vuelve a sacar sola (ver _al_dibujar).
             self._fondos = None
-        self.aviso = f"guardada {os.path.basename(ruta)}"
-        print(f"  captura -> {os.path.abspath(ruta)}")
+        if csv_ok:
+            self.aviso = f"guardada {os.path.basename(base)} (.png + .csv)"
+            print(f"  captura -> {os.path.abspath(ruta)}")
+            print(f"   su FFT -> {os.path.abspath(ruta_csv)}")
+        else:
+            self.aviso = f"guardada {os.path.basename(ruta)} (sin FFT)"
+            print(f"  captura -> {os.path.abspath(ruta)}")
+
+    def _guardar_fft(self, ruta, png):
+        """Escribe la FFT que se esta viendo como CSV. Devuelve si pudo.
+
+        Para poder SACAR la curva de una captura y superponerla con una
+        simulacion (simulaciones_meep/ usa la misma cadena: Hann, relleno x8,
+        eje en Hz con la distancia aparente sin calibrar) o con otra captura,
+        sin digitalizar la figura. El formato esta definido en
+        proceso_rapido.escribir_fft_captura() / leer_fft_captura().
+
+        Es SOLO la curva de ese momento, la que se esta viendo en el panel de
+        la FFT: una columna de magnitud y la misma en dB, nada mas. Ni el
+        promedio de toda la ventana ni el fondo, que serian otras curvas.
+
+        Va TODO el eje, hasta el Nyquist, y no solo lo que entra en pantalla:
+        una simulacion puede querer mirar mas alla del alcance, y son ~1200
+        filas.
+
+        Va la magnitud LINEAL ademas de los dB, y es a proposito. Los dB de la
+        pantalla estan referidos a algo que cambia (el maximo de la matriz
+        visible, o el pico del fondo), asi que dos capturas en dB de pantalla
+        no son comparables entre si. La magnitud lineal si lo es, entre
+        capturas del mismo banco; contra una simulacion hay que normalizar
+        igual (las unidades son otras), y para eso esta db_norm.
+        """
+        if self.T is None or not self.n_perf:
+            return False
+        db, _, _, _ = self.matriz()       # deja n_ef y la referencia al dia
+        if db is None:
+            return False
+        paso = self.T / 2
+        n_ef = self.n_ef
+        # La ultima fila del radargrama, o sea la curva de la FFT en pantalla:
+        # el promedio de las ultimas n_ef rampas (matriz() agrupa desde la
+        # mas nueva para atras, asi que la ultima fila es exactamente esta).
+        fila = self.P[self.n_perf - n_ef:self.n_perf].mean(axis=0)
+
+        ref = self._ref_pantalla
+        if self.fondo is None:
+            # `mag` es lo que se dibuja: sin fondo, la curva tal cual.
+            mag = fila
+            que_es_0db = "maximo de la matriz visible (sin fondo medido)"
+        else:
+            # Con fondo, lo que se ve es la resta con piso en cero. Es la
+            # curva del panel, que es lo que se pidio guardar.
+            mag = np.maximum(fila - self.fondo, 0.0)
+            que_es_0db = ("pico del fondo en la zona util "
+                          + ("(fondo automatico MTI)" if self.mti
+                             else "(fondo congelado)"))
+        en_pantalla = 20 * np.log10(mag / ref + 1e-12)
+
+        columnas = {
+            "f_hz": self.eje_hz,
+            "d_crudo_m": self.eje_m_crudo,
+            "d_cal_m": self.cal.aplicar(self.eje_m_crudo),
+            "mag": mag,
+            "db_pantalla": en_pantalla,
+            "db_norm": 20 * np.log10(mag / (np.max(mag) + 1e-30) + 1e-12),
+        }
+        descripciones = {
+            "f_hz": "frecuencia de batido [Hz], centro del bin",
+            "d_crudo_m": "distancia aparente SIN calibrar [m] = f*c/(2*alpha0); "
+                         "es la que usa simulaciones_meep/",
+            "d_cal_m": "distancia calibrada [m] = cal_a*d_crudo + cal_b; igual "
+                       "a d_crudo si no hay calibracion",
+            "mag": "|FFT| lineal de la curva que se esta viendo: promedio de "
+                   "las ultimas 'rampas_en_fila' rampas, con el fondo ya "
+                   "restado si habia fondo",
+            "db_pantalla": "la misma curva en dB, exactamente como en la "
+                           "pantalla (ver que_es_0db), en todo el eje",
+            "db_norm": "20*log10(mag / max(mag)): 0 dB en el maximo de la "
+                       "propia curva, para superponer con una simulacion",
+        }
+
+        bw = float(self.curva(V_MAX) - self.curva(V_MIN))
+        pico = self.pico_crudo()
+        e_db = self.energia_actual_db()
+        if pico is None:
+            pico_cal = pico_hz = "-"
+        else:
+            pico_cal = f"{float(self.cal.aplicar(pico)):.4f}"
+            pico_hz = f"{float(np.interp(pico, self.eje_m_crudo, self.eje_hz)):.2f}"
+        meta = {
+            "fecha": time.strftime("%d-%m-%Y %H:%M:%S"),
+            "png": png,
+            "corrida": (getattr(self.lec, "archivo_actual", None)
+                        or self.archivo_corrida or "-"),
+            "tprf_ms": f"{self.T * 1e3:.4f}",
+            "rampa_ms": f"{paso * 1e3:.4f}",
+            "muestras_por_rampa": self.n,
+            "fs_sps": f"{FS:.1f}",
+            "fs_theta_sps": f"{self.fs_th:.4f}",
+            "nfft": self.nfft,
+            "relleno": RELLENO,
+            "ventana_fft": "hann",
+            "correccion_no_linealidad": "remuestreo cubico en theta "
+                                        "(curva del VCO)",
+            "bw_mhz": f"{bw / 1e6:.3f}",
+            "v_min_v": V_MIN,
+            "v_max_v": V_MAX,
+            "alpha0_hz_s": f"{self.alpha0:.6e}",
+            "hz_por_m": f"{self.alpha0 * 2 / C:.4f}",
+            "bin_resolucion_cm": f"{C / (2 * bw) * 100:.2f}",
+            "rampas_en_fila": n_ef,
+            "rampas_por_fila_pedidas": self.n_rampas,
+            "ventana_s": self.ventana,
+            "eje_en_pantalla": "m" if self.en_metros else "Hz",
+            "alcance_m": self.alcance,
+            "ignorar_m": self.ignorar,
+            "cal_a": f"{self.cal.a:.6f}",
+            "cal_b": f"{self.cal.b:+.6f}",
+            "calibrada": "si" if self.cal.activa else "no",
+            "fondo": ("sin medir" if self.fondo is None else
+                      "automatico MTI" if self.mti else "congelado"),
+            "que_es_0db": que_es_0db,
+            "ref_0db_lineal": f"{ref:.6e}",
+            "margen_db": self.margen,
+            "energia_sobre_fondo_db": "-" if e_db is None else f"{e_db:.2f}",
+            "hay_blanco": "si" if self.hay_blanco() else "no",
+            # El pico que informa el panel sale del promedio de los ultimos
+            # PROMEDIO_CAL_S, no de la fila: es el mismo numero que se ve.
+            "pico_promedio_s": PROMEDIO_CAL_S,
+            "pico_crudo_m": "-" if pico is None else f"{pico:.4f}",
+            "pico_cal_m": pico_cal,
+            "pico_hz": pico_hz,
+            "triangular_saturada_pct": f"{self.saturacion() * 100:.1f}",
+        }
+        try:
+            escribir_fft_captura(ruta, meta, columnas, descripciones)
+        except OSError as e:
+            print(f"  [!] no pude guardar la FFT: {e}")
+            return False
+        return True
 
     def _borrar_cal(self, _=None):
         self.cal.borrar()
@@ -1849,8 +2090,19 @@ def main():
               "  distancia bien distinta, y despues 'calibrar'.")
 
     ser = abrir_puerto()
-    salida, sal_tri = archivos_de_salida()
+    sello = time.strftime(FORMATO_SELLO)
+    salida, sal_tri = archivos_de_salida(sello)
     print(f"Grabando a {salida}\n         y {sal_tri}")
+
+    def abrir_parte(k):
+        cap, tri = archivos_de_salida(sello, k)
+        f_cap = open(cap, "w", encoding="utf-8", newline="\n")
+        try:
+            f_tri = open(tri, "w", encoding="utf-8", newline="\n")
+        except OSError:
+            f_cap.close()
+            raise
+        return f_cap, f_tri, os.path.basename(cap)
 
     config = cargar_config(CONFIG_JSON)
     if config:
@@ -1858,9 +2110,12 @@ def main():
 
     with open(salida, "w", encoding="utf-8", newline="\n") as f_cap, \
          open(sal_tri, "w", encoding="utf-8", newline="\n") as f_tri:
-        lec = Lector(ser, f_cap, f_tri)
+        lec = Lector(ser, f_cap, f_tri, abrir_parte=abrir_parte,
+                     limite_bytes=LIMITE_PARTE_MB * 1_000_000)
+        lec.archivo_actual = os.path.basename(salida)
         lec.start()
         vivo = Vivo(lec, curva, cal)
+        vivo.archivo_corrida = os.path.basename(salida)
         vivo.aplicar_config(config)
         vivo.armar_figura()
         # El timer del canvas en vez de FuncAnimation: no hace falta guardar
@@ -1875,12 +2130,17 @@ def main():
             vivo.guardar_config()
             lec.parar = True
             lec.join(timeout=1.0)
+            lec.cerrar()
             try:
                 ser.write(b"stop\n")
             except Exception:
                 pass
             ser.close()
-    print(f"Listo. {lec.n_filas} muestras guardadas en {salida}.")
+    if lec.parte == 1:
+        print(f"Listo. {lec.n_filas} muestras guardadas en {salida}.")
+    else:
+        print(f"Listo. {lec.n_filas} muestras en {lec.parte} partes, de "
+              f"{os.path.basename(salida)} a {lec.archivo_actual}.")
 
 
 if __name__ == "__main__":

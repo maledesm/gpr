@@ -664,6 +664,209 @@ def probar_captura(curva, texto, tmp):
            f"a {vr.DPI_CAPTURA} dpi")
 
 
+# --- 9. la FFT que acompana a cada captura --------------------------------
+
+def probar_fft_captura(curva, tmp):
+    """La CSV que el boton de captura guarda junto a la PNG.
+
+    Tiene que servir para comparar contra una simulacion, asi que se prueba
+    lo que haria quien la use: leerla con pandas, con numpy y con
+    leer_fft_captura(), encontrar el blanco donde esta, y que los dB que dice
+    "como en la pantalla" sean de verdad los de la pantalla.
+
+    Se corre con el banco ACTUAL (Tprf 100 ms, rampa de 50 ms, 300 muestras),
+    no con el stream de 80 ms del resto de las pruebas.
+    """
+    print("\n--- 9. FFT de la captura, a CSV ---")
+    import glob
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
+    T, r = 100e-3, 1.50
+    texto = generar_stream(curva, T, 0.021, [(r, 0.0), (3.2, -12.0)],
+                           segundos=25.0, ruido=0.02, semilla=11)
+    lec = vr.Lector(None, Archivo(), Archivo())
+    v = vr.Vivo(lec, curva, vr.Calibracion())
+    v.armar_figura()
+    v.archivo_corrida = "captura_prueba.csv"
+    datos = texto.encode("ascii")
+    paso = max(1, len(datos) // 125)             # 5 cuadros por segundo
+    i, resto = 0, ""
+    while i < len(datos):
+        resto = lec.procesar(resto + datos[i:i + paso].decode("ascii", "ignore"))
+        i += paso
+        v.actualizar()
+
+    salida = os.path.join(tmp, "capturas_fft")
+    guardado = vr.CAPTURAS
+    vr.CAPTURAS = salida
+    os.makedirs(salida, exist_ok=True)
+    try:
+        v.caja_nombre.set_val("placa_1p5m")
+        v.guardar_captura()
+        db_sin, _, _, _ = v.matriz()
+        i1 = v._i_alcance()
+        # Una CSV suelta con el nombre siguiente: el PAR tiene que saltarla,
+        # no dejar una PNG nueva al lado de una CSV vieja.
+        open(os.path.join(salida, "placa_1p5m_2.csv"), "w").close()
+        v.medir_fondo()
+        v._cache.clear()
+        v.guardar_captura()
+        db_con, _, _, _ = v.matriz()
+    finally:
+        vr.CAPTURAS = guardado
+        plt.close(v.fig)
+
+    todos = sorted(os.path.basename(x) for x in glob.glob(os.path.join(salida, "*")))
+    juzgar("PNG y CSV salen en par, con el mismo nombre",
+           {"placa_1p5m.png", "placa_1p5m.csv",
+            "placa_1p5m_3.png", "placa_1p5m_3.csv"} <= set(todos)
+           and "placa_1p5m_2.png" not in todos,
+           ", ".join(todos))
+
+    ruta = os.path.join(salida, "placa_1p5m.csv")
+    meta, c = pr.leer_fft_captura(ruta)
+    n_bins = v.nfft // 2 + 1
+    juzgar("leer_fft_captura() la lee entera",
+           list(c) == ["f_hz", "d_crudo_m", "d_cal_m", "mag", "db_pantalla",
+                       "db_norm"]
+           and all(len(x) == n_bins for x in c.values()),
+           f"{len(c)} columnas x {n_bins} bins (todo el eje, hasta Nyquist)")
+    df = pd.read_csv(ruta, comment="#")
+    npy = np.genfromtxt(ruta, delimiter=",", names=True)
+    lt = np.loadtxt(ruta, delimiter=",", skiprows=1)
+    juzgar("y tambien pandas y numpy, sin ayuda",
+           df.shape == (n_bins, 6) and len(npy) == n_bins
+           and lt.shape == (n_bins, 6)
+           and list(npy.dtype.names) == list(c)
+           and np.allclose(df["d_crudo_m"], c["d_crudo_m"])
+           and np.allclose(npy["f_hz"], c["f_hz"]),
+           "read_csv(comment='#'), genfromtxt(names=True), "
+           "loadtxt(skiprows=1)")
+
+    # Los dB "como en la pantalla" tienen que ser los de la pantalla.
+    dif = np.abs(c["db_pantalla"][:i1] - db_sin[-1]).max()
+    juzgar("db_pantalla == la curva que se ve (sin fondo)", dif < 0.01,
+           f"peor diferencia {dif:.2e} dB sobre {i1} bins visibles")
+    _, c2 = pr.leer_fft_captura(os.path.join(salida, "placa_1p5m_3.csv"))
+    dif2 = np.abs(c2["db_pantalla"][:i1] - db_con[-1]).max()
+    juzgar("db_pantalla == la curva que se ve (con fondo)", dif2 < 0.01,
+           f"peor diferencia {dif2:.2e} dB")
+
+    # El blanco donde esta, en las unidades que usa la simulacion.
+    util = c["d_crudo_m"] > 0.3
+    d = c["d_crudo_m"][util][np.argmax(c["mag"][util])]
+    f = c["f_hz"][util][np.argmax(c["mag"][util])]
+    hz_m = float(meta["hz_por_m"])
+    juzgar("el blanco sale donde esta, en m y en Hz",
+           abs(d - r) < 0.08 and abs(f - r * hz_m) < 0.08 * hz_m,
+           f"blanco en {r:.2f} m -> {d:.3f} m = {f:.1f} Hz "
+           f"({hz_m:.1f} Hz/m)")
+    juzgar("el metadato del pico coincide con la curva",
+           meta["pico_crudo_m"] != "-"
+           and abs(float(meta["pico_crudo_m"]) - r) < 0.08,
+           f"pico_crudo_m = {meta['pico_crudo_m']}, pico_hz = {meta['pico_hz']}")
+    juzgar("el encabezado dice el banco en el que se midio",
+           abs(float(meta["tprf_ms"]) - 100.0) < 0.1
+           and meta["muestras_por_rampa"] == "300"
+           and meta["corrida"] == "captura_prueba.csv"
+           and meta["png"] == "placa_1p5m.png",
+           f"Tprf {meta['tprf_ms']} ms, {meta['muestras_por_rampa']} muestras, "
+           f"{meta['rampas_en_fila']} rampas/fila, "
+           f"{len(meta)} metadatos")
+    kb = os.path.getsize(ruta) / 1024
+    juzgar("pesa poco (se puede commitear con la PNG)", kb < 300,
+           f"{kb:.0f} KB")
+
+
+# --- 10. corridas largas partidas en archivos de menos de 100 MB ------------
+
+def probar_partes(curva, texto, tmp, una_pieza, r_verdadero):
+    """Una corrida larga se parte para que ningun archivo pase los 100 MB de
+    GitHub. Partida tiene que ser la MISMA medicion que de una sola pieza, y
+    cada parte tiene que poder analizarse sola.
+
+    Se usa un limite chico (400 kB) sobre el mismo stream de las pruebas 6 y
+    7, para que salgan varias partes sin generar cientos de MB.
+    """
+    print("\n--- 10. corridas largas partidas en varios archivos ---")
+    import io as _io
+    import contextlib
+    from correccion_no_linealidad import rampas_desde_triangular, T_SWEEP
+
+    def ruta(k, tipo):
+        suf = "" if k == 1 else f"_parte{k}"
+        return os.path.join(tmp, f"{tipo}_partes{suf}.csv")
+
+    def abrir_parte(k):
+        return (open(ruta(k, "captura"), "w", encoding="utf-8", newline="\n"),
+                open(ruta(k, "triangular"), "w", encoding="utf-8", newline="\n"),
+                os.path.basename(ruta(k, "captura")))
+
+    with contextlib.redirect_stdout(_io.StringIO()):
+        f_cap, f_tri, _ = abrir_parte(1)
+        lec = vr.Lector(None, f_cap, f_tri, abrir_parte=abrir_parte,
+                        limite_bytes=400_000)
+        p = Puerto(texto)
+        resto = ""
+        while p.hay():
+            resto = lec.procesar(resto + p.leer().decode("ascii", "ignore"))
+        lec.cerrar()
+    n_partes = lec.parte
+    juzgar("una corrida larga sale en varias partes", n_partes >= 3,
+           f"{n_partes} partes con un limite de 400 kB "
+           f"(en el banco: {vr.LIMITE_PARTE_MB} MB)")
+
+    caps = [open(ruta(k, "captura"), "rb").read() for k in range(1, n_partes + 1)]
+    entera = open(una_pieza[0], "rb").read()
+    juzgar("pegadas en orden, son la captura de una sola pieza",
+           b"".join(caps) == entera,
+           f"{len(b''.join(caps))} vs {len(entera)} bytes; la mas grande "
+           f"{max(len(c) for c in caps)/1000:.0f} kB")
+
+    # La triangular: cada parte con indices relativos a SU captura. Pasados
+    # a globales (sumando las filas de las partes anteriores) tienen que ser
+    # las mismas lecturas que las de una sola pieza.
+    globales, fila0, fuera = [], 0, 0
+    for k in range(1, n_partes + 1):
+        filas_cap = caps[k - 1].count(b"\n")
+        for linea in open(ruta(k, "triangular"), encoding="utf-8"):
+            adc, fila = (int(x) for x in linea.split(","))
+            if not 0 <= fila < filas_cap + 20:
+                fuera += 1
+            globales.append(f"{adc},{fila + fila0}")
+        fila0 += filas_cap
+    entera_tri = open(una_pieza[1], encoding="utf-8").read().split()
+    juzgar("la triangular, pasada a filas globales, es la misma",
+           globales == entera_tri and fuera == 0,
+           f"{len(globales)} vs {len(entera_tri)} lecturas; "
+           f"{fuera} indices fuera de su parte")
+
+    # Cada parte sola: la cadena vieja encuentra el periodo y el blanco.
+    k = 2
+    d = np.loadtxt(ruta(k, "captura"), delimiter=",", ndmin=2)
+    tri = np.loadtxt(ruta(k, "triangular"), delimiter=",", ndmin=2)
+    with contextlib.redirect_stdout(_io.StringIO()):
+        rampas, _, n = rampas_desde_triangular(
+            d[:, 0], tri[:, 1], tri[:, 0], FS, int(round(T_SWEEP * FS)))
+    t = np.linspace(0, n / FS, n, endpoint=False)
+    _, theta, alpha0 = eje_theta(curva, t)
+    fs_th = fs_theta(theta, n)
+    from correccion_no_linealidad import perfil_distancia
+    esp = []
+    for cruda in rampas:
+        _, corr = remuestrear(theta, cruda - cruda.mean(), n)
+        rango, e = perfil_distancia(corr, fs_th, alpha0)
+        esp.append(e)
+    medio = np.mean(esp, axis=0)
+    util = rango > 0.3
+    d_pico = float(rango[util][np.argmax(medio[util])])
+    juzgar("la parte 2 se analiza sola, sin la 1",
+           abs(d_pico - r_verdadero) < 0.25 and n == 240,
+           f"{len(rampas)} rampas de {n} muestras, blanco en {d_pico:.3f} m "
+           f"(verdad {r_verdadero:.3f})")
+
+
 # --- main ------------------------------------------------------------------
 
 def main():
@@ -687,7 +890,9 @@ def main():
     try:
         archivos = probar_archivos(texto, tmp)
         probar_cadena_offline(curva, archivos, r)
+        probar_partes(curva, texto, tmp, archivos, r)
         probar_captura(curva, texto, tmp)
+        probar_fft_captura(curva, tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
