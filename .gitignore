@@ -140,10 +140,9 @@ adquisicion_audio/config.json
 # cada medicion con "your local changes would be overwritten".
 GPRv2/datos/vivo_config.json
 
-# Salidas de LTspice: se regeneran simulando el .asc (el triangular.raw pesa
-# 53 MB, mas que el limite de 50 MB a partir del cual GitHub advierte). Lo que
-# se versiona es el .asc; las mediciones de .meas salen de nuevo en el .log.
-*.raw
+# Salidas de LTspice: los .raw SI se versionan (el triangular.raw pesa 53 MB:
+# GitHub advierte desde 50 MB y rechaza desde 100). Los .log y .net se
+# regeneran simulando el .asc.
 GPRv2/docs/PWM/*.log
 GPRv2/docs/PWM/*.net
 
