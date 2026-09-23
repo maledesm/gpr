@@ -4,14 +4,15 @@ GPRv2 - Figura del generador de triangular (triangular2.asc)
 
 Lee triangular2.raw (el .step del pote, 5 posiciones) y arma una figura de
 3x2: una fila por posicion del pote (0, 0,5 y 1). A la izquierda la salida de
-0 a 3 V con el sync, en milisegundos; a la derecha su espectro (las rayas de
-los armonicos) contra la envolvente de una triangular ideal de la misma
-amplitud.
+0 a 3 V con el sync, en milisegundos; a la derecha su espectro de dos lados
+(las rayas de los armonicos, con la continua en el cero) contra la envolvente
+de una triangular ideal de la misma amplitud.
 
 La ventana de tiempo es la misma en las tres filas y sale del periodo mas
 largo, asi que en la fila mas lenta entra poco mas de un periodo y en la mas
-rapida entran varios. El eje de frecuencia va en armonicos porque los
-periodos de las tres filas difieren 13 veces.
+rapida entran varios. El eje de frecuencia va en hertz y llega hasta el
+armonico 15 de cada fila, asi que su escala cambia de una fila a la otra:
+los periodos difieren 13 veces.
 
 Uso
 ---
@@ -41,7 +42,8 @@ ARRANQUE_S     = 0.35    # lo que se descarta del principio: el oscilador arranc
 MUESTRAS_POR_T = 4096    # remuestreo uniforme, por periodo
 RELLENO_IDEAL  = 64      # ceros alrededor del triangulo ideal, para que su
                          # transformada salga continua y no en rayas
-ARMONICOS      = 15      # hasta donde llega el eje de frecuencia
+ARMONICOS      = 15      # hasta donde llega el eje de frecuencia, en armonicos
+TECHO_MAG      = 2.7     # el eje de magnitud: la continua llega a ~2,5
 
 # Paleta validada: violeta y aqua se separan bien incluso simulando daltonismo
 # (dE OKLab 37 con protanopia y 31 con deuteranopia, contra un objetivo de 8).
@@ -154,6 +156,16 @@ def norm(X, i_fundamental):
     return X / X[i_fundamental]
 
 
+def espejar(f, X):
+    """Espectro de dos lados: la mitad negativa es la imagen de la positiva.
+
+    Asi la continua queda como una sola delta en el cero, en el medio, que es
+    donde se la ve. Cada armonico ya vale A/2 en este lado, que es lo que le
+    toca a cada mitad del par.
+    """
+    return np.r_[-f[:0:-1], f], np.r_[X[:0:-1], X]
+
+
 def main():
     if not os.path.exists(RAW):
         sys.exit(f"falta {RAW}: simula triangular2.asc primero")
@@ -216,19 +228,22 @@ def main():
         arm, X = espectro(t, sal, T, n_per, MUESTRAS_POR_T, t_fin=fin)
         armi, Xi = envolvente_ideal(MUESTRAS_POR_T, RELLENO_IDEAL)
 
+        f0 = 1 / T
+        f_sim,   Y_sim   = espejar(arm * f0, norm(X, n_per))
+        f_ideal, Y_ideal = espejar(armi * f0, norm(Xi, RELLENO_IDEAL))
+
         ax = ejes[fila, 1]
-        ax.plot(arm, norm(X, n_per), color=C_SALIDA, lw=2, label="simulada")
-        ax.plot(armi, norm(Xi, RELLENO_IDEAL), color=C_IDEAL, lw=2, ls="--",
-                label="envolvente ideal")
-        ax.set_xlim(0, ARMONICOS)
-        ax.set_ylim(0, 1.08)
+        ax.plot(f_sim, Y_sim, color=C_SALIDA, lw=2, label="simulada")
+        ax.plot(f_ideal, Y_ideal, color=C_IDEAL, lw=2, ls="--", label="envolvente ideal")
+        ax.set_xlim(-ARMONICOS * f0, ARMONICOS * f0)
+        ax.set_ylim(0, TECHO_MAG)
         ax.set_ylabel("Magnitud")
         ax.grid(alpha=0.25)
-        ax.set_title("Armonicos", fontsize=11)
+        ax.set_title("Espectro", fontsize=11)
         if fila == 0:
             ax.legend(loc="upper right", fontsize=9, framealpha=0.9)
         if fila == 2:
-            ax.set_xlabel("Armonico (f / f0)")
+            ax.set_xlabel("Frecuencia [Hz]")
 
     fig.tight_layout()
     fig.savefig(SALIDA, dpi=150)
