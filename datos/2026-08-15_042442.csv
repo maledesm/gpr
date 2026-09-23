@@ -1,0 +1,44 @@
+# fecha            = 2026-08-15T04:24:42
+# firmware         = PCM1808_ESP32C3_bin
+# f_start_ghz      = 1.0
+# f_stop_ghz       = 1.75
+# bw_mhz           = 750.0
+# t_sweep_ms       = 10.0
+# hz_por_metro     = 500.0000
+# fs               = 32000
+# dec              = 4
+# fs_eff           = 8000.0000
+# modo             = continuo
+# rafaga_on        = 0
+# rafaga_off       = 0
+# canales          = L
+# unidad           = V
+# nota             = Primera prueba del script
+#
+# --- volcado de 'info' del firmware ---
+# ---------------- ESTADO ----------------
+#   fs (reloj ADC)   : 32000 Hz
+#   D  (diezmado)    : 4
+#   fs_eff (salida)  : 8000.00 Hz
+#   Banda util       : DC..4000.0 Hz (Nyquist de fs_eff)
+#   Ganancia por prom: +6.0 dB de SNR
+#   Modo             : off
+#   Canal            : L
+#   Unidad / formato : mV / solo numero
+#   Captura          : continua
+#   Caudal binario   : 32.0 kB/s
+#   Fondo de escala  : 3.00 Vpp (+-1.500 V), VCC=5.0 V
+#   1 LSB            : 178.8 nV
+#   Modo osciloscopio (comando 'plot'):
+#     Puntos por barrido : 500  (comando 'n')
+#     Cadencia al plotter: 300 pts/s  (comando 'rate')
+#     Ventana capturada  : 62.50 ms de senal real
+#     Se dibuja en       : 1.67 s
+#     Senal maxima visible: 4000 Hz (Nyquist de fs_eff)
+#   Recordatorio del pasa-altos del PCM1808:
+#     HPF digital interno = 1.9e-5 * fs = 0.61 Hz
+#     + el capacitor de acople del modulo contra 60 kohm.
+#     Por debajo de ~5 Hz la medida NO es confiable.
+# ----------------------------------------
+#
+idx,V
