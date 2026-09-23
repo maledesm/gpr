@@ -10,9 +10,10 @@ de una triangular ideal de la misma amplitud.
 
 La ventana de tiempo es la misma en las tres filas y sale del periodo mas
 largo, asi que en la fila mas lenta entra poco mas de un periodo y en la mas
-rapida entran varios. El eje de frecuencia va en hertz y llega hasta el
-armonico 15 de cada fila, asi que su escala cambia de una fila a la otra:
-los periodos difieren 13 veces.
+rapida entran varios. El eje de frecuencia tambien es el mismo en las tres
+filas, en hertz: 200 Hz alcanza para ver el tercer armonico de la fila mas
+rapida y toda la cola de la mas lenta, que se hunde abajo del piso a los
+130 Hz.
 
 Uso
 ---
@@ -40,10 +41,10 @@ PERIODOS_FFT   = 60      # tope de periodos en la FFT: cuantos mas, mas finas
                          # salen las rayas de los armonicos
 ARRANQUE_S     = 0.35    # lo que se descarta del principio: el oscilador arranca
 MUESTRAS_POR_T = 4096    # remuestreo uniforme, por periodo
-RELLENO_IDEAL  = 64      # ceros alrededor del triangulo ideal, para que su
-                         # transformada salga continua y no en rayas
-ARMONICOS      = 15      # hasta donde llega el eje de frecuencia, en armonicos
-TECHO_MAG      = 2.7     # el eje de magnitud: la continua llega a ~2,5
+EJE_HZ         = 200     # hasta donde llega el eje de frecuencia, igual en las
+                         # tres filas: con 200 Hz entran el 3er armonico de la
+                         # fila rapida (160 Hz) y 24 armonicos de la lenta
+PISO_DB        = -60     # el piso del eje de magnitud
 
 # Paleta validada: violeta y aqua se separan bien incluso simulando daltonismo
 # (dE OKLab 37 con protanopia y 31 con deuteranopia, contra un objetivo de 8).
@@ -132,28 +133,22 @@ def espectro(t, x, T, n_periodos, por_periodo, t_fin=None):
     return arm, X
 
 
-def envolvente_ideal(por_periodo, relleno):
-    """Envolvente del espectro de una triangular ideal.
+def envolvente_ideal(f0, f_max, puntos=2000):
+    """Envolvente del espectro de una triangular ideal, en dB.
 
-    Es la transformada de UN SOLO periodo rellenado con ceros: eso da la
-    curva continua sobre la que se apoyan los armonicos del caso periodico,
-    con sus ceros en los armonicos pares. La amplitud no importa porque
-    despues se normaliza contra la fundamental.
+    La transformada de un solo triangulo es un sinc**2, con sus ceros en los
+    armonicos pares. En dB esos ceros son pozos que tapan todo, asi que se
+    dibuja el lugar geometrico de sus PICOS, que es la caida 1/f**2 sobre la
+    que se apoyan los armonicos impares: 0 dB en f0, -19,1 en 3*f0, y asi.
     """
-    # El triangulo arranca y termina en cero, y asi tiene que quedar: si se le
-    # resta el valor medio aparecen dos escalones en los extremos y el
-    # espectro pasa a caer como 1/f en vez de 1/f**2.
-    u = np.arange(por_periodo) / por_periodo
-    tri = np.where(u < 0.5, 2 * u, 2 * (1 - u))
-    X = np.abs(np.fft.rfft(tri, por_periodo * relleno))
-    arm = np.arange(len(X)) / relleno           # eje en armonicos
-    return arm, X
+    f = np.linspace(f0, f_max, puntos)
+    return f, -40 * np.log10(f / f0)
 
 
-def norm(X, i_fundamental):
-    """Magnitud normalizada a la FUNDAMENTAL, no al maximo: el maximo es la
-    continua (la salida va de 0 a 3 V) y dejaria la fundamental abajo de 1."""
-    return X / X[i_fundamental]
+def db(X, i_fundamental):
+    """dB contra la FUNDAMENTAL, no contra el maximo: el maximo es la continua
+    (la salida va de 0 a 3 V) y dejaria la fundamental abajo de 0 dB."""
+    return 20 * np.log10(np.maximum(X, 1e-20) / X[i_fundamental])
 
 
 def espejar(f, X):
@@ -226,18 +221,21 @@ def main():
         fin = cruces[-1]
         n_per = min(PERIODOS_FFT, int((fin - ARRANQUE_S) / T))
         arm, X = espectro(t, sal, T, n_per, MUESTRAS_POR_T, t_fin=fin)
-        armi, Xi = envolvente_ideal(MUESTRAS_POR_T, RELLENO_IDEAL)
 
         f0 = 1 / T
-        f_sim,   Y_sim   = espejar(arm * f0, norm(X, n_per))
-        f_ideal, Y_ideal = espejar(armi * f0, norm(Xi, RELLENO_IDEAL))
+        f_sim,   Y_sim   = espejar(arm * f0, db(X, n_per))
+        f_ideal, Y_ideal = envolvente_ideal(f0, EJE_HZ)
+        # el NaN del medio corta la linea entre las dos ramas: sin el,
+        # matplotlib las une por arriba y dibuja una meseta entre -f0 y +f0
+        f_ideal = np.r_[-f_ideal[::-1], np.nan, f_ideal]
+        Y_ideal = np.r_[Y_ideal[::-1], np.nan, Y_ideal]
 
         ax = ejes[fila, 1]
         ax.plot(f_sim, Y_sim, color=C_SALIDA, lw=2, label="simulada")
         ax.plot(f_ideal, Y_ideal, color=C_IDEAL, lw=2, ls="--", label="envolvente ideal")
-        ax.set_xlim(-ARMONICOS * f0, ARMONICOS * f0)
-        ax.set_ylim(0, TECHO_MAG)
-        ax.set_ylabel("Magnitud")
+        ax.set_xlim(-EJE_HZ, EJE_HZ)
+        ax.set_ylim(PISO_DB, 10)
+        ax.set_ylabel("dB")
         ax.grid(alpha=0.25)
         ax.set_title("Espectro", fontsize=11)
         if fila == 0:
