@@ -1,0 +1,27 @@
+* Zeners de 1 W de Diodes Inc., tomados de la KiCad-Spice-Library
+* (github.com/kicad-spice-library/KiCad-Spice-Library, Models/Diode/zener.lib).
+* Terminales: 1 = anodo, 2 = catodo.
+*
+* La rama inversa es VZ en serie con un diodo de N=3: el codo es blando.
+* 1N4728A: 3,30 V a 76 mA pero ~14 mA a 3,09 V -> recorta la triangular.
+* 1N4729A: 3,60 V a 69 mA y 0,24 mA a 3,09 V -> no la toca. Es el que se usa.
+*
+*SRC=1N4728A;DI_1N4728A;Diodes;Zener <=10V; 3.30V  1.00W   Diodes Inc. Zener
+.SUBCKT DI_1N4728A  1 2
+D1 1 2 DF
+DZ 3 1 DR
+VZ 2 3 0.972
+.MODEL DF D ( IS=125p RS=0.620 N=1.10
++ CJO=364p VJ=0.750 M=0.330 TT=50.1n )
+.MODEL DR D ( IS=25.0f RS=1.24 N=3.00 )
+.ENDS
+*
+*SRC=1N4729A;DI_1N4729A;Diodes;Zener <=10V; 3.60V  1.00W   Diodes Inc. Zener
+.SUBCKT DI_1N4729A  1 2
+D1 1 2 DF
+DZ 3 1 DR
+VZ 2 3 1.30
+.MODEL DF D ( IS=114p RS=0.620 N=1.10
++ CJO=319p VJ=0.750 M=0.330 TT=50.1n )
+.MODEL DR D ( IS=22.9f RS=0.923 N=3.00 )
+.ENDS

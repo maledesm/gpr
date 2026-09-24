@@ -1,0 +1,45 @@
+* GPRv2 - generado por simular_kicad.py desde triangular.kicad_sch. No editar a mano.
+C1 inv tri 2.2u
+C2 mas12V 0 10u
+C3 mas12V 0 100n
+C4 mas12V 0 100n
+R1 sq pote 8.2k
+R10 Net__R10_Pad1_ Net__U2B_mas_ 680k
+R11 sq Net__R11_Pad2_ 150k
+R12 Net__U1C_mas_ 0 100k
+R13 Net__R13_Pad1_ 0 15k
+R14 Net__R14_Pad1_ Net__R10_Pad1_ 82k
+R15 mas12V Net__R14_Pad1_ 6.8k
+R16 Net__R11_Pad2_ Net__U1C_mas_ 150k
+R2 Net__U1B_mas_ sq 47k
+R3 tri Net__U1B_mas_ 12k
+R4 mas12V Net__U2A_mas_ 100k
+R5 Net__U2A_mas_ 0 100k
+R6 mid Net__U2B_menos_ 100k
+R7 Net__U2B_menos_ salida 100k
+R8 tri Net__U2B_mas_ 100k
+R9 Net__U2B_mas_ Net__R13_Pad1_ 100k
+XU1A mid inv mas12V 0 tri TLC2272
+XU1B Net__U1B_mas_ mid mas12V 0 sq TLC2272
+XU1C Net__U1C_mas_ sync mas12V 0 sync TLC2272
+XU2A Net__U2A_mas_ mid mas12V 0 mid TLC2272
+XU2B Net__U2B_mas_ Net__U2B_menos_ mas12V 0 salida TLC2272
+XD1 0 salida DI_1N4729A
+V12 mas12V 0 12
+Rpote pote inv {max(Rpot*pos,1m)}
+.param Rpot=100k
+.step param pos list 0 0.5 1
+.tran 0 1.5 0 20u startup
+.options method=gear
+.save V(salida) V(sync) V(sq) V(tri) V(mid)
+.meas tran t1 WHEN V(sq)=6 RISE=3
+.meas tran t2 WHEN V(sq)=6 RISE=4
+.meas tran periodo PARAM t2-t1
+.meas tran frec PARAM 1/periodo
+.meas tran salmin MIN V(salida) FROM 0.9 TO 1.5
+.meas tran salmax MAX V(salida) FROM 0.9 TO 1.5
+.meas tran symin MIN V(sync) FROM 0.9 TO 1.5
+.meas tran symax MAX V(sync) FROM 0.9 TO 1.5
+.lib ../../TLC2272.lib
+.lib ../../zener_1N472xA.lib
+.end
