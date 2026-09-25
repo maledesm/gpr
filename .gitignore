@@ -146,6 +146,7 @@ GPRv2/datos/vivo_config.json
 GPRv2/docs/PWM/*.log
 GPRv2/docs/PWM/*.net
 GPRv2/docs/PWM/pcb/**/*.log
+GPRv2/docs/PWM/zener/*.log
 # KiCad 10: historial local (es un repositorio git propio) y archivos de bloqueo
 .history/
 *.lck

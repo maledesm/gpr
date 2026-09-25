@@ -1,0 +1,8 @@
+* Ruido de entrada del TLC2262: seguidor de ganancia 1, alimentado con 12 V.
+XU in out vp vm out TLC2262
+V1 vp 0 6
+V2 vm 0 -6
+Vin in 0 AC 1
+.noise V(out) Vin dec 50 1 100k
+.lib ../TLC2262.lib
+.end

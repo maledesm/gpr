@@ -1,0 +1,11 @@
+* Curva inversa de los dos zeners (modelos de Diodes Inc., zener_1N472xA.lib).
+* Cada uno cuelga del mismo barrido con una fuente de 0 V en serie, para leer
+* las dos corrientes por separado. En el simbolo de KiCad 1 = anodo, 2 = catodo.
+XA 0 na DI_1N4728A
+Va na n 0
+XB 0 nb DI_1N4729A
+Vb nb n 0
+V1 n 0 0
+.dc V1 2.4 4.2 0.002
+.lib ../zener_1N472xA.lib
+.end

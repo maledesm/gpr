@@ -972,6 +972,591 @@ medidos según la captura) es consistente con lo que predice la tabla
 osciloscopio.
 
 %============================================================
+\chapter{Generador de Triangular Analógico}
+\label{ch:triangular}
+%============================================================
+
+La rampa de tensión que sintoniza el VCO (Capítulo~\ref{ch:vco}) la venía
+entregando un generador de funciones de laboratorio. Este capítulo describe
+el circuito analógico que lo reemplaza: un oscilador de onda triangular
+construido con dos operacionales cuádruples, con el período ajustable
+mediante un potenciómetro de precisión, salida acotada al rango
+$0$--$3\,\text{V}$ que admite el VCO y una onda cuadrada de sincronismo para
+el ESP32-C3. Se documentan el diseño, la elección de los componentes, la
+verificación por simulación y la placa impresa. Al cierre de este capítulo
+la placa está diseñada y verificada, pero todavía no armada: las mediciones
+sobre el circuito físico quedan pendientes
+(Sección~\ref{sec:tri_pendiente}).
+
+\section{Motivación y requisitos}
+\label{sec:tri_requisitos}
+
+El generador de funciones empleado hasta ahora (Siglent SDG830) impone dos
+limitaciones sobre el banco, y la segunda pesa tanto como la primera.
+
+La primera es que \textbf{no entrega una señal de sincronismo}. Sin una
+referencia que marque dónde empieza cada rampa, el ESP32-C3 no puede saber
+qué tramo de la señal digitalizada corresponde a un barrido completo, y sin
+eso no hay forma de promediar coherentemente entre barridos sucesivos ni de
+aplicar la corrección de no linealidad del VCO, que necesita conocer el
+origen temporal de cada rampa.
+
+La segunda es que \textbf{ata el banco a la red eléctrica}. Un GPR que no
+puede salir del laboratorio no sirve para medir sobre un terreno. El
+objetivo es que todo el instrumento se alimente de un \textit{powerbank}, a
+través de una fuente elevadora seguida de un regulador lineal que deja
+disponibles los $12\,\text{V}$ de este generador y los $20\,\text{V}$ del
+amplificador que ataca al VCO.
+
+Sobre esa base, los requisitos del generador son:
+
+\begin{itemize}
+  \item \textbf{Salida triangular de $0$ a $3\,\text{V}$}, con una
+    tolerancia de $\pm 50\,\text{mV}$ en los extremos, que es el rango de
+    tensión de control útil del VCO establecido en la
+    Sección~\ref{sec:curva_vco}.
+  \item \textbf{Período de repetición ($T_\text{prf}$) ajustable entre
+    $20$ y $200\,\text{ms}$}, con un potenciómetro de precisión montado en
+    el panel.
+  \item \textbf{Siempre triangular}: la forma de onda no debe cambiar al
+    mover la frecuencia, a diferencia de un generador de funciones donde
+    es fácil dejar seleccionada otra.
+  \item \textbf{Onda cuadrada de sincronismo} en fase con la triangular,
+    compatible con una entrada digital del ESP32-C3.
+\end{itemize}
+
+Cuando estos requisitos entran en conflicto, el orden de prioridades es:
+\textbf{linealidad de la rampa} (es lo que determina que el eco de un blanco
+puntual caiga en una única frecuencia de batido), luego \textbf{ruido},
+luego \textbf{vértices bien definidos}, luego \textbf{estabilidad de la
+amplitud} y por último \textbf{rango de frecuencia}.
+
+\section{Topología}
+\label{sec:tri_topologia}
+
+El circuito parte de la topología clásica de oscilador de triangular
+---comparador de Schmitt realimentando un integrador--- adaptada a
+alimentación simple de $12\,\text{V}$, y le agrega dos etapas de
+acondicionamiento. La Figura~\ref{fig:tri_bloques} resume la estructura y la
+Figura~\ref{fig:tri_esquematico} es el esquemático completo.
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+      font=\small,
+      box/.style={draw, rounded corners, minimum height=1.0cm,
+        minimum width=2.2cm, align=center, inner sep=3pt},
+      arr/.style={-{Latex[length=2.2mm]}, thick},
+      etq/.style={font=\scriptsize, align=center, inner sep=2pt}
+    ]
+    \node[box, minimum width=1.7cm] (pot) at (-3.5,0)
+      {$R_1$\\[-3pt]\scriptsize 8k2 + pote 100k};
+    \node[box] (osc) at (0,0)
+      {Oscilador\\[-3pt]\scriptsize U1B Schmitt\\[-4pt]\scriptsize + U1A integrador};
+    \node[box] (res) at (4.0,0) {Restador\\[-3pt]\scriptsize U2B};
+    \node[box, minimum width=1.5cm] (zen) at (7.4,0) {$D_1$\\[-3pt]\scriptsize 1N4729A};
+
+    \node[box] (ref) at (0,2.2) {Referencia 6\,V\\[-3pt]\scriptsize U2A};
+    \node[box] (syn) at (0,-2.4) {Buffer de sync\\[-3pt]\scriptsize U1C, 300k/100k};
+
+    \draw[arr] (pot) -- node[etq, above]{fija $T$} (osc);
+    \draw[arr] (osc) -- node[etq, above]{\texttt{tri}} (res);
+    \draw[arr] (res) -- node[etq, above]{0 a $3{,}09\,$V} (zen);
+    \draw[arr] (zen.east) -- ++(1.2,0) node[etq, above, midway]{J3}
+      node[etq, right, align=left]{al amplificador\\y al VCO};
+
+    \draw[arr] (ref) -- node[etq, right]{\texttt{mid}} (osc);
+    \draw[arr] (ref.east) -| node[etq, above, pos=0.2]{\texttt{mid}} (res.north);
+    \draw[arr] (osc) -- node[etq, right]{\texttt{sq}, 0 a 12\,V} (syn);
+    \draw[arr] (syn.east) -- ++(1.2,0) node[etq, above, midway]{J3}
+      node[etq, right, align=left]{0 a $2{,}99\,$V\\al ESP32-C3};
+  \end{tikzpicture}
+  \caption{Estructura del generador. El oscilador entrega una triangular de
+  $3{,}06\,\text{V}_{pp}$ centrada en la referencia de $6\,\text{V}$; el
+  restador la baja al rango $0$--$3\,\text{V}$ que pide el VCO; el zener
+  $D_1$ protege al VCO ante una falla y el buffer de sync reduce la cuadrada
+  del comparador a un nivel que tolera el ESP32-C3. Todo el circuito se
+  alimenta de una única rama de $12\,\text{V}$.}
+  \label{fig:tri_bloques}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/triangular/esquematico.pdf}
+  \caption{Esquemático completo (\texttt{GPRv2/docs/PWM/pcb/triangular/\allowbreak
+  triangular.kicad\_sch}). Las cinco unidades usadas se reparten entre dos
+  TLC2274: U1 lleva el oscilador y el sync, U2 la referencia y el restador.
+  Las tres unidades sobrantes (U1D, U2C y U2D) quedan como seguidores con la
+  entrada no inversora a masa.}
+  \label{fig:tri_esquematico}
+\end{figure}
+
+\subsection{El oscilador}
+\label{sub:tri_oscilador}
+
+U1B funciona como comparador con histéresis: su entrada no inversora recibe
+la triangular a través de $R_3$ y su propia salida a través de $R_2$, y
+conmuta cuando esa suma cruza la referencia \texttt{mid}. U1A integra la
+salida cuadrada de U1B sobre $C_1$ con la corriente que fija $R_1$.
+
+Igualando a cero la corriente en la entrada no inversora de U1B se obtienen
+los dos umbrales de conmutación, y de ahí la amplitud de la triangular:
+
+\begin{equation}
+  V_{pp} = \frac{R_3}{R_2}\, V_{cc}
+  = \frac{12\,\text{k}\Omega}{47\,\text{k}\Omega}\cdot 12\,\text{V}
+  = 3{,}064\,\text{V}.
+  \label{eq:tri_vpp}
+\end{equation}
+
+La corriente que carga a $C_1$ es $(V_{cc}/2)/R_1$, constante, de modo que
+la rampa es lineal por construcción. Combinando la pendiente resultante con
+la amplitud de la ecuación~\eqref{eq:tri_vpp}, el período queda:
+
+\begin{equation}
+  T = 4\,\frac{R_3}{R_2}\, R_1 C_1.
+  \label{eq:tri_periodo}
+\end{equation}
+
+Dos observaciones sobre la ecuación~\eqref{eq:tri_periodo}. La primera es
+que \textbf{$T$ no depende de la tensión de alimentación}: $V_{cc}$ fija la
+amplitud y la corriente de carga en la misma proporción, y se cancela. La
+segunda es que $T$ es \textbf{proporcional a $R_1$}, así que el período es
+lineal con la posición del potenciómetro, que es la propiedad que hace
+cómodo el ajuste de panel.
+
+Con $R_1 = 8{,}2\,\text{k}\Omega + $ potenciómetro de $100\,\text{k}\Omega$
+y $C_1 = 2{,}2\,\mu\text{F}$, la Tabla~\ref{tab:tri_periodo} compara la
+ecuación~\eqref{eq:tri_periodo} con la simulación del circuito completo. El
+acuerdo es mejor que el $1$\,\% en todo el recorrido, y el rango
+$18{,}6$--$243{,}5\,\text{ms}$ cubre con holgura los $20$ a
+$200\,\text{ms}$ pedidos.
+
+\begin{table}[H]
+  \centering
+  \caption{Período en función de la posición del potenciómetro: la
+  ecuación~\eqref{eq:tri_periodo} contra la simulación del circuito
+  completo con el modelo real del operacional.}
+  \label{tab:tri_periodo}
+  \begin{tabular}{ccccc}
+    \toprule
+    Posición & $R_1$ & $T$ calculado & $T$ simulado & Desvío \\
+    \midrule
+    $0$    & $8{,}2\,\text{k}\Omega$   & $18{,}42\,\text{ms}$  & $18{,}58\,\text{ms}$  & $-0{,}85$\,\% \\
+    $0{,}5$& $58{,}2\,\text{k}\Omega$  & $130{,}76\,\text{ms}$ & $131{,}08\,\text{ms}$ & $-0{,}24$\,\% \\
+    $1$    & $108{,}2\,\text{k}\Omega$ & $243{,}10\,\text{ms}$ & $243{,}46\,\text{ms}$ & $-0{,}15$\,\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+$C_1$ es de \textbf{película metálica, no electrolítico}. Con la
+alimentación simple, la tensión sobre $C_1$ se invierte en cada
+semiperíodo ($\pm 1{,}5\,\text{V}$), lo que ya descarta un electrolítico
+polarizado; y con el potenciómetro al máximo la corriente de carga es de
+apenas $(V_{cc}/2)/R_1 = 55{,}5\,\mu\text{A}$, comparable a la corriente de
+fuga de un electrolítico, que se sumaría a la de carga y curvaría la rampa.
+
+\subsection{El restador}
+\label{sub:tri_restador}
+
+La triangular del oscilador queda centrada en $6\,\text{V}$, y el VCO pide
+$0$ a $3\,\text{V}$. U2B resuelve las dos cosas a la vez: resta la
+referencia y suma un offset fijo, de modo que
+
+\begin{equation}
+  V_\text{sal} = V_\text{tri} - 6\,\text{V} + 1{,}56\,\text{V}.
+  \label{eq:tri_restador}
+\end{equation}
+
+El detalle importante es de dónde sale ese offset de $1{,}56\,\text{V}$: no
+de una referencia de tensión aparte, sino de los mismos $12\,\text{V}$ de
+alimentación, a través de $R_{10}'$. Como la amplitud de la triangular
+(ecuación~\eqref{eq:tri_vpp}) y la referencia de $6\,\text{V}$ también son
+proporcionales a $V_{cc}$, \textbf{toda la salida escala con la
+alimentación}: una fuente que esté un $5$\,\% baja corre los extremos un
+$5$\,\%, pero no descentra la señal ni la saca de forma. Para una fuente
+elevadora alimentada por batería, cuya tensión de salida no es de
+precisión, esa propiedad vale más que un offset absolutamente estable.
+
+Imponer ganancia unitaria sobre $V_\text{tri}$ y el offset buscado fija dos
+combinaciones de resistencias que no existen en la serie E12 y se arman en
+serie: $R_9' = R_9 + R_{13} = 115\,\text{k}\Omega$ y $R_{10}' = R_{10} +
+R_{14} + R_{15} = 768{,}8\,\text{k}\Omega$. Las dos quedan a menos del
+$0{,}05$\,\% del valor ideal. El criterio completo, junto con el análisis de
+tolerancias que justifica usar resistencias al $1$\,\%, está en el
+Apéndice~\ref{ap:valores}.
+
+\subsection{El sincronismo}
+\label{sub:tri_sync}
+
+La salida del comparador U1B conmuta entre los rieles, es decir entre $0$ y
+casi $12\,\text{V}$, que el ESP32-C3 no tolera en ningún pin. U1C la toma a
+través de un divisor $R_{11}'/R_{12} = 300\,\text{k}\Omega/100\,\text{k}\Omega$,
+que la reduce a un cuarto, y la repite con impedancia baja. La carga total
+sobre el comparador es de $400\,\text{k}\Omega$, suficientemente alta como
+para no alterar los umbrales de la ecuación~\eqref{eq:tri_vpp}.
+
+El nivel alto resultante es de $2{,}99\,\text{V}$ en la simulación, cómodo
+frente al umbral de entrada en alto del GPIO, que la hoja de datos del
+ESP32-C3 ubica en $0{,}75\,V_{DD} = 2{,}48\,\text{V}$.
+
+\section{Elección del operacional}
+\label{sec:tri_opamp}
+
+El circuito necesita cinco unidades con salida \textit{rail-to-rail} ---la
+triangular tiene que llegar a $3\,\text{V}$ desde una alimentación simple, y
+la cuadrada de sync debe bajar a $0\,\text{V}$---, alimentación simple de
+$12\,\text{V}$ y encapsulado DIP, para poder montarlo sobre zócalos en una
+placa de una sola capa. La Tabla~\ref{tab:tri_opamp} resume los candidatos
+evaluados.
+
+\begin{table}[H]
+  \centering
+  \caption{Candidatos considerados para los cinco operacionales.}
+  \label{tab:tri_opamp}
+  \begin{tabular}{llll}
+    \toprule
+    Operacional & Encapsulado & \textit{Rail-to-rail} & Resolución \\
+    \midrule
+    TL072    & DIP-8            & no  & Descartado: no llega a los rieles \\
+    LMC6482  & DIP-8            & sí  & Descartado: el modelo no converge \\
+    OPA2171  & solo SOIC        & sí  & Descartado: no se consigue en DIP \\
+    TLC2262  & DIP-8            & sí  & Descartado: más ruidoso (ver abajo) \\
+    \textbf{TLC2274} & \textbf{DIP-14} & \textbf{sí} & \textbf{Elegido} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+El TLC2274 es la versión cuádruple del TLC2272: mismo operacional, mismo
+modelo SPICE. Dos integrados cubren las cinco unidades necesarias, y las
+tres que sobran se dejan como seguidores con la entrada no inversora a masa;
+como el rango de entrada en modo común del TLC227x incluye masa, esas
+salidas quedan en $0\,\text{V}$ y no hace falta llevarles la referencia de
+$6\,\text{V}$, lo que evita cruzar la placa con una pista más.
+
+El reparto de unidades entre los dos integrados no es arbitrario: U1 lleva
+el oscilador y el sync, U2 la referencia y el restador. Agrupar por función
+mantiene cortas las conexiones de cada lazo y es lo que hace posible rutear
+todo el circuito en una sola capa (Sección~\ref{sec:tri_pcb}).
+
+\subsection{Ruido: por qué no el TLC2262}
+\label{sub:tri_ruido}
+
+El TLC2262 cumple todos los requisitos formales, así que la comparación se
+resolvió por ruido. En lugar de citar las hojas de datos se midió la
+densidad de ruido de entrada de cada modelo SPICE, con un análisis
+\texttt{.noise} sobre un seguidor de ganancia unitaria alimentado con los
+mismos $12\,\text{V}$ del circuito (script
+\texttt{GPRv2/docs/PWM/ruido\_opamp.py}). Los resultados están en la
+Tabla~\ref{tab:tri_ruido}.
+
+\begin{table}[H]
+  \centering
+  \caption{Densidad de ruido de tensión de entrada de los modelos SPICE, en
+  $\text{nV}/\sqrt{\text{Hz}}$, comparada con el ruido térmico de las
+  resistencias del lazo.}
+  \label{tab:tri_ruido}
+  \begin{tabular}{lccccc}
+    \toprule
+    & $10\,\text{Hz}$ & $50\,\text{Hz}$ & $100\,\text{Hz}$
+    & $1\,\text{kHz}$ & $10\,\text{kHz}$ \\
+    \midrule
+    TLC2272 / TLC2274 & $51{,}0$ & $24{,}0$ & $17{,}9$ & $9{,}7$  & $8{,}4$  \\
+    TLC2262           & $41{,}8$ & $22{,}9$ & $19{,}2$ & $15{,}2$ & $14{,}7$ \\
+    \midrule
+    $\sqrt{4kTR}$, $R = 100\,\text{k}\Omega$
+      & \multicolumn{5}{c}{$40{,}7$ (independiente de la frecuencia)} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+A $1\,\text{kHz}$ la diferencia es clara y favorece al TLC2274, que es
+$1{,}6$ veces menos ruidoso, y esa es la razón por la que se lo eligió sobre
+el TLC2262. Conviene, sin embargo, ser explícito sobre el alcance real de
+esa ventaja: \textbf{en la banda en la que trabaja este circuito}
+($4$ a $54\,\text{Hz}$ de fundamental, y sus primeros armónicos) los dos
+modelos quedan a menos del $10$\,\% uno del otro, y ambos son del mismo
+orden que el ruido térmico de las resistencias de $100\,\text{k}\Omega$ del
+lazo, que es lo que en la práctica domina. La elección del TLC2274 está
+bien hecha, pero lo que la vuelve decisiva es el encapsulado cuádruple en
+DIP, no el margen de ruido.
+
+\section{Resultados de simulación}
+\label{sec:tri_simulacion}
+
+El circuito se simuló en LTspice en tres etapas sucesivas, una por archivo:
+primero la topología desnuda (\texttt{triangular.asc}), después con la
+salida acondicionada y el sync usando un operacional ideal
+(\texttt{triangular2.asc}), y finalmente con el modelo real del TLC2272
+(\texttt{triangular3.asc}). Ese modelo del fabricante sólo converge en este
+lazo con integración \textit{gear} y arranque en rampa de las fuentes
+(\texttt{.options method=gear} y la opción \texttt{startup} del
+\texttt{.tran}).
+
+Además, el script
+\texttt{pcb/triangular/simular\_kicad.py} exporta
+el \textit{netlist} del esquemático de KiCad con \texttt{kicad-cli} y lo
+simula en LTspice, de modo que lo que se verifica es el circuito que
+efectivamente está dibujado en la placa y no una copia aparte que podría
+haber quedado desactualizada. Los números de esta sección salen de esa
+corrida.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/triangular/triangular3.png}
+  \caption{Salida y sincronismo del generador con el modelo real del
+  TLC2272, en tres posiciones del potenciómetro (script
+  \texttt{GPRv2/docs/PWM/graficar\_triangular3.py}). Izquierda: la
+  triangular de salida junto con la cuadrada de sync, con los niveles
+  extremos indicados. Derecha: el espectro de dos lados de la salida
+  ---cada raya es un armónico, y la del centro es la componente continua---
+  comparado con la envolvente $1/f^2$ que corresponde a los armónicos
+  impares de una triangular ideal.}
+  \label{fig:tri_ondas}
+\end{figure}
+
+La Tabla~\ref{tab:tri_niveles} reúne los valores medidos sobre la
+simulación. La salida cubre el rango pedido en las tres posiciones y los
+extremos se mantienen dentro de la tolerancia de $\pm 50\,\text{mV}$
+respecto de $0$ y $3\,\text{V}$.
+
+\begin{table}[H]
+  \centering
+  \caption{Períodos, niveles y contenido armónico simulados, en las tres
+  posiciones del potenciómetro.}
+  \label{tab:tri_niveles}
+  \begin{tabular}{lccc}
+    \toprule
+    Posición del potenciómetro & $0$ & $0{,}5$ & $1$ \\
+    \midrule
+    Período                  & $18{,}58\,\text{ms}$ & $131{,}08\,\text{ms}$ & $243{,}46\,\text{ms}$ \\
+    Frecuencia               & $53{,}82\,\text{Hz}$ & $7{,}63\,\text{Hz}$   & $4{,}11\,\text{Hz}$ \\
+    Salida, mínimo           & $0{,}062\,\text{V}$  & $0{,}041\,\text{V}$   & $0{,}040\,\text{V}$ \\
+    Salida, máximo           & $3{,}078\,\text{V}$  & $3{,}089\,\text{V}$   & $3{,}090\,\text{V}$ \\
+    Sync, nivel bajo         & $0{,}036\,\text{V}$  & $0{,}010\,\text{V}$   & $0{,}009\,\text{V}$ \\
+    Sync, nivel alto         & $2{,}952\,\text{V}$  & $2{,}987\,\text{V}$   & $2{,}989\,\text{V}$ \\
+    \midrule
+    2\textsuperscript{o} armónico & $-48{,}3\,\text{dB}$ & $-56{,}8\,\text{dB}$ & $-58{,}0\,\text{dB}$ \\
+    3\textsuperscript{er} armónico & $-19{,}1\,\text{dB}$ & $-19{,}1\,\text{dB}$ & $-19{,}1\,\text{dB}$ \\
+    5\textsuperscript{o} armónico & $-28{,}0\,\text{dB}$ & $-28{,}0\,\text{dB}$ & $-28{,}0\,\text{dB}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Los armónicos impares valen exactamente lo que predice una triangular
+ideal ($1/9 = -19{,}08\,\text{dB}$ y $1/25 = -27{,}96\,\text{dB}$), lo cual
+confirma que la rampa es lineal: cualquier curvatura apreciable se
+manifestaría como una desviación en esos valores.
+
+Los armónicos \emph{pares}, en cambio, son el indicador interesante, porque
+en una triangular perfectamente simétrica valen cero. Con el operacional
+ideal el segundo armónico queda en $-93{,}7\,\text{dB}$, es decir en el piso
+numérico; con el modelo real del TLC2272 sube a $-48{,}3\,\text{dB}$ en la
+posición más rápida. Esa asimetría es el efecto del \textit{slew rate} y del
+retardo finitos del operacional en los vértices, y se atenúa al bajar la
+frecuencia: $-58{,}0\,\text{dB}$ en la posición más lenta, donde los
+vértices ocupan una fracción mucho menor del período. Como el radar opera en
+la zona lenta del rango, el efecto es despreciable.
+
+\section{Protección del VCO}
+\label{sec:tri_zener}
+
+El VCO admite hasta $18\,\text{V}$ en su entrada de sintonía, y el
+amplificador intermedio, caracterizado en la Sección~\ref{sec:curva_vco}
+como $V_\text{osc} = 4{,}949\,V_\text{in} + 0{,}055$, se alimenta con
+$20\,\text{V}$. La salida del generador no puede entonces superar
+
+\begin{equation}
+  V_\text{in,máx} = \frac{18 - 0{,}055}{4{,}949} = 3{,}63\,\text{V},
+  \label{eq:tri_limite}
+\end{equation}
+
+contra los $3{,}09\,\text{V}$ de operación normal. El margen es de apenas
+medio volt, y una sola resistencia abierta alcanza para perderlo: el
+diodo zener $D_1$, conectado entre la salida y masa, es la protección.
+
+La elección del zener es más delicada de lo que parece, porque el codo de
+conducción de un zener de baja tensión es blando. La
+Figura~\ref{fig:tri_zener_vertice} compara los dos candidatos.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/triangular/zener_vertice.png}
+  \caption{Efecto de cada zener sobre la operación normal (scripts
+  \texttt{GPRv2/docs/PWM/simular\_zener.py} y \texttt{graficar\_zener.py}).
+  Izquierda: el vértice superior de la triangular sin zener, con el 1N4729A
+  y con el 1N4728A. Derecha: la curva de conducción inversa de los dos
+  modelos, con la corriente que toma cada uno al pico de la triangular.}
+  \label{fig:tri_zener_vertice}
+\end{figure}
+
+El \textbf{1N4728A} ($3{,}3\,\text{V}$ nominales) no sirve. A los
+$3{,}09\,\text{V}$ del pico ya conduce $14{,}2\,\text{mA}$, y en la
+simulación recorta el vértice: lo achata a $2{,}973\,\text{V}$, es decir
+$104{,}5\,\text{mV}$ por debajo del pico real, y deja una meseta de
+$0{,}66\,\text{ms}$ que ocupa el $3{,}5$\,\% del período. Sobre la
+prioridad número uno del circuito, que es la linealidad de la rampa, eso es
+inaceptable.
+
+El \textbf{1N4729A} ($3{,}6\,\text{V}$) toma $0{,}24\,\text{mA}$ al mismo
+pico y no altera la señal: la diferencia entre la corrida con zener y la
+corrida sin zener es de menos de $2\,\text{mV}$, dentro del ruido numérico
+de la simulación.
+
+La Figura~\ref{fig:tri_zener_falla} muestra que, pese a esa suavidad, el
+1N4729A cumple su función. La falla simulada es la apertura de $R_9$, que
+suelta el divisor de la entrada no inversora del restador.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/triangular/zener_falla.png}
+  \caption{Falla simulada: $R_9$ abierta. Sin zener la salida se va a
+  $10{,}06\,\text{V}$, con lo que el amplificador satura contra sus
+  $20\,\text{V}$ de alimentación y el VCO queda $2\,\text{V}$ por encima de
+  su máximo. Con el 1N4729A la salida se clava en $3{,}31\,\text{V}$, que
+  corresponden a $16{,}4\,\text{V}$ en el VCO.}
+  \label{fig:tri_zener_falla}
+\end{figure}
+
+Sin protección, la salida pasa a oscilar entre $4{,}73$ y
+$10{,}06\,\text{V}$; el amplificador satura contra su alimentación y el VCO
+recibe los $20\,\text{V}$ completos, por encima de los $18\,\text{V}$ que
+tolera. Con el 1N4729A la salida se clava en $3{,}31\,\text{V}$
+---equivalentes a $16{,}4\,\text{V}$ en el VCO--- porque el operacional no
+puede entregar más de $3{,}71\,\text{mA}$ contra el zener en conducción.
+Considerando la tolerancia del $\pm 5$\,\% de la tensión de zener, el nivel
+de sujeción va de $15{,}6$ a $17{,}2\,\text{V}$ en el VCO: siempre por
+debajo del límite.
+
+\section{Implementación en placa impresa}
+\label{sec:tri_pcb}
+
+La placa se diseñó en KiCad 10, de \textbf{una sola capa de cobre}
+(\texttt{B.Cu}) y $93 \times 63\,\text{mm}$, para poder fabricarla por
+métodos caseros. Las Figuras~\ref{fig:tri_pcb} y~\ref{fig:tri_pcb3d}
+muestran el resultado.
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[b]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figuras/triangular/pcb_cobre.pdf}
+    \caption{Cobre (\texttt{B.Cu}) y contorno.}
+    \label{fig:tri_pcb_cobre}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figuras/triangular/pcb_serigrafia.pdf}
+    \caption{Serigrafía y contorno.}
+    \label{fig:tri_pcb_serig}
+  \end{subfigure}
+  \caption{Placa del generador, $93 \times 63\,\text{mm}$, una sola capa.
+  Las dos vistas están en la misma orientación, mirando desde el lado de
+  los componentes. En el cobre, el negro es cobre y el blanco es el
+  aislamiento: casi toda la superficie libre es plano de masa.}
+  \label{fig:tri_pcb}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{figuras/triangular/pcb_3d.png}
+  \caption{Vista tridimensional de la placa (\texttt{kicad-cli pcb
+  render}). Faltan los modelos 3D de la llave de encendido SW1 y del puente
+  de cable JP1, cuyas huellas se dibujaron para este proyecto; el resto de
+  los componentes se muestra completo.}
+  \label{fig:tri_pcb3d}
+\end{figure}
+
+Las pistas son de $0{,}508\,\text{mm}$ ($20\,\text{mil}$) salvo dieciséis
+tramos de $0{,}3\,\text{mm}$ que pasan entre patas de los zócalos; suman
+$1279\,\text{mm}$ de cobre, sin ninguna vía. La superficie restante es un
+plano de masa con $1\,\text{mm}$ de separación a los pads, alivios térmicos
+y ancho mínimo de relleno de $0{,}5\,\text{mm}$. JP1 es un puente de cable
+de $22{,}5\,\text{mm}$ que resuelve el único cruce que no se pudo evitar, y
+va en la salida, antes del zener. Las conexiones al exterior salen por tres
+borneras: J1 al potenciómetro de panel, J2 a los $12\,\text{V}$ y J3 a la
+salida, el sync y masa.
+
+El encendido corta los $12\,\text{V}$ con una llave de palanca SPDT y un
+LED rojo en serie con $2{,}2\,\text{k}\Omega$ ($\approx 4{,}7\,\text{mA}$)
+como indicador. Se evaluó la alternativa de cortar la salida y el sync con
+una llave de dos circuitos, y se descartó: cortando la alimentación,
+cualquier patillaje de la llave deja el circuito en un estado seguro, lo
+cual importa porque las llaves disponibles no tienen hoja de datos
+confiable.
+
+\subsection{Verificación}
+\label{sub:tri_verificacion}
+
+El diseño se verificó por cuatro caminos independientes:
+
+\begin{itemize}
+  \item \textbf{ERC y DRC de KiCad}: sin errores, sin conexiones faltantes
+    y sin discrepancias de paridad contra el esquemático. La única
+    advertencia que queda es que la huella del potenciómetro RV1 difiere de
+    la copia en la biblioteca, porque se la editó a propósito para que el
+    eje quede fuera del borde de la placa.
+  \item \textbf{Comparación automática contra el netlist de LTspice}: se
+    contrastó componente a componente el PCB contra
+    \texttt{triangular3.asc}, y los 19 elementos encontraron su par exacto.
+    El procedimiento se validó introduciendo errores a propósito y
+    comprobando que los detectara.
+  \item \textbf{Simulación del esquemático de KiCad}
+    (\texttt{simular\_kicad.py}), que reproduce los mismos períodos y
+    niveles de la Tabla~\ref{tab:tri_niveles}.
+  \item \textbf{Revisión de las redes de los pads}, una por una, contra el
+    circuito.
+\end{itemize}
+
+Quedan dos limitaciones conocidas, ambas aceptadas a conciencia. La
+primera es que la separación mínima entre cobre de redes distintas es de
+$0{,}304\,\text{mm}$, en dos lugares (junto al pad 6 de U1 y al pad 3 de
+U2); supera la regla de diseño de $0{,}2\,\text{mm}$, pero es ajustada para
+fabricación casera. La segunda es que los capacitores de desacople no
+quedaron pegados a las patas de alimentación: C4 está a $11{,}6\,\text{mm}$
+de la de U1 y C3 a $9{,}0\,\text{mm}$ de la de U2. No se pudo mejorar sin
+agregar una segunda capa, y a las frecuencias de este circuito, con un
+ancho de banda de ganancia unitaria de $2{,}2\,\text{MHz}$, no debería
+tener consecuencias.
+
+Vale registrar un error de diseño que el flujo de verificación sí atrapó: un
+relleno de zona que había quedado sin recalcular después de mover una pista
+dejó el plano de masa tocando una pista de $+12\,\text{V}$, es decir un
+cortocircuito franco de la alimentación. El DRC no lo reportó hasta que se
+volvió a rellenar la zona. La lección operativa es que \textbf{el DRC se
+corre sobre el relleno actualizado, no sobre el dibujo}.
+
+Por último, una advertencia sobre el alcance de todo lo anterior: el modelo
+del TLC2272 usa la tensión de \textit{offset} \emph{típica}
+($0{,}17\,\text{mV}$), no la máxima de hoja de datos
+($2{,}5\,\text{mV}$). Los niveles simulados de la
+Tabla~\ref{tab:tri_niveles} son, en ese sentido, optimistas, y es una de
+las cosas que la medición sobre la placa armada tiene que confirmar.
+
+\section{Mediciones pendientes}
+\label{sec:tri_pendiente}
+
+La placa está diseñada y verificada, pero no construida. Las mediciones
+que restan, y que completarán este capítulo, son:
+
+\begin{itemize}
+  \item \textbf{Período en función de la posición del potenciómetro}, para
+    confirmar tanto el rango $18{,}6$--$243{,}5\,\text{ms}$ como la
+    linealidad que predice la ecuación~\eqref{eq:tri_periodo}.
+  \item \textbf{Niveles extremos de la salida y del sync}, contra la
+    Tabla~\ref{tab:tri_niveles}, con atención al corrimiento que puede
+    introducir la tensión de \textit{offset} real de los operacionales.
+  \item \textbf{Linealidad de la rampa}, midiendo la desviación respecto de
+    la recta ideal, que es el parámetro de mayor prioridad del circuito.
+  \item \textbf{Espectro de la salida}, para contrastar el contenido
+    armónico medido con el simulado, en particular los armónicos pares.
+  \item \textbf{Separación entre patas de la llave de encendido}, que se
+    tomó de un modelo parecido y hay que confirmar con la pieza en mano
+    antes de fabricar la placa.
+\end{itemize}
+
+%============================================================
 \chapter{Filtro Pasabajos}
 \label{ch:filtro}
 %============================================================
@@ -1919,6 +2504,155 @@ cable dañado.
 %  APÉNDICES
 %============================================================
 \appendix
+
+%============================================================
+\chapter{Valores de componentes: series comerciales, tolerancias
+  y combinaciones}
+\label{ap:valores}
+%============================================================
+
+\textit{Este apéndice reúne, circuito por circuito, cómo se eligieron los
+valores de resistencias y capacitores: qué serie comercial se usó, qué
+tolerancia hace falta y por qué, y cómo se armaron los valores que no
+existen en catálogo. Se irá completando a medida que se construyan las
+demás etapas del instrumento.}
+
+\section{Generador de triangular}
+\label{sec:val_triangular}
+
+El circuito del Capítulo~\ref{ch:triangular} se armó íntegramente con la
+\textbf{serie E12} (los doce valores por década de las resistencias
+comunes), en \textbf{película metálica al $1$\,\%}. Esta sección justifica
+esa tolerancia y detalla las tres combinaciones en serie que hicieron falta.
+
+\subsection{Por qué el $1$\,\%}
+\label{sub:val_tolerancia}
+
+Las tolerancias de los resistores se propagan a la salida por tres caminos
+a la vez: la amplitud de la triangular depende de $R_3/R_2$, la referencia
+de $R_5/(R_4+R_5)$, y la ganancia y el offset del restador de las cinco
+resistencias que lo rodean. Para cuantificar el efecto conjunto se propagó
+la tolerancia de \emph{cada resistencia física} ---las de las combinaciones
+en serie por separado, que es como están en la placa--- por las ecuaciones
+del circuito, sin intervención del operacional (script
+\texttt{GPRv2/docs/PWM/tolerancias.py}). Los resultados están en la
+Tabla~\ref{tab:val_tolerancias}.
+
+\begin{table}[H]
+  \centering
+  \caption{Rango que puede cubrir la salida del generador según la
+  tolerancia de los resistores. El Monte Carlo (200\,000 muestras,
+  distribución uniforme dentro de la banda) es lo que cabe esperar al armar
+  placas; el peor caso recorre las $2^{12}$ esquinas y es la cota que no se
+  puede superar. El valor nominal es $0{,}030$ a $3{,}094\,\text{V}$.}
+  \label{tab:val_tolerancias}
+  \begin{tabular}{lcc}
+    \toprule
+    & Tolerancia $5$\,\% & Tolerancia $1$\,\% \\
+    \midrule
+    Monte Carlo & $-0{,}57$ a $+3{,}67\,\text{V}$ & $-0{,}09$ a $+3{,}22\,\text{V}$ \\
+    Peor caso   & $-0{,}78$ a $+3{,}88\,\text{V}$ & $-0{,}13$ a $+3{,}25\,\text{V}$ \\
+    \midrule
+    Placas con el extremo inferior bajo $0\,\text{V}$ & $43$\,\% & $19$\,\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Con resistores al $5$\,\% la salida puede llegar a $3{,}88\,\text{V}$ en el
+peor caso, por encima de los $3{,}63\,\text{V}$ que tolera el VCO
+(ecuación~\eqref{eq:tri_limite}): la protección del zener dejaría de ser un
+seguro contra fallas para pasar a actuar en operación normal, recortando la
+rampa. Al $1$\,\% el peor caso queda en $3{,}25\,\text{V}$, con margen
+suficiente.
+
+Obsérvese que en ninguna de las dos variantes se evita que el extremo
+inferior caiga por debajo de $0\,\text{V}$ en una fracción apreciable de las
+placas. Esto \emph{no} es un problema: la salida no puede ser negativa
+porque el operacional no lo permite ---simplemente se apoya en el riel---, y
+el efecto es un achatamiento de algunos milivoltios en el vértice inferior,
+en una zona del rango del VCO que de todos modos no se usa. El extremo que
+importa es el superior, y es el que la tolerancia del $1$\,\% protege.
+
+La Tabla~\ref{tab:val_sensibilidad} muestra cuánto mueve el extremo superior
+cada resistencia por separado. $R_9$ y $R_8$, las dos que fijan la ganancia
+del restador, concentran el efecto: entre las dos explican más de la mitad
+de la dispersión.
+
+\begin{table}[H]
+  \centering
+  \caption{Desplazamiento del extremo superior de la salida por un error
+  del $1$\,\% en cada resistencia, de a una por vez.}
+  \label{tab:val_sensibilidad}
+  \begin{tabular}{lcccccc}
+    \toprule
+    & $R_9$ & $R_8$ & $R_2$ & $R_3$ & $R_6$ & $R_7$ \\
+    \midrule
+    Desplazamiento & $34{,}6$ & $30{,}0$ & $15{,}5$ & $15{,}3$
+      & $14{,}7$ & $14{,}5\,\text{mV}$ \\
+    \midrule
+    & $R_{10}$ & $R_4$ & $R_5$ & $R_{13}$ & $R_{14}$ & $R_{15}$ \\
+    \midrule
+    Desplazamiento & $8{,}6$ & $7{,}7$ & $7{,}7$ & $5{,}2$
+      & $1{,}0$ & $0{,}1\,\text{mV}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Combinaciones en serie}
+\label{sub:val_combinaciones}
+
+Tres de los valores que pide el diseño no existen en la serie E12 y se
+armaron sumando resistencias en serie. La Tabla~\ref{tab:val_combinaciones}
+las lista con su desvío respecto del valor ideal; las tres quedan muy por
+debajo de la tolerancia del $1$\,\% de los propios componentes, de modo que
+la aproximación no agrega error apreciable.
+
+\begin{table}[H]
+  \centering
+  \caption{Valores que no existen en la serie E12 y cómo se armaron.}
+  \label{tab:val_combinaciones}
+  \begin{tabular}{llccl}
+    \toprule
+    & Combinación & Resultado & Ideal & Desvío \\
+    \midrule
+    $R_9'$    & $R_9 + R_{13} = 100\text{k} + 15\text{k}$
+              & $115\,\text{k}\Omega$ & $114{,}96\,\text{k}\Omega$ & $+0{,}04$\,\% \\
+    $R_{10}'$ & $R_{10} + R_{14} + R_{15} = 680\text{k} + 82\text{k} + 6\text{k}8$
+              & $768{,}8\,\text{k}\Omega$ & $768{,}5\,\text{k}\Omega$ & $+0{,}04$\,\% \\
+    $R_{11}'$ & $R_{11} + R_{16} = 150\text{k} + 150\text{k}$
+              & $300\,\text{k}\Omega$ & $300\,\text{k}\Omega$ & exacto \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Los dos primeros salen de imponer simultáneamente ganancia unitaria sobre
+la triangular y el offset de la ecuación~\eqref{eq:tri_restador}, lo que
+para $R_8 = 100\,\text{k}\Omega$ da
+
+\begin{equation}
+  R_{10}' = \frac{V_{cc}\,R_8}{V_\text{off}}, \qquad
+  \frac{1}{R_9'} = \frac{1}{R_8} - \frac{1}{R_{10}'} .
+  \label{eq:val_restador}
+\end{equation}
+
+El tercero, $R_{11}'$, es el brazo alto del divisor del sincronismo, y sale
+de pedir que la cuadrada de $12\,\text{V}$ se reduzca a un cuarto sin
+cargar apreciablemente al comparador.
+
+\subsection{Capacitores}
+\label{sub:val_capacitores}
+
+$C_1$, el capacitor del integrador, es de $2{,}2\,\mu\text{F}$ de
+\textbf{película metálica}. La razón es doble y está desarrollada en la
+Sección~\ref{sub:tri_oscilador}: la tensión sobre él se invierte en cada
+semiperíodo, lo que descarta un electrolítico polarizado; y la corriente de
+carga baja hasta $55{,}5\,\mu\text{A}$ con el potenciómetro al máximo, del
+mismo orden que la corriente de fuga de un electrolítico, que se sumaría a
+la de carga y curvaría la rampa justo en la posición donde más importa.
+
+El desacople es convencional: $C_2$ de $10\,\mu\text{F}$ electrolítico a la
+entrada de alimentación, más $C_3$ y $C_4$ de $100\,\text{nF}$ cerámicos,
+uno por cada integrado.
 
 %============================================================
 \chapter{La transformada chirp-Z (CZT) — trabajo futuro}
