@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "triangular")(type "KiCad")(uri "${KIPRJMOD}/triangular.pretty")(options "")(descr "Huellas propias del generador de triangular"))
+)

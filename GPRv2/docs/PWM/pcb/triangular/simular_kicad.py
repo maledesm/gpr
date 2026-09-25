@@ -8,7 +8,7 @@ triangular_kicad.cir, un netlist de LTspice con el modelo del TLC2272
 
 Los nodos y los valores salen del esquematico tal cual. Lo unico que se
 agrega es lo que no esta en la placa:
-  - la fuente de 12 V en J2;
+  - la fuente de 12 V en J2, con SW1 (el pulsador de encendido) apretado;
   - el pote entre J1.1 (extremo) y J1.2 (cursor), barrido con .step;
   - .tran con startup y method=gear, sin los cuales el modelo no converge.
 
@@ -91,9 +91,22 @@ def escribir(comps, patas):
             L.append(f"X{ref}{u} {patas[(ref, mas)]} {patas[(ref, menos)]} {vcc} {vee} "
                      f"{patas[(ref, sal)]} TLC2272")
     # zener: en KiCad la pata 1 es el catodo y la 2 el anodo; el modelo va anodo, catodo
-    zeners = sorted(r for r in comps if r.startswith("D"))
+    diodos = sorted(r for r in comps if re.fullmatch(r"D\d+", r))
+    zeners = [r for r in diodos if comps[r].startswith("1N47")]
     for ref in zeners:
         L.append(f"X{ref} {patas[(ref, '2')]} {patas[(ref, '1')]} DI_{comps[ref]}")
+    # el resto son LEDs (D2, el de encendido): diodo simple, ~1,7 V a unos mA
+    leds = [r for r in diodos if r not in zeners]
+    for ref in leds:
+        L.append(f"{ref} {patas[(ref, '2')]} {patas[(ref, '1')]} LEDROJO")
+    if leds:
+        L.append(".model LEDROJO D(IS=1e-18 N=1.8 RS=5)")
+    # pulsadores (SW1, el de encendido): se simulan apretados, la comun (2) contra el medio (3)
+    for ref in sorted(r for r in comps if r.startswith("SW")):
+        L.append(f"R{ref} {patas[(ref, '2')]} {patas[(ref, '3')]} 1m")
+    # puentes de cable (JP1, ...): 1 mOhm
+    for ref in sorted(r for r in comps if re.fullmatch(r"JP\d+", r)):
+        L.append(f"R{ref} {patas[(ref, '1')]} {patas[(ref, '2')]} 1m")
     L.append(f"V12 {patas[('J2', '1')]} {patas[('J2', '2')]} 12")
     L.append(f"Rpote {patas[('J1', '1')]} {patas[('J1', '2')]} {{max(Rpot*pos,1m)}}")
 

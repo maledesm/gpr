@@ -1,0 +1,128 @@
+(footprint "SW_PULS-2I-RET_8x8"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "Pulsador DPDT con retencion 8x8 mm (PULS-2I-RET, Microelectronica). 2 filas de 3 patas planas: 2,5 mm entre patas de una fila, 6 mm entre filas. Medido: en cada fila la comun es un extremo (en diagonal entre filas); suelto toca el otro extremo, apretado toca la pata del medio. Pads 3 y 6 = medio de cada fila; 1-2 y 4-5 = extremos.")
+	(tags "pulsador retencion self-lock DPDT 8x8")
+	(property "Reference" "REF**"
+		(at 2.5 -2.5 0)
+		(layer "F.SilkS")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "PULS-2I-RET"
+		(at 2.5 8.5 0)
+		(layer "F.Fab")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" "Pulsador DPDT con retencion 8x8 mm"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_rect
+		(start -1.5 -1)
+		(end 6.5 7)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+	)
+	(fp_rect
+		(start -1.62 -1.12)
+		(end 6.62 7.12)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.SilkS")
+	)
+	(fp_circle
+		(center 2.5 3)
+		(end 4.5 3)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.SilkS")
+	)
+	(fp_rect
+		(start -1.75 -1.25)
+		(end 6.75 7.25)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.CrtYd")
+	)
+	(pad "1" thru_hole rect
+		(at 5 0)
+		(size 1.7 1.7)
+		(drill 1.1)
+		(layers "*.Cu" "*.Mask")
+	)
+	(pad "3" thru_hole circle
+		(at 2.5 0)
+		(size 1.7 1.7)
+		(drill 1.1)
+		(layers "*.Cu" "*.Mask")
+	)
+	(pad "2" thru_hole circle
+		(at 0 0)
+		(size 1.7 1.7)
+		(drill 1.1)
+		(layers "*.Cu" "*.Mask")
+	)
+	(pad "4" thru_hole circle
+		(at 0 6)
+		(size 1.7 1.7)
+		(drill 1.1)
+		(layers "*.Cu" "*.Mask")
+	)
+	(pad "6" thru_hole circle
+		(at 2.5 6)
+		(size 1.7 1.7)
+		(drill 1.1)
+		(layers "*.Cu" "*.Mask")
+	)
+	(pad "5" thru_hole circle
+		(at 5 6)
+		(size 1.7 1.7)
+		(drill 1.1)
+		(layers "*.Cu" "*.Mask")
+	)
+	(embedded_fonts no)
+)

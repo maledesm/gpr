@@ -11,21 +11,26 @@ R13 Net__R13_Pad1_ 0 15k
 R14 Net__R14_Pad1_ Net__R10_Pad1_ 82k
 R15 mas12V Net__R14_Pad1_ 6.8k
 R16 Net__R11_Pad2_ Net__U1C_mas_ 150k
+R17 mas12V Net__D2_A_ 2.2k
 R2 Net__U1B_mas_ sq 47k
 R3 tri Net__U1B_mas_ 12k
 R4 mas12V Net__U2A_mas_ 100k
 R5 Net__U2A_mas_ 0 100k
 R6 mid Net__U2B_menos_ 100k
-R7 Net__U2B_menos_ salida 100k
+R7 Net__U2B_menos_ Net__JP1_A_ 100k
 R8 tri Net__U2B_mas_ 100k
 R9 Net__U2B_mas_ Net__R13_Pad1_ 100k
 XU1A mid inv mas12V 0 tri TLC2272
 XU1B Net__U1B_mas_ mid mas12V 0 sq TLC2272
 XU1C Net__U1C_mas_ sync mas12V 0 sync TLC2272
 XU2A Net__U2A_mas_ mid mas12V 0 mid TLC2272
-XU2B Net__U2B_mas_ Net__U2B_menos_ mas12V 0 salida TLC2272
+XU2B Net__U2B_mas_ Net__U2B_menos_ mas12V 0 Net__JP1_A_ TLC2272
 XD1 0 salida DI_1N4729A
-V12 mas12V 0 12
+D2 Net__D2_A_ 0 LEDROJO
+.model LEDROJO D(IS=1e-18 N=1.8 RS=5)
+RSW1 Net__J2_Pin_1_ mas12V 1m
+RJP1 Net__JP1_A_ salida 1m
+V12 Net__J2_Pin_1_ 0 12
 Rpote pote inv {max(Rpot*pos,1m)}
 .param Rpot=100k
 .step param pos list 0 0.5 1
