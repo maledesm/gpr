@@ -52,15 +52,44 @@ set "PY=%USERPROFILE%\venvs\gpr-win\Scripts\python.exe"
 if exist "%PY%" exit /b 0
 set "PY=C:\Users\tinch\venvs\gpr-win\Scripts\python.exe"
 if exist "%PY%" exit /b 0
+
+rem Sin venv, cualquier Python de Windows sirve SI tiene los paquetes: se
+rem prueba importandolos, que es la unica forma honesta de saberlo. Sin esto,
+rem en una maquina sin el venv el .bat moria con un mensaje que hablaba de
+rem "el ESP32 es un puerto COM", y parecia que el problema era la placa cuando
+rem el puerto ni siquiera se habia abierto. (Paso en el laboratorio, 28/09.)
+call :probar "py.exe" && exit /b 0
+for /f "delims=" %%P in ('where python 2^>nul') do call :probar "%%P" && exit /b 0
+for /f "delims=" %%P in ('where python3 2^>nul') do call :probar "%%P" && exit /b 0
+
 echo.
-echo  [ERROR] No encuentro el entorno de Python de adquisicion.
+echo  [ERROR] No encuentro un Python con los paquetes que hacen falta.
 echo.
-echo  Se busco en:
+echo  OJO: esto NO tiene nada que ver con la placa. El puerto todavia no se
+echo  abrio, asi que el ESP32 puede estar perfectamente enchufado.
+echo.
+echo  Se busco el venv en:
 echo     %USERPROFILE%\venvs\gpr-win\Scripts\python.exe
 echo     C:\Users\tinch\venvs\gpr-win\Scripts\python.exe
+echo  y despues cualquier Python del PATH que pueda importar
+echo  serial, numpy, scipy, pandas y matplotlib.
 echo.
-echo  Tiene que ser un venv de WINDOWS: el ESP32 es un puerto COM
-echo  y WSL 2 no lo ve. Ver medir.bat en la raiz del repo.
+echo  Para dejarlo andando de una vez:
+echo     python -m venv "%USERPROFILE%\venvs\gpr-win"
+echo     "%USERPROFILE%\venvs\gpr-win\Scripts\pip" install -r ..\requirements.txt
+echo.
+echo  Tiene que ser un Python de WINDOWS: el ESP32 es un puerto COM
+echo  y WSL 2 no lo ve.
 echo.
 pause
 exit /b 1
+
+
+rem Deja %PY% apuntando a %~1 si ese interprete tiene todos los paquetes.
+:probar
+if "%~1"=="" exit /b 1
+"%~1" -c "import serial,numpy,scipy,pandas,matplotlib" >nul 2>&1
+if errorlevel 1 exit /b 1
+set "PY=%~1"
+echo  (sin venv gpr-win: uso %~1)
+exit /b 0
