@@ -316,6 +316,11 @@ el resultado fue que las mediciones quedaban en una sola máquina — las de la
 placa a 1 m se perdieron así. Después de medir: `git add GPRv2/datos/` y
 commitear.
 
+> ⚠️ **Desde el 2026-09-28 la corrida NO se graba por defecto**
+> (`GRABAR_CRUDO = False`): sólo se guarda lo que uno pide con el botón de
+> captura. Ver la sección de abajo. Con eso, `git add GPRv2/datos/` sube
+> nada más que las capturas.
+
 > ⚠️ **GitHub rechaza archivos de más de 100 MB**, y no sólo ese push: todos
 > los siguientes, hasta reescribir la historia para sacarlo. La captura crece
 > **~3,6 MB por minuto**, o sea que una corrida de más de ~28 min se pasaría.
@@ -408,6 +413,32 @@ con interlineado 1,15.
 > completa. `armar_figura()` les saca la tecla suelta y les deja el atajo con
 > ctrl. Y `_tecla()` ignora todo mientras se tipea en el cuadro del nombre: si
 > no, escribir "fondo_sala" prendia el MTI y guardaba una captura.
+
+### Por defecto NO se graba la corrida entera (`GRABAR_CRUDO`)
+
+Cambiado el 2026-09-28, a pedido del usuario: la captura cruda son **4,1 MB
+por minuto** y se hacía pesada en disco y en git. Con `GRABAR_CRUDO = False`
+(el valor de ahora) no se crea ningún archivo de corrida —ni vacío— y lo
+único que queda de una sesión es lo que se guardó con el botón de captura: su
+PNG y su CSV de FFT, que salen de los perfiles que están en memoria. El panel
+lo dice en la línea `crudo a disco`.
+
+**Lo que se pierde, y conviene tenerlo presente**: sin el crudo esa medición
+**no se puede volver a analizar** con `graficar_captura.py` ni `waterfall.py`,
+ni reprocesar con otro Tprf o con otra corrección. Queda la figura y la curva
+del momento en que se apretó, nada más. Para una sesión de la que se quiera
+poder volver atrás, poner `GRABAR_CRUDO = True` (todo lo de la sección de
+abajo vuelve a aplicar tal cual).
+
+En la CSV de la FFT el metadato `corrida` dice `no se grabo el crudo`, y no
+`-`: seis meses después uno quiere saber si el archivo de la corrida se
+perdió o si nunca existió.
+
+> **Grabar NO es lo que traba el programa.** Medido el 2026-09-28: escribir un
+> bloque cuesta **0,014 ms** (p99 0,072 ms, máximo 0,15 ms), o sea el 0,01 %
+> del tiempo, y además pasa en el hilo del puerto y no en el del gráfico, así
+> que ni siquiera compite con el dibujo. Si la ventana se traba, el número a
+> mirar es `ms/cuadro` en el panel, no el tamaño del archivo.
 
 ### Archivos nuevos por corrida, y la columna de controles se acuerda
 

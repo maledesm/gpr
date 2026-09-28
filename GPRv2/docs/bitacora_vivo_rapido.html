@@ -541,6 +541,19 @@ meta, c = proceso_rapido.leer_fft_captura(ruta)   # + los metadatos</code></pre>
   </div>
   <p class="where"><b>Dónde vive:</b> el formato, escritura y lectura juntas, en <code>proceso_rapido.escribir_fft_captura()</code> / <code>leer_fft_captura()</code> — ese módulo no importa ni <code>serial</code> ni widgets, así que un script de simulación lo puede usar sin arrastrar el programa en vivo. El armado de los datos, en <code>Vivo._guardar_fft()</code>. Entra a git con la PNG (<code>!GPRv2/datos/capturas/*.csv</code> en el <code>.gitignore</code>).</p>
 
+  <h3>Por defecto ya no se graba la corrida entera</h3>
+  <p><em>Cambiado el 2026-09-28.</em> La captura cruda son <strong>4,1 MB por minuto</strong> y se hacía pesada en disco y en git. Con <code>GRABAR_CRUDO = False</code> no se crea ningún archivo de corrida —ni vacío— y de una sesión queda sólo lo que se guardó con el botón: su PNG y su CSV de FFT, que salen de los perfiles que están en memoria. El panel lo dice en la línea <code>crudo a disco</code>.</p>
+
+  <div class="note warn">
+    <p class="t">Lo que se pierde</p>
+    <p>Sin el crudo esa medición <strong>no se puede volver a analizar</strong> con <code>graficar_captura.py</code> ni <code>waterfall.py</code>, ni reprocesar con otro Tprf o con otra corrección. Queda la figura y la curva del momento en que se apretó, nada más. Para una sesión de la que se quiera poder volver atrás, <code>GRABAR_CRUDO = True</code>.</p>
+  </div>
+
+  <div class="note">
+    <p class="t">Grabar no era lo que trababa el programa</p>
+    <p>Medido antes de tocar nada: escribir un bloque cuesta <strong>0,014 ms</strong> (p99 0,072 ms, máximo 0,15 ms), o sea el <strong>0,01 %</strong> del tiempo — y además pasa en el hilo del puerto, no en el del gráfico, así que ni siquiera compite con el dibujo. El cambio se hizo igual porque 4,1 MB/min es mucho para el disco y para el repo, pero si la ventana se traba, el número a mirar es <code>ms/cuadro</code> en el panel.</p>
+  </div>
+
   <h3>Captura con temporizador</h3>
   <p><em>Agregado el 2026-09-28.</em> El cuadro <code>esperar [s]</code>. En 0 la captura sale en el acto, como siempre; con 5, 10 o lo que se tipee, el botón (o la tecla <code>s</code>) arranca una cuenta regresiva y la foto sale al final. Es para apretar, caminar hasta el blanco, y que la figura salga con uno ya fuera del camino.</p>
   <ul>

@@ -148,7 +148,16 @@ de guardar. No sobrescribe nunca: si el nombre ya existe sale <nombre>_2.png.
   pandas.read_csv(ruta, comment="#") o numpy.genfromtxt(ruta, delimiter=",",
   names=True).
 
-ARCHIVOS NUEVOS POR CORRIDA. Cada corrida graba datos/captura_<sello>.csv y
+QUE SE GUARDA. Por defecto, SOLO lo que se pide con el boton de captura: su
+PNG y su CSV de FFT. La corrida NO se graba entera (GRABAR_CRUDO = False),
+porque la captura cruda son 4,1 MB por minuto. La contra es que una medicion
+asi no se puede volver a analizar despues con graficar_captura.py ni
+waterfall.py, ni reprocesar con otro Tprf: de la corrida queda lo que uno
+guardo a proposito y nada mas. Con GRABAR_CRUDO = True vuelve a grabarse todo,
+como se describe aca abajo. El panel dice cual de las dos esta andando.
+
+ARCHIVOS NUEVOS POR CORRIDA (solo con GRABAR_CRUDO = True). Cada corrida graba
+datos/captura_<sello>.csv y
 datos/triangular_<sello>.csv, con el sello dd-mm-aaaa_hh-mm-ss del momento de
 arrancar, asi que ninguna medicion pisa a la anterior. (vivo.py sigue
 escribiendo captura.csv y triangular.csv, y graficar_captura.py y
@@ -171,6 +180,7 @@ Teclas
 saca en armar_figura(); los atajos con ctrl siguen andando.
 """
 
+import contextlib
 import json
 import os
 import re
@@ -306,6 +316,24 @@ CONFIG_JSON = os.path.join(DATOS, "vivo_config.json")
 # datos/triangular.csv por nombre fijo: para reanalizar una corrida hay que
 # apuntarlos al par que corresponda.
 FORMATO_SELLO = "%d-%m-%Y_%H-%M-%S"
+# Si se graba a disco TODO lo que entra por el puerto, corrida entera, o solo
+# lo que uno guarda a proposito con el boton de captura.
+#
+# En False (lo de ahora) no se crea ningun archivo de corrida: el programa
+# dibuja igual y el boton de captura sigue guardando su PNG y su CSV de FFT,
+# que salen de los perfiles que estan en memoria. Se puso en False porque la
+# captura cruda son 4,1 MB por minuto y se hacia pesada en disco y en git.
+#
+# OJO CON LO QUE SE PIERDE: sin el crudo no se puede volver a analizar la
+# medicion despues con graficar_captura.py ni waterfall.py, ni reprocesarla
+# con otro Tprf o con otra correccion. Lo unico que queda de una corrida es la
+# figura y la curva de la FFT de los momentos en que se apreto capturar. Para
+# una sesion de la que se quiera poder volver atras, poner True.
+#
+# (No es lo que hace que el programa se trabe: escribir cuesta 0,014 ms por
+# bloque, 0,01 % del tiempo, y ademas pasa en el hilo del puerto y no en el
+# del grafico. Medido el 2026-09-28.)
+GRABAR_CRUDO = False
 # Tope de cada archivo de captura. Todo lo de datos/ se sube a git, y GitHub
 # RECHAZA cualquier archivo de mas de 100 MB: y no solo ese push, todos los
 # que vengan despues, hasta reescribir la historia para sacarlo. La captura
@@ -345,7 +373,8 @@ class Lector(threading.Thread):
     verificar_rapido.py).
     """
 
-    def __init__(self, ser, f_cap, f_tri, abrir_parte=None, limite_bytes=None):
+    def __init__(self, ser, f_cap=None, f_tri=None, abrir_parte=None,
+                 limite_bytes=None):
         super().__init__(daemon=True)
         self.ser = ser
         self.f_cap = f_cap
@@ -435,11 +464,14 @@ class Lector(threading.Thread):
             n += 1
         self.n_filas = n
         self.descartadas += malas
-        if txt_cap:
+        # Con f_cap en None no se graba nada a disco (GRABAR_CRUDO = False):
+        # el grafico y el boton de captura andan igual, porque los dos comen
+        # de lo que se encola aca abajo, no del archivo.
+        if txt_cap and self.f_cap is not None:
             bloque = "\n".join(txt_cap) + "\n"
             self.f_cap.write(bloque)
             self.bytes_parte += len(bloque)      # ASCII: caracteres = bytes
-        if txt_tri:
+        if txt_tri and self.f_tri is not None:
             self.f_tri.write("\n".join(txt_tri) + "\n")
         with self.lock:
             self._beat.extend(beat)
@@ -478,6 +510,8 @@ class Lector(threading.Thread):
     def cerrar(self):
         """Cierra la parte en curso (la 1 la cierra el `with` de main())."""
         for f in (self.f_cap, self.f_tri):
+            if f is None:
+                continue
             try:
                 f.close()
             except Exception:
@@ -1735,8 +1769,13 @@ class Vivo:
         meta = {
             "fecha": time.strftime("%d-%m-%Y %H:%M:%S"),
             "png": png,
+            # Si no se grabo el crudo se dice asi, y no "-": dentro de seis
+            # meses, mirando la CSV, uno quiere saber si el archivo de la
+            # corrida se perdio o si nunca existio.
             "corrida": (getattr(self.lec, "archivo_actual", None)
-                        or self.archivo_corrida or "-"),
+                        or self.archivo_corrida
+                        or ("no se grabo el crudo" if not GRABAR_CRUDO
+                            else "-")),
             "tprf_ms": f"{self.T * 1e3:.4f}",
             "rampa_ms": f"{paso * 1e3:.4f}",
             "muestras_por_rampa": self.n,
@@ -2127,6 +2166,7 @@ class Vivo:
             f"corriendo    {ahora/60:6.1f} min\n"
             f"muestras     {self.lec.n_filas:9d}\n"
             f"cortadas     {self.lec.descartadas:9d}\n"
+            f"crudo a disco {'SI' if GRABAR_CRUDO else 'no':>8}\n"
             f"ms/cuadro    {self._ms_cuadro:9.1f}\n"
             f"\n"
             f"-- rampa --\n"
@@ -2185,7 +2225,6 @@ def main():
     ser = abrir_puerto()
     sello = time.strftime(FORMATO_SELLO)
     salida, sal_tri = archivos_de_salida(sello)
-    print(f"Grabando a {salida}\n         y {sal_tri}")
 
     def abrir_parte(k):
         cap, tri = archivos_de_salida(sello, k)
@@ -2201,11 +2240,25 @@ def main():
     if config:
         print(f"Configuracion de la corrida anterior cargada de {CONFIG_JSON}")
 
-    with open(salida, "w", encoding="utf-8", newline="\n") as f_cap, \
-         open(sal_tri, "w", encoding="utf-8", newline="\n") as f_tri:
-        lec = Lector(ser, f_cap, f_tri, abrir_parte=abrir_parte,
-                     limite_bytes=LIMITE_PARTE_MB * 1_000_000)
-        lec.archivo_actual = os.path.basename(salida)
+    with contextlib.ExitStack() as pila:
+        if GRABAR_CRUDO:
+            print(f"Grabando a {salida}\n         y {sal_tri}")
+            f_cap = pila.enter_context(
+                open(salida, "w", encoding="utf-8", newline="\n"))
+            f_tri = pila.enter_context(
+                open(sal_tri, "w", encoding="utf-8", newline="\n"))
+            lec = Lector(ser, f_cap, f_tri, abrir_parte=abrir_parte,
+                         limite_bytes=LIMITE_PARTE_MB * 1_000_000)
+            lec.archivo_actual = os.path.basename(salida)
+        else:
+            # Nada de archivos de corrida: ni siquiera se crean vacios.
+            print("NO se graba el crudo (GRABAR_CRUDO = False en "
+                  "vivo_rapido.py).\n"
+                  "  Solo queda lo que guardes con el boton de captura, y esta "
+                  "medicion\n"
+                  "  no se va a poder reanalizar despues con "
+                  "graficar_captura.py ni waterfall.py.")
+            lec = Lector(ser)
         lec.start()
         vivo = Vivo(lec, curva, cal)
         vivo.archivo_corrida = os.path.basename(salida)
@@ -2229,7 +2282,10 @@ def main():
             except Exception:
                 pass
             ser.close()
-    if lec.parte == 1:
+    if not GRABAR_CRUDO:
+        print(f"Listo. {lec.n_filas} muestras procesadas (no se grabo el "
+              f"crudo).")
+    elif lec.parte == 1:
         print(f"Listo. {lec.n_filas} muestras guardadas en {salida}.")
     else:
         print(f"Listo. {lec.n_filas} muestras en {lec.parte} partes, de "
