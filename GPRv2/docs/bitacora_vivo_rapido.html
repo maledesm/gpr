@@ -271,7 +271,7 @@ footer{margin:72px 0 0;padding-top:22px;border-top:1px solid var(--rule);
   </div>
   <div class="hl">
     <p class="k">Verificación</p>
-    <div class="v">39</div>
+    <div class="v">46</div>
     <div class="s">comprobaciones,<br>todas pasan</div>
   </div>
   <div class="hl">
@@ -541,6 +541,21 @@ meta, c = proceso_rapido.leer_fft_captura(ruta)   # + los metadatos</code></pre>
   </div>
   <p class="where"><b>Dónde vive:</b> el formato, escritura y lectura juntas, en <code>proceso_rapido.escribir_fft_captura()</code> / <code>leer_fft_captura()</code> — ese módulo no importa ni <code>serial</code> ni widgets, así que un script de simulación lo puede usar sin arrastrar el programa en vivo. El armado de los datos, en <code>Vivo._guardar_fft()</code>. Entra a git con la PNG (<code>!GPRv2/datos/capturas/*.csv</code> en el <code>.gitignore</code>).</p>
 
+  <h3>Captura con temporizador</h3>
+  <p><em>Agregado el 2026-09-28.</em> El cuadro <code>esperar [s]</code>. En 0 la captura sale en el acto, como siempre; con 5, 10 o lo que se tipee, el botón (o la tecla <code>s</code>) arranca una cuenta regresiva y la foto sale al final. Es para apretar, caminar hasta el blanco, y que la figura salga con uno ya fuera del camino.</p>
+  <ul>
+    <li>Mientras corre, un <strong>cartel rojo grande sobre el radargrama</strong> dice <code>CAPTURA EN N s</code>, para poder leerlo desde donde uno esté parado. Va arriba, sobre las filas más viejas: no tapa lo que está entrando.</li>
+    <li><strong>Apretar de nuevo cancela.</strong> Es lo primero que uno intenta cuando se arrepiente, y sin eso habría que esperar la foto o cerrar el programa.</li>
+    <li>El cartel se apaga <strong>antes</strong> de guardar, así que no sale en el PNG.</li>
+    <li>El disparo cae dentro de los 200 ms del refresco. Medido: <strong>+16 ms</strong> sobre 2 s pedidos.</li>
+  </ul>
+
+  <div class="note warn">
+    <p class="t">Dos bugs que destapó el test, los dos del blitting</p>
+    <p><code>_sacar_fondos()</code> volvía a <strong>prender todos</strong> los artistas móviles después de fotografiar el fondo. Con el cartel de la cuenta —que vive escondido casi siempre— eso lo dejaba pegado en la pantalla después de cada recaptura, con el texto viejo, o como un recuadro rojo vacío si nunca había contado. Ahora recuerda cómo estaba cada uno y repone eso.</p>
+    <p>Y <code>guardar_captura()</code> no escondía el cartel por su cuenta: llamándola con la cuenta en pantalla, el cartel salía en el PNG (84.000 píxeles rojos en la prueba). Ahora lo esconde ella también, venga de donde venga.</p>
+  </div>
+
   <h3>Dos bugs arreglados</h3>
   <p><strong>El aviso que nunca se veía.</strong> <code>TextBox.set_val()</code> dispara el callback de <em>submit</em>, o sea vuelve a entrar a <code>_escribir()</code>, que pone <code>self.aviso = ""</code>. Por eso el mensaje de <code>medir fondo</code> no llegaba a la pantalla: <code>_medir_fondo()</code> lo escribe, llama a <code>_refrescar_cajas()</code> —que mueve piso y techo— y el aviso se borra antes de dibujarse. <code>_refrescar_cajas()</code> ahora lo guarda y lo repone. <code>vivo.py</code> todavía lo tiene.</p>
 
@@ -557,7 +572,7 @@ meta, c = proceso_rapido.leer_fft_captura(ruta)   # + los metadatos</code></pre>
     <p>Todo lo de arriba toca el camino de la medición. Sin una prueba de equivalencia, no vale.</p>
   </div>
 
-  <p><code>verificar_rapido.py</code> corre sin hardware. Arma un stream sintético —las mismas líneas de texto que emitiría la placa, con blancos de distancia conocida— y lo pasa por <strong>los dos programas enteros</strong>, no por funciones sueltas. Son <strong>39 comprobaciones</strong> y tardan un minuto.</p>
+  <p><code>verificar_rapido.py</code> corre sin hardware. Arma un stream sintético —las mismas líneas de texto que emitiría la placa, con blancos de distancia conocida— y lo pasa por <strong>los dos programas enteros</strong>, no por funciones sueltas. Son <strong>46 comprobaciones</strong> y tardan un minuto.</p>
 
   <pre><code>python analisis/verificar_rapido.py</code></pre>
 
@@ -659,7 +674,7 @@ meta, c = proceso_rapido.leer_fft_captura(ruta)   # + los metadatos</code></pre>
 
   <div class="note">
     <p class="t">Regla de trabajo</p>
-    <p>Cuando se toque cualquiera de los dos programas, correr <code>verificar_rapido.py</code> <strong>antes</strong> de llevarlo al banco. Es un minuto, son 39 comprobaciones y cubre todo el camino de la medición, incluido que la captura siga siendo reanalizable. Corre desde cualquier directorio.</p>
+    <p>Cuando se toque cualquiera de los dos programas, correr <code>verificar_rapido.py</code> <strong>antes</strong> de llevarlo al banco. Es un minuto, son 46 comprobaciones y cubre todo el camino de la medición, incluido que la captura siga siendo reanalizable. Corre desde cualquier directorio.</p>
   </div>
 </section>
 

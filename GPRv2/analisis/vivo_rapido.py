@@ -130,6 +130,13 @@ de guardar. No sobrescribe nunca: si el nombre ya existe sale <nombre>_2.png.
   figura se explica sola seis meses despues. Con RECORTE_CAPTURA = None se
   guarda la ventana entera.
 
+  CON TEMPORIZADOR: el cuadro `esperar [s]`. En 0 la captura sale en el acto,
+  como siempre; con 5, 10 o lo que se tipee, el boton arranca una cuenta
+  regresiva y la foto sale al final. Mientras corre, un cartel rojo grande
+  sobre el radargrama dice CAPTURA EN N s, para poder leerlo desde donde uno
+  este parado. Apretar el boton (o `s`) otra vez la cancela. El cartel se
+  apaga antes de guardar, asi que no sale en el PNG.
+
   JUNTO A CADA PNG VA UNA CSV CON LA FFT: datos/capturas/<nombre>.csv, mismo
   nombre, siempre en par (si existe cualquiera de los dos, los dos van a
   <nombre>_2). Es SOLO la curva que se esta viendo en ese momento, para poder
@@ -261,6 +268,11 @@ RAMPAS_POR_CUADRO = 512
 # imprimir grande; arriba de eso el archivo crece y no se gana nada.
 DPI_CAPTURA = 200
 NOMBRE_CAPTURA_DEF = "captura"
+# Cuenta regresiva del boton de captura, en segundos. 0 = sacar en el acto,
+# que es como venia. Sirve para apretar, ir hasta el blanco y que la foto
+# salga con uno ya fuera del camino.
+ESPERA_DEF = 0.0
+ESPERA_MAX = 300.0
 # Que parte de la figura entra en la captura:
 #   "paneles"  los cinco paneles con sus rotulos, sin la columna de controles.
 #              El rectangulo se mide sobre la figura ya dibujada, asi que si
@@ -658,6 +670,8 @@ class Vivo:
 
         self._cache = {}           # se vacia al principio de cada refresco
         self._ref_pantalla = 1.0   # que vale 0 dB en la pantalla (matriz())
+        self.espera = ESPERA_DEF   # cuenta regresiva del boton de captura
+        self.t_disparo = None      # momento (monotonic) en que sacar la foto
         # El CSV de datos de esta corrida (lo pone main()). Va en el
         # encabezado de la FFT de cada captura, para poder volver a la senal
         # cruda de la que salio la curva.
@@ -1178,6 +1192,18 @@ class Vivo:
         self.txt = self.ax.text(0.5, 0.5, "esperando muestras...",
                                 transform=self.ax.transAxes, ha="center",
                                 va="center", fontsize=13, color="0.3")
+        # Cuenta regresiva de la captura. Va sobre el radargrama, grande y en
+        # el medio, porque el punto es verla desde donde uno este parado: si
+        # apretas y caminas hasta el blanco, tenes que poder leerla de lejos.
+        # Se dibuja con los artistas moviles (esta en _moviles), asi que el
+        # blitting la refresca sin repintar la figura entera.
+        self.cuenta = self.ax.text(
+            0.5, 0.86, "", transform=self.ax.transAxes, ha="center",
+            va="center", fontsize=26, fontweight="bold", color="white",
+            visible=False, zorder=6,
+            bbox=dict(boxstyle="round,pad=0.45", facecolor="tab:red",
+                      edgecolor="none", alpha=0.85))
+
         # Traza del blanco: el pico de cada fila, para seguirlo mientras se
         # mueve. Va sobre el radargrama, que es donde esta la historia.
         (self.traza,) = self.ax.plot([], [], color="red", lw=1.2, alpha=0.9,
@@ -1215,7 +1241,7 @@ class Vivo:
         self._poner_eje_x()
         # Los artistas que se mueven se pintan a mano en cada refresco; el
         # resto vive en la foto del fondo. Ver _pintar().
-        self._moviles = ((self.ax, (self.im, self.traza)),
+        self._moviles = ((self.ax, (self.im, self.traza, self.cuenta)),
                          (self.axf, (self.linea, self.marca)),
                          (self.axi, (self.info,)),
                          (self.axt, (self.tri_pts,)),
@@ -1234,6 +1260,7 @@ class Vivo:
             ("ignorar",  "ignorar < [m]", lambda: f"{self.ignorar:g}"),
             ("margen",   "margen [dB]", lambda: f"{self.margen:g}"),
             ("dist_real", "dist. real [m]", lambda: f"{self.dist_real:g}"),
+            ("espera",   "esperar [s]", lambda: f"{self.espera:g}"),
         ]
         y = 0.935
         for nombre, etiqueta, leer in campos:
@@ -1253,7 +1280,7 @@ class Vivo:
 
         y -= 0.010
         self.botones = []
-        for etiqueta, fn in (("guardar captura PNG", self.guardar_captura),
+        for etiqueta, fn in (("guardar captura PNG", self.boton_captura),
                              ("eje: m <-> Hz", self._cambiar_eje),
                              ("medir fondo", self._medir_fondo),
                              ("fondo auto (MTI)", self._alternar_mti),
@@ -1298,6 +1325,8 @@ class Vivo:
             self.margen = v
         elif campo == "dist_real":
             self.dist_real = v
+        elif campo == "espera":
+            self.espera = float(np.clip(v, 0.0, ESPERA_MAX))
         self.aviso = ""
         self._cache.clear()
         self._refrescar_cajas()
@@ -1332,6 +1361,9 @@ class Vivo:
                                              VENTANA_MAX))
             if "alcance" in d:
                 self.alcance = max(float(d["alcance"]), 0.05)
+            if "espera" in d:
+                self.espera = float(np.clip(float(d["espera"]), 0.0,
+                                            ESPERA_MAX))
             for k in ("piso", "techo", "ignorar", "margen", "dist_real"):
                 if k in d:
                     setattr(self, k, float(d[k]))
@@ -1358,7 +1390,7 @@ class Vivo:
         d.update(n_rampas=self.n_rampas, ventana=self.ventana,
                  alcance=self.alcance, ignorar=self.ignorar,
                  dist_real=self.dist_real, en_metros=self.en_metros,
-                 nombre_captura=nombre)
+                 espera=self.espera, nombre_captura=nombre)
         if self.fondo is None:
             d.update(piso=self.piso, techo=self.techo, margen=self.margen)
         try:
@@ -1440,6 +1472,53 @@ class Vivo:
                           "panel coincida con el generador) antes que nada.")
         self._cache.clear()
         self._poner_eje_x()
+
+    def boton_captura(self, _=None):
+        """Lo que hace el boton (y la tecla `s`), segun el cuadro `esperar`.
+
+        - con `esperar` en 0, saca la foto en el acto, como venia;
+        - con `esperar` en N, arranca una cuenta regresiva de N segundos;
+        - si ya hay una cuenta en curso, la CANCELA. Apretar de nuevo es lo
+          primero que uno intenta cuando se arrepiente, y no tener como
+          cancelar obligaria a esperar la foto o a cerrar el programa.
+        """
+        if self.t_disparo is not None:
+            self.t_disparo = None
+            self.cuenta.set_visible(False)
+            self.aviso = "captura cancelada"
+            return
+        if self.espera <= 0:
+            self.guardar_captura()
+            return
+        self.t_disparo = time.monotonic() + self.espera
+        self.aviso = (f"captura en {self.espera:g} s "
+                      f"(apreta de nuevo para cancelar)")
+        print(f"  captura en {self.espera:g} s...")
+
+    def _atender_cuenta(self):
+        """Refresca el cartel y saca la foto cuando se cumple el tiempo.
+
+        Se llama al FINAL del refresco, con los artistas ya actualizados: la
+        foto tiene que salir con lo ultimo que se vio, no con lo del cuadro
+        anterior. La resolucion es la del timer (REFRESCO_MS), o sea que el
+        disparo cae dentro de los 200 ms de lo pedido; para una captura de
+        pantalla eso sobra.
+        """
+        if self.t_disparo is None:
+            return
+        faltan = self.t_disparo - time.monotonic()
+        if faltan > 0:
+            # Se redondea para ARRIBA: con 5,0 s pedidos el cartel muestra 5
+            # apenas se aprieta, y el 1 se ve durante el ultimo segundo
+            # entero. Redondeando para abajo arrancaria en 4 y parecerian
+            # cuatro segundos.
+            self.cuenta.set_text(f"CAPTURA EN {int(np.ceil(faltan))} s")
+            self.cuenta.set_visible(True)
+            return
+        # Se apaga ANTES de guardar: si no, el cartel rojo sale en el PNG.
+        self.t_disparo = None
+        self.cuenta.set_visible(False)
+        self.guardar_captura()
 
     def _recorte_captura(self):
         """El rectangulo que entra en la captura, en pulgadas. Ver
@@ -1543,6 +1622,12 @@ class Vivo:
             ocultos = ([c.ax for c, _ in self.cajas.values()]
                        + [self.caja_nombre.ax]
                        + [b.ax for b in self.botones] + [self.axe])
+        # El cartel de la cuenta regresiva se esconde SIEMPRE, sea cual sea el
+        # recorte: es del programa, no de la medicion, y no tiene que salir en
+        # la figura. `_atender_cuenta()` ya lo apaga antes de llamar aca, pero
+        # esto vale para cualquier otro camino.
+        if self.cuenta.get_visible():
+            ocultos = ocultos + [self.cuenta]
         for a in ocultos:
             a.set_visible(False)
         try:
@@ -1722,7 +1807,7 @@ class Vivo:
         elif ev.key == "f":
             self._alternar_mti()
         elif ev.key == "s":
-            self.guardar_captura()
+            self.boton_captura()
         elif ev.key == "a":
             db, _, _, _ = self.matriz()
             if db is not None:
@@ -1766,13 +1851,19 @@ class Vivo:
         self._recapturando = True
         try:
             moviles = [a for _, arts in self._moviles for a in arts]
+            # Se RECUERDA como estaba cada uno y se repone eso, en vez de
+            # prender todos: la cuenta regresiva vive escondida casi siempre,
+            # y encenderla aca dejaba el cartel rojo pegado en la pantalla
+            # despues de cada recaptura (con el texto viejo, o un recuadro
+            # vacio si nunca habia contado).
+            antes = [a.get_visible() for a in moviles]
             for a in moviles:
                 a.set_visible(False)
             self.fig.canvas.draw()
             self._fondos = {ax: self.fig.canvas.copy_from_bbox(ax.bbox)
                             for ax, _ in self._moviles}
-            for a in moviles:
-                a.set_visible(True)
+            for a, v in zip(moviles, antes):
+                a.set_visible(v)
         finally:
             self._recapturando = False
 
@@ -1885,6 +1976,7 @@ class Vivo:
             self._poner_info(ahora, db)
         self._poner_estado()
         if db is None:
+            self._atender_cuenta()
             self._pintar(con_info, con_tri)
             return
 
@@ -1926,6 +2018,7 @@ class Vivo:
         self.traza.set_data(xs, ys)
         if con_tri:
             self._dibujar_triangular()
+        self._atender_cuenta()
         self._pintar(con_info, con_tri)
 
     def traza_picos(self, db, span):

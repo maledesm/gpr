@@ -345,6 +345,30 @@ haría que la PC del banco y la otra se la pisen todo el tiempo y que
   Es lo que hace que la captura sirva seis meses despues.
 - `RECORTE_CAPTURA = None` guarda la ventana entera.
 
+**Con temporizador** (desde el 2026-09-28): el cuadro `esperar [s]`. En 0 la
+captura sale en el acto, como siempre; con 5, 10 o lo que se tipee, el botón
+(o la tecla `s`) arranca una cuenta regresiva y la foto sale al final. Es para
+apretar, caminar hasta el blanco y que la figura salga con uno ya fuera del
+camino.
+
+- Mientras corre, un **cartel rojo grande sobre el radargrama** dice
+  `CAPTURA EN N s`, para poder leerlo de lejos, y el texto de estado repite
+  cuánto falta. Va arriba del radargrama, o sea sobre las filas más VIEJAS:
+  no tapa lo que está entrando.
+- **Apretar de nuevo cancela.** Es lo primero que uno intenta cuando se
+  arrepiente.
+- El cartel se **apaga antes de guardar**, así que no sale en el PNG. Y
+  `guardar_captura()` lo esconde por su cuenta igual, para cualquier otro
+  camino.
+- El disparo se chequea en el refresco, así que cae dentro de los
+  `REFRESCO_MS` (200 ms) de lo pedido. Medido: +16 ms sobre 2 s pedidos.
+- La espera se guarda en `vivo_config.json` como los demás cuadros.
+
+> ⚠️ **`_sacar_fondos()` repone la visibilidad que cada artista tenía**, no la
+> prende. Prenderlos a todos (que era lo que hacía) dejaba el cartel rojo
+> pegado en la pantalla después de cada recaptura del fondo, con el texto
+> viejo — o un recuadro rojo vacío si todavía no había contado nunca.
+
 **Junto a cada PNG va una CSV con la FFT** (desde el 2026-09-22):
 `datos/capturas/<nombre>.csv`, mismo nombre, siempre en par — si existe
 cualquiera de los dos, los dos van a `<nombre>_2`. Sirve para sacar la curva y
@@ -526,7 +550,7 @@ identicos** a los de `vivo.py`, y que una captura escrita por el programa
 nuevo se **reanaliza** con la cadena vieja entera y con `waterfall.py` y
 `graficar_captura.py` sin tocarlos.
 
-Son 39 comprobaciones y tarda un minuto. Cuando se toque cualquiera de los
+Son 46 comprobaciones y tarda un minuto. Cuando se toque cualquiera de los
 dos, correr esto antes de llevarlo al banco.
 
 ## La triangular se vio recortada: era el divisor desconectado

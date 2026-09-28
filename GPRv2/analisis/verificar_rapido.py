@@ -867,6 +867,126 @@ def probar_partes(curva, texto, tmp, una_pieza, r_verdadero):
            f"(verdad {r_verdadero:.3f})")
 
 
+# --- 11. el temporizador de la captura -------------------------------------
+
+def probar_temporizador(curva, tmp):
+    """El cuadro `esperar [s]` + el boton: cuenta, dispara, se cancela, y el
+    cartel no se cuela en la figura."""
+    print("\n--- 11. captura con temporizador ---")
+    import glob
+    import shutil
+    import matplotlib.pyplot as plt
+    from PIL import Image
+
+    texto = generar_stream(curva, 100e-3, 0.021, [(1.5, 0.0)], 20.0, 0.02, 5)
+    lec = vr.Lector(None, Archivo(), Archivo())
+    v = vr.Vivo(lec, curva, vr.Calibracion())
+    v.armar_figura()
+    datos = texto.encode("ascii")
+    paso = max(1, len(datos) // 100)
+    est = {"i": 0, "resto": ""}
+
+    def tick():
+        est["resto"] = lec.procesar(
+            est["resto"] + datos[est["i"]:est["i"] + paso].decode("ascii", "ignore"))
+        est["i"] += paso
+        v.actualizar()
+
+    for _ in range(60):
+        tick()
+
+    salida = os.path.join(tmp, "capturas_timer")
+    guardado = vr.CAPTURAS
+    vr.CAPTURAS = salida
+    disparo = {}
+    original = v.guardar_captura
+
+    def espiar(*a, **k):
+        disparo["t"] = time.monotonic()
+        disparo["cartel"] = v.cuenta.get_visible()
+        original(*a, **k)
+    v.guardar_captura = espiar
+    try:
+        # con 0 sale en el acto, como siempre
+        v._escribir("espera", "0")
+        v.caja_nombre.set_val("sin_espera")
+        v.boton_captura()
+        juzgar("con espera 0 saca en el acto", "t" in disparo,
+               "el boton se comporta como antes de que existiera el timer")
+
+        # con N cuenta y dispara
+        disparo.clear()
+        v._escribir("espera", "2")
+        v.caja_nombre.set_val("con_espera")
+        t0 = time.monotonic()
+        v.boton_captura()
+        textos = set()
+        while v.t_disparo is not None and time.monotonic() - t0 < 8:
+            time.sleep(0.02)
+            tick()
+            if v.cuenta.get_visible():
+                textos.add(v.cuenta.get_text())
+        atraso = disparo.get("t", 0) - t0 - 2.0
+        juzgar("cuenta y dispara a tiempo", 0 <= atraso < 0.5,
+               f"pedidos 2,0 s -> disparo {atraso*1000:+.0f} ms; el cartel paso "
+               f"por {sorted(textos)}")
+        juzgar("el cartel se apaga ANTES de guardar",
+               disparo.get("cartel") is False and not v.cuenta.get_visible(),
+               "asi no sale en el PNG")
+        for _ in range(3):        # una recaptura del fondo no lo revive
+            tick()
+        juzgar("y no reaparece con la recaptura del fondo",
+               not v.cuenta.get_visible(),
+               "_sacar_fondos() repone la visibilidad que habia, no la prende")
+
+        # cancelar
+        v._escribir("espera", "30")
+        v.boton_captura()
+        tick()
+        contando = v.cuenta.get_visible()
+        antes = len(glob.glob(os.path.join(salida, "*.png")))
+        v.boton_captura()
+        for _ in range(5):
+            time.sleep(0.05)
+            tick()
+        juzgar("apretar de nuevo cancela",
+               contando and v.t_disparo is None and not v.cuenta.get_visible()
+               and len(glob.glob(os.path.join(salida, "*.png"))) == antes,
+               "no queda contando ni saca la foto")
+
+        # el cartel nunca entra en la figura, ni forzandolo
+        v._escribir("espera", "0")
+        v.cuenta.set_text("CAPTURA EN 9 s")
+        v.cuenta.set_visible(True)
+        v.caja_nombre.set_val("forzado")
+        original()
+        im = np.asarray(Image.open(os.path.join(salida, "forzado.png"))
+                        .convert("RGB"))
+        rojo = int(((im[:, :, 0] > 180) & (im[:, :, 1] < 90)
+                    & (im[:, :, 2] < 90)).sum())
+        juzgar("el cartel no entra en el PNG ni forzandolo", rojo < 20000,
+               f"{rojo} pixeles rojos (solo la traza del pico; el cartel serian "
+               f"~85000)")
+    finally:
+        vr.CAPTURAS = guardado
+        plt.close(v.fig)
+        shutil.rmtree(salida, ignore_errors=True)
+
+    # se acuerda entre corridas
+    cfg = os.path.join(tmp, "cfg_timer.json")
+    viejo_cfg = vr.CONFIG_JSON
+    vr.CONFIG_JSON = cfg
+    try:
+        v._escribir("espera", "12")
+        v.guardar_config()
+        v2 = vr.Vivo(lec, curva, vr.Calibracion())
+        v2.aplicar_config(vr.cargar_config(cfg))
+    finally:
+        vr.CONFIG_JSON = viejo_cfg
+    juzgar("la espera se acuerda entre corridas", v2.espera == 12.0,
+           f"guardado 12 s -> la corrida siguiente arranca en {v2.espera:g} s")
+
+
 # --- main ------------------------------------------------------------------
 
 def main():
@@ -893,6 +1013,7 @@ def main():
         probar_partes(curva, texto, tmp, archivos, r)
         probar_captura(curva, texto, tmp)
         probar_fft_captura(curva, tmp)
+        probar_temporizador(curva, tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
