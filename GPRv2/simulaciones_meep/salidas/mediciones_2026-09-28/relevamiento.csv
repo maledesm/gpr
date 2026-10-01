@@ -1,0 +1,11 @@
+archivo,d_real_m,fondo,f_medido_hz,f_simulado_hz,dif_hz,dif_cm,d_aparente_medida_m,d_aparente_simulada_m
+placa_70cm_cf.csv,0.700,sin medir,467.50,463.88,+3.62,+2.61,3.3727,3.3466
+placa_70cm_sf.csv,0.700,congelado,464.14,463.85,+0.29,+0.21,3.3484,3.3464
+placa_80cm_cf.csv,0.800,sin medir,479.68,478.39,+1.29,+0.93,3.4606,3.4512
+placa_80cm_sf.csv,0.800,congelado,481.47,478.32,+3.15,+2.27,3.4735,3.4508
+placa_90cm_cf.csv,0.900,sin medir,494.11,491.87,+2.24,+1.61,3.5647,3.5485
+placa_90cm_sf.csv,0.900,congelado,498.36,492.15,+6.20,+4.47,3.5953,3.5506
+placa_100cm_cf.csv,1.000,sin medir,509.69,505.40,+4.28,+3.09,3.6771,3.6462
+placa_100cm_sf.csv,1.000,congelado,511.10,507.71,+3.39,+2.44,3.6872,3.6628
+placa_120cm_cf.csv,1.200,sin medir,534.29,533.77,+0.52,+0.38,3.8546,3.8508
+placa_120cm_sf.csv,1.200,congelado,529.82,535.44,-5.62,-4.06,3.8223,3.8628

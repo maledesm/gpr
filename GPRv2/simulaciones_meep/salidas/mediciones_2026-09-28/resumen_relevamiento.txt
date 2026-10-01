@@ -1,0 +1,50 @@
+corrida         mediciones_2026-09-28   (2026-09-29 16:53)
+carpeta         simulaciones_meep\salidas\mediciones_2026-09-28
+que             todo   (barrido: 0.70 0.80 0.90 1.00 1.20 m)
+escala          a = 0.15 m/u.MEEP
+banda           0.90 a 2.05 GHz = 0.450 a 1.026 u.MEEP
+resolucion      20 celdas/u = 7.5 mm
+bocina (fuera)  guia 18 cm, boca 30.5 cm, largo 52.5 cm (recta 33.5 + flare 19.0), conectores a 5.9 (TX) y 5.4 (RX) cm del fondo
+bocina (dentro) guia 17.8 cm (corte 842 MHz), boca 30.3 cm, chapa 1 mm
+bocas           hueco 10.0 cm (centros a 40.5 cm)
+sonda           adaptada   (guia sin corto, al PML = carga de 50 ohm)
+placa           70.0 cm a 100 cm
+pared           a 126 cm, eps 5.0
+cables          medido, tau 9.708 ns
+tau interno     4.000 ns
+Tprf            el de analisis/ (2*T_SWEEP)
+d_offset        2.055 m
+placa + offset  3.055 m aparentes
+acopl. directo  2.257 m aparentes
+
+==============================================================================
+Relevamiento distancia -> frecuencia: banco contra simulacion
+==============================================================================
+  captura                 d real fondo        medido  simulado      dif     dif  sat%
+  ----------------------------------------------------------------------------
+  placa_70cm_cf.csv        0.70m sin medir    467.5Hz    463.9Hz    +3.6Hz   +2.6cm   4.8
+  placa_70cm_sf.csv        0.70m congelado    464.1Hz    463.8Hz    +0.3Hz   +0.2cm   4.4
+  placa_80cm_cf.csv        0.80m sin medir    479.7Hz    478.4Hz    +1.3Hz   +0.9cm   5.0
+  placa_80cm_sf.csv        0.80m congelado    481.5Hz    478.3Hz    +3.1Hz   +2.3cm   4.4
+  placa_90cm_cf.csv        0.90m sin medir    494.1Hz    491.9Hz    +2.2Hz   +1.6cm   5.1
+  placa_90cm_sf.csv        0.90m congelado    498.4Hz    492.2Hz    +6.2Hz   +4.5cm   4.6
+  placa_100cm_cf.csv       1.00m sin medir    509.7Hz    505.4Hz    +4.3Hz   +3.1cm   4.6
+  placa_100cm_sf.csv       1.00m congelado    511.1Hz    507.7Hz    +3.4Hz   +2.4cm   4.8
+  placa_120cm_cf.csv       1.20m sin medir    534.3Hz    533.8Hz    +0.5Hz   +0.4cm   4.6
+  placa_120cm_sf.csv       1.20m congelado    529.8Hz    535.4Hz    -5.6Hz   -4.1cm   4.7
+
+  Recta f = m*d + f0   (ideal: m = 4B/(c*Tprf) = 138.6 Hz/m)
+  medido, fondo sin medir (cf)       m =  135.7 +- 3.4 Hz/m (0.979 del ideal)  f0 =  372.2 Hz (2.685 m)  rms 1.0 Hz
+  simulado, escena completa          m =  139.1 +- 0.9 Hz/m (1.004 del ideal)  f0 =  366.7 Hz (2.645 m)  rms 0.3 Hz
+  medido, fondo congelado (sf)       m =  131.0 +- 11.6 Hz/m (0.945 del ideal)  f0 =  376.5 Hz (2.716 m)  rms 3.5 Hz
+  simulado, placa - vacio            m =  143.6 +- 1.4 Hz/m (1.036 del ideal)  f0 =  363.4 Hz (2.622 m)  rms 0.4 Hz
+
+  De donde sale el offset (simulado, promedio sobre las distancias):
+    cables RG-213 (VNA)               201.8 Hz = 1.456 m   (tau 9.71 ns, medido)
+    bocinas + electronica             165.3 Hz = 1.192 m   (no se separan: MEEP da 82 Hz de bocinas y el interno de 4 ns, 83 Hz, se ajusto encima)
+    total simulado                    367.1 Hz = 2.649 m
+    medido (f0 de la recta cf)        372.2 Hz = 2.685 m   -> bocinas + electronica medido 170 Hz = 1.229 m
+
+  pared a 1.26 m: en la escena vacia su eco cae en 540 Hz. Una placa a menos de ~14 cm (c/2BW) de la pared da un pico que no se separa del de la pared.
+
+  tabla -> C:\Users\mogic\Tesis\gpr\GPRv2\simulaciones_meep\salidas\mediciones_2026-09-28\relevamiento.csv
