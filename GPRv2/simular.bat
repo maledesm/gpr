@@ -49,7 +49,7 @@ rem Distancia del plano de apertura de las bocinas a la placa [m]
 set DIST_PLACA=1.00
 
 rem Distancias para el barrido [m], separadas por espacios
-set BARRIDO=0.75 1.00 1.25 1.50
+set BARRIDO=0.50 0.70 0.90
 
 rem Hueco entre las bocas de las dos bocinas, de borde a borde [m]
 rem (0 = bocas pegadas; los centros quedan a 30,5 cm + este hueco)
@@ -97,6 +97,14 @@ rem (eco en ~505 Hz). No esta medido directo: se mide con un barrel entre los
 rem cables de TX y RX, sin antenas. 0 = el radar sin electronica.
 set TAU_INTERNO_NS=4
 
+rem Pared del laboratorio: distancia de la boca de las antenas a la pared [m]
+rem (medido 2026-09-28: 126 cm). 0 = sin pared. Es un blanco mas del espectro
+rem y acota hasta donde se puede correr la placa.
+set MURO=1.26
+rem Permitividad de la pared (5 = hormigon/ladrillo; el eco sale 8 dB por
+rem debajo del de la placa metalica)
+set MURO_EPS=5
+
 rem Celdas por unidad MEEP (0,15 m). 20 = 7,5 mm. 30 es mas fino y tarda ~3x.
 set RESOLUCION=20
 
@@ -115,6 +123,8 @@ set "SIM=%~dp0simulaciones_meep"
 rem Las variables llegan a Python con el prefijo GPR_SIM_. Para que crucen a
 rem WSL hay que nombrarlas en WSLENV: si no, Linux no las ve.
 set "GPR_SIM_DIST_PLACA=%DIST_PLACA%"
+set "GPR_SIM_MURO_DIST=%MURO%"
+set "GPR_SIM_MURO_EPS=%MURO_EPS%"
 set "GPR_SIM_BARRIDO=%BARRIDO%"
 set "GPR_SIM_SEPARACION_BOCAS=%SEPARACION_BOCAS%"
 set "GPR_SIM_PLACA_ANCHO=%PLACA_ANCHO%"
@@ -134,7 +144,7 @@ set "GPR_SIM_QUE=%QUE%"
 set "GPR_SIM_NOMBRE=%NOMBRE%"
 rem Los scripts de Windows abren solos la figura que generan.
 set "GPR_SIM_ABRIR=1"
-set "VARS=GPR_SIM_DIST_PLACA:GPR_SIM_BARRIDO:GPR_SIM_SEPARACION_BOCAS:GPR_SIM_PLACA_ANCHO:GPR_SIM_CABLE:GPR_SIM_TAU_INTERNO_NS:GPR_SIM_RESOLUCION:GPR_SIM_TPRF_MS:GPR_SIM_SONDA:GPR_SIM_BOC_GUIA_ANCHO:GPR_SIM_BOC_BOCA:GPR_SIM_BOC_LARGO:GPR_SIM_BOC_GUIA_LARGO:GPR_SIM_BOC_CONECTOR_TX:GPR_SIM_BOC_CONECTOR_RX:GPR_SIM_BOC_CHAPA:GPR_SIM_QUE:GPR_SIM_NOMBRE"
+set "VARS=GPR_SIM_DIST_PLACA:GPR_SIM_MURO_DIST:GPR_SIM_MURO_EPS:GPR_SIM_BARRIDO:GPR_SIM_SEPARACION_BOCAS:GPR_SIM_PLACA_ANCHO:GPR_SIM_CABLE:GPR_SIM_TAU_INTERNO_NS:GPR_SIM_RESOLUCION:GPR_SIM_TPRF_MS:GPR_SIM_SONDA:GPR_SIM_BOC_GUIA_ANCHO:GPR_SIM_BOC_BOCA:GPR_SIM_BOC_LARGO:GPR_SIM_BOC_GUIA_LARGO:GPR_SIM_BOC_CONECTOR_TX:GPR_SIM_BOC_CONECTOR_RX:GPR_SIM_BOC_CHAPA:GPR_SIM_QUE:GPR_SIM_NOMBRE"
 if defined WSLENV (set "WSLENV=%WSLENV%:%VARS%") else (set "WSLENV=%VARS%")
 
 if /i not "%QUE%"=="placa" if /i not "%QUE%"=="barrido" if /i not "%QUE%"=="todo" (

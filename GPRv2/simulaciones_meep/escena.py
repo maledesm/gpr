@@ -192,6 +192,21 @@ def construir(con_placa, dist_placa=None, dist_celda=None):
     y_placa = lt + P.a_meep(dist_placa)
     y_fin   = lt + P.a_meep(dist_celda) + P.a_meep(P.PLACA_ESPESOR)
 
+    # La pared del laboratorio, si esta. Va en las DOS escenas (con placa y
+    # vacia): es parte de la sala, no del blanco, asi que al restar
+    # H_placa - H_vacio se cancela y queda solo la placa, igual que pasa con
+    # el acoplamiento directo.
+    hay_muro = P.MURO_DIST > 0
+    y_muro = lt + P.a_meep(P.MURO_DIST) if hay_muro else None
+    if hay_muro:
+        if dist_placa >= P.MURO_DIST - 0.05:
+            raise SystemExit(
+                f"la placa a {dist_placa:.2f} m queda contra la pared "
+                f"({P.MURO_DIST:.2f} m) o detras de ella. En el banco eso no "
+                f"se puede medir, y simularlo da una recta de calibracion "
+                f"falsa. Bajar la distancia (o MURO en simular.bat).")
+        y_fin = max(y_fin, y_muro)
+
     # Extension util antes de agregar margen y PML.
     #
     # La celda NO depende de con_placa: las dos escenas tienen que correr en
@@ -222,6 +237,17 @@ def construir(con_placa, dist_placa=None, dist_celda=None):
     # guia pasa por el MARGEN de aire que ya habia debajo de las bocinas.
     y_carga = -cell.y / 2.0 - 0.5 if P.SONDA == "adaptada" else None
     geom = bocina(x_tx, dy, y_carga) + bocina(x_rx, dy, y_carga)
+
+    if hay_muro:
+        # Arranca en MURO_DIST y termina pasado el borde de la celda, o sea
+        # cruzando el PML: refleja en la cara de adelante y lo que entra no
+        # vuelve. Ancho infinito: la pared es mas ancha que la celda.
+        techo = cell.y / 2.0 + 1.0
+        espesor = techo - (y_muro + dy)
+        geom.append(mp.Block(
+            size=mp.Vector3(mp.inf, espesor, mp.inf),
+            center=mp.Vector3(0.0, y_muro + dy + espesor / 2.0),
+            material=mp.Medium(epsilon=P.MURO_EPS)))
 
     if con_placa:
         geom.append(mp.Block(

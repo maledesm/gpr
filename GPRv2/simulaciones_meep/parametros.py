@@ -170,6 +170,24 @@ PLACA_ANCHO   = 0.70             # m, el lado que entra en el plano 2D
 PLACA_ESPESOR = 0.010            # m
 DIST_PLACA    = 1.000            # m, del plano de apertura a la cara de la placa
 
+# --- La pared del laboratorio ---------------------------------------------
+#
+# Medido el 2026-09-28: de la boca de las antenas a la pared hay ~126 cm. La
+# pared NO es un detalle: esta siempre en el espectro, es el blanco mas
+# lejano que entra, y acota hasta donde se puede correr la placa. Simularla
+# es lo que hace que el espectro simulado se parezca al de la pantalla.
+#
+# Se modela como un bloque dielectrico sin perdidas que arranca en MURO_DIST
+# y sigue hasta adentro del PML: asi refleja en su cara de adelante y lo que
+# entra no vuelve, que es lo que hace una pared gruesa de verdad. Sin
+# perdidas es el caso PEOR (el eco mas fuerte que puede dar).
+#
+# eps 5 es hormigon/ladrillo tipico (4 a 6, mampostería seca). Con eps 5 el
+# coeficiente de reflexion en incidencia normal es (1-sqrt(5))/(1+sqrt(5))
+# = -0,38, o sea -8,4 dB respecto de la placa metalica.
+MURO_DIST = 1.26                 # m, de la boca de las antenas. 0 = sin pared
+MURO_EPS  = 5.0                  # permitividad relativa
+
 # --- Retardos que NO estan en el FDTD -------------------------------------
 #
 # MEEP simula SOLO el aire: de la sonda de la bocina TX a la sonda de la RX.
@@ -230,7 +248,7 @@ T_CORRIDA = 200.0
 
 # --- Que se simula ---------------------------------------------------------
 MODO_CABLE = "medido"            # medido | ideal | ninguno (ver radar.py)
-BARRIDO    = [0.75, 1.00, 1.25, 1.50]   # m, distancias de `escena.py barrido`
+BARRIDO    = [0.50, 0.70, 0.90]   # m, distancias de `escena.py barrido`
 
 # Tprf del generador. 0 = el de `analisis/correccion_no_linealidad.py`
 # (2*T_SWEEP), que es donde vive; esto es solo para probar otro desde el
@@ -273,6 +291,8 @@ def _env(nombre, defecto, tipo=float):
 
 
 DIST_PLACA   = _env("DIST_PLACA", DIST_PLACA)
+MURO_DIST    = _env("MURO_DIST", MURO_DIST)
+MURO_EPS     = _env("MURO_EPS", MURO_EPS)
 SEPARACION_BOCAS = _env("SEPARACION_BOCAS", SEPARACION_BOCAS)
 
 # Las medidas de la bocina llegan del .bat EN CENTIMETROS, como el croquis.
@@ -432,6 +452,8 @@ def resumen():
         + ("(guia sin corto, al PML = carga de 50 ohm)" if SONDA == "adaptada"
            else "(con el corto, sin carga: cavidad cerrada)"),
         f"placa           {PLACA_ANCHO*100:.1f} cm a {DIST_PLACA*100:.0f} cm",
+        (f"pared           a {MURO_DIST*100:.0f} cm, eps {MURO_EPS:.1f}"
+         if MURO_DIST > 0 else "pared           sin pared"),
         f"cables          {MODO_CABLE}, tau {tau_cables()*1e9:.3f} ns",
         f"tau interno     {TAU_INTERNO*1e9:.3f} ns",
         f"Tprf            {tprf}",

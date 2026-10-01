@@ -81,6 +81,7 @@ sys.path.insert(0, AQUI)
 import parametros as P                                            # noqa: E402
 import radar as R                                                 # noqa: E402
 
+SOLO_PRINCIPAL = True    # rotular solo el eco de la placa en la figura
 RELLENO = 8                          # igual que vivo_rapido.py
 NS_POR_U = P.A_MEEP / P.C0 * 1e9     # ns por unidad de tiempo MEEP (0,5 ns)
 PISO_DB = -70.0
@@ -281,20 +282,30 @@ def figura_escena(dp):
 
 
 def figura_espectro(hz, placa, vacio, solo, picos, hz_por_m):
-    """espectro.png: la FFT en Hz, como vivo_rapido, y que es cada pico."""
+    """espectro.png: la FFT en Hz, igual que la pantalla de vivo_rapido.
+
+    Sin analisis encima: solo las curvas y el pico principal. Que es
+    cada pico esta en resumen_placa.txt y por consola.
+    """
     ref = placa.max()
     fig = plt.figure(figsize=(15, 7.4))
-    gs = fig.add_gridspec(1, 3, wspace=0.10, left=0.055, right=0.985,
+    gs = fig.add_gridspec(1, 1, left=0.055, right=0.985,
                           top=0.86, bottom=0.09)
 
-    ax = fig.add_subplot(gs[0, 0:2])
+    ax = fig.add_subplot(gs[0, 0])
     ax.plot(hz, db_ref(placa, ref), color="C0", lw=1.8,
             label="placa  (lo que mide el radar)")
     ax.plot(hz, db_ref(vacio, ref), color="C1", lw=1.2,
-            label="vacío  (sin placa: solo el acoplamiento)")
+            label=("vacío  (sin placa: acoplamiento" +
+                   (" + pared)" if P.MURO_DIST > 0 else ")")))
     ax.plot(hz, db_ref(solo, ref), color="C2", lw=1.0, ls="--",
             label="solo la placa  (placa − vacío)")
+    # Solo se rotula el pico principal (el eco de la placa). Los demas estan
+    # igual en el panel de la derecha y en resumen_placa.txt: marcarlos todos
+    # sobre la curva la tapaba.
     for letra, (d, nivel) in picos.items():
+        if SOLO_PRINCIPAL and letra != "B":
+            continue
         h = d * hz_por_m
         ax.annotate(f"{letra}\n{h:.0f} Hz", xy=(h, nivel),
                     xytext=(h, nivel + 5), ha="center", va="bottom",
@@ -315,36 +326,6 @@ def figura_espectro(hz, placa, vacio, solo, picos, hz_por_m):
     # Panel de texto, con los picos en el orden en que aparecen en el eje.
     # Los saltos se cuentan en PUNTOS y se pasan a fraccion del eje, asi el
     # texto no se superpone ni se sale aunque cambie la cantidad de picos o
-    # el tamaño de la figura.
-    axt = fig.add_subplot(gs[0, 2])
-    axt.axis("off")
-    alto_pt = axt.get_position().height * fig.get_figheight() * 72
-
-    def baja(pt):
-        return pt / alto_pt
-
-    y = 1.0
-    axt.text(0, y, "Qué es cada pico", fontsize=11, fontweight="bold",
-             va="top", transform=axt.transAxes)
-    y -= baja(19)
-    for letra in sorted(picos, key=lambda k: picos[k][0]):
-        d, nivel = picos[letra]
-        tit, cuerpo = EXPLICACION[letra]
-        axt.text(0, y, f"{letra}  {tit}", fontsize=8.6, fontweight="bold",
-                 va="top", transform=axt.transAxes)
-        axt.text(1.0, y, f"{d*hz_por_m:.0f} Hz  {nivel:+.0f} dB",
-                 fontsize=8.2, va="top", ha="right", family="monospace",
-                 transform=axt.transAxes)
-        y -= baja(12.5)
-        axt.text(0.05, y, cuerpo, fontsize=7.4, va="top", linespacing=1.25,
-                 transform=axt.transAxes)
-        y -= baja(7.4 * 1.25 * 1.2 * (cuerpo.count("\n") + 1) + 7)
-    axt.text(0, y, "Las tres curvas usan la misma referencia de dB.\n"
-                   "Simulación 2D: las POSICIONES valen, los niveles\n"
-                   "no se comparan directo con el banco.",
-             fontsize=7.3, va="top", style="italic", color="0.3",
-             transform=axt.transAxes)
-
     fig.suptitle(
         f"Espectro de batido — placa a {P.DIST_PLACA:.2f} m, MEEP 2D + cadena "
         f"de RF del banco\nrampa {R.T_SWEEP*1e3:g} ms (Tprf "
