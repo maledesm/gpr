@@ -11,10 +11,14 @@ Es la version de UN canal, que es el alcance de la tesis. El mixer IQ queda
 como ampliacion posible: el PCM1808 es estereo, asi que el camino para el
 segundo canal ya existe en el hardware.
 
-El ESP32-C3 va como un solo bloque alto a la izquierda para que se vea que
-atiende las DOS puntas de la cadena: genera la rampa por I2C y digitaliza el
-beat por I2S. Esa doble funcion es la que obliga al sincronismo entre el
-barrido y el reloj de muestreo.
+La rampa de sintonia la da un generador de triangular externo (hoy el Siglent
+SDG830; mas adelante la placa del generador analogico). El DAC MCP4725 con
+predistorsion que la generaba antes ya no se usa: la no linealidad del VCO se
+corrige en la PC, remuestreando en theta.
+
+El ESP32-C3 digitaliza el beat por I2S y ademas lee la triangular por GPIO3
+(divisor 4k7/4k7). Con esas lecturas la PC reconstruye el sincronismo por
+software: no hace falta ninguna senal de sync del generador.
 """
 
 import matplotlib
@@ -27,10 +31,10 @@ LW_LINEA = 1.6
 
 # nombre -> (x, y, ancho, alto, titulo, subtitulo)
 CAJAS = {
-    "esp":   (1.35, 3.30, 1.80, 4.30, "ESP32-C3", "I²C + I²S"),
-    "pc":    (1.35, 0.40, 1.80, 0.75, "PC", "Python"),
+    "esp":   (1.35, 3.30, 1.80, 4.30, "ESP32-C3", "I²S + ADC"),
+    "pc":    (1.35, 0.40, 1.80, 0.75, "PC", "sincronismo + FFT"),
 
-    "dac":   (4.15, 5.00, 1.70, 0.90, "MCP4725", "DAC 12 bit"),
+    "gen":   (4.15, 5.00, 1.70, 0.90, "Generador", "triangular"),
     "amp":   (6.30, 5.00, 1.30, 0.90, "AMP", "×5"),
     "vco":   (8.45, 5.00, 1.70, 0.90, "VCO", "1 – 2 GHz"),
     "att":   (10.55, 5.00, 1.30, 0.90, "−3 dB", ""),
@@ -92,8 +96,8 @@ for x, y, w, h, titulo, sub in CAJAS.values():
 ax.text(3.30, 5.68, "GENERACIÓN DEL BARRIDO  ·  TRANSMISIÓN", fontsize=10,
         fontweight="bold", ha="left")
 
-flecha(ax, (borde("esp", "der")[0], 5.00), borde("dac", "izq"), "I²C")
-flecha(ax, borde("dac", "der"), borde("amp", "izq"), "0 – 3 V")
+flecha(ax, borde("gen", "izq"), (borde("esp", "der")[0], 5.00), "GPIO3 (÷2)")
+flecha(ax, borde("gen", "der"), borde("amp", "izq"), "0 – 3 V")
 flecha(ax, borde("amp", "der"), borde("vco", "izq"))
 flecha(ax, borde("vco", "der"), borde("att", "izq"))   # la banda ya está en la caja
 flecha(ax, borde("att", "der"), borde("split", "izq"))
@@ -120,10 +124,9 @@ flecha(ax, borde("pcm", "izq"), (borde("esp", "der")[0], 1.55), "I²S")
 flecha(ax, borde("esp", "aba"), borde("pc", "arr"), "USB", dx=0.85, dy=-0.12)
 
 # --- Sincronismo -------------------------------------------------------------
-ax.add_patch(FancyArrowPatch((2.60, 4.60), (2.60, 1.95), arrowstyle="<->",
-                             mutation_scale=11, color="black", lw=1.2,
-                             linestyle=(0, (3, 2)), zorder=5))
-ax.text(2.78, 3.30, "sincronismo\nbarrido ↔ muestreo", fontsize=8,
+# No hay senal de sync: la PC ajusta periodo y fase a las lecturas de la
+# triangular que el ESP32-C3 manda junto con el beat.
+ax.text(2.33, 3.30, "sincronismo\npor software:\nla PC ajusta\nT y t0 a la\ntriangular", fontsize=8,
         va="center", ha="left", style="italic")
 
 ax.text(16.05, 0.03,

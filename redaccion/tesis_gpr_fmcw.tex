@@ -36,7 +36,7 @@
 \usepackage{caption}
 \usepackage{subcaption}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta, positioning, fit}
+\usetikzlibrary{arrows.meta, positioning, fit, calc, decorations.pathreplacing, babel}
 
 % Colores y código fuente
 \usepackage{xcolor}
@@ -582,9 +582,15 @@ Dos condiciones acotan la elección de $T_c$, una por arriba y otra por abajo:
     blanco cercano se pierde adentro del filtro y su fase queda distorsionada.
   \item \textbf{Barridos rápidos ($T_c$ chico).} Hace falta $f_s > 2f^*$
     (Nyquist). Con $T_c = 10\,\text{ms}$ y $f_s = 48\,\text{kHz}$ el alcance
-    máximo sin \textit{aliasing} es de $18\,\text{m}$, muy por encima de lo
-    útil: el límite efectivo lo impone la cantidad de escalones que alcanza a
-    escribir el DAC durante la rampa, no el muestreo.
+    máximo sin \textit{aliasing} es de $18\,\text{m}$. Pero la señal no sale
+    a $48\,\text{kHz}$: se diezma a $6000\,\text{sps}$, con banda limpia
+    hasta $2400\,\text{Hz}$ (Sección~\ref{sec:proc_diezmado}). A
+    $T_c = 10\,\text{ms}$ eso son apenas $1{,}7\,\text{m}$ aparentes, menos
+    que el offset de los propios cables (Capítulo~\ref{ch:cables}). Además,
+    el sincronismo por software, que se reconstruye leyendo la triangular,
+    no funciona por debajo de $T_c \approx 12\,\text{ms}$
+    (Sección~\ref{sec:proc_sincronismo}). Por eso el banco trabaja con
+    $T_c = 100\,\text{ms}$.
 \end{itemize}
 
 \subsection{Procedimiento experimental propuesto}
@@ -705,15 +711,26 @@ entrega el mezclador.
 \label{sec:diagrama_bloques}
 
 La Figura~\ref{fig:diagrama_bloques} resume la cadena completa, de un solo
-canal, que es el alcance de esta tesis. El microcontrolador ESP32-C3 cumple
-una doble función: genera la rampa de sintonía por I²C (hacia el DAC
-MCP4725) y, simultáneamente, digitaliza la señal de batido por I²S (desde el
-PCM1808). Esta doble función es la razón por la que hace falta sincronismo
-entre el barrido de frecuencia y el reloj de muestreo, todavía no
-implementado.\footnote{Sin ese sincronismo no es posible promediar
-coherentemente entre barridos sucesivos.}
+canal, que es el alcance de esta tesis.
 
-En la rama de transmisión, la rampa de tensión del DAC se amplifica, sintoniza
+La rampa de sintonía es una \textbf{triangular de $0$ a $3\,\text{V}$}
+generada fuera del microcontrolador: hoy, un generador de funciones de
+laboratorio (Siglent SDG830); más adelante, la placa del generador analógico
+del Capítulo~\ref{ch:triangular}. En una primera versión la rampa la
+generaba el propio ESP32-C3 con un DAC MCP4725 por I²C, con una tabla de
+predistorsión para linearizar el VCO (Secciones~\ref{sec:predistorsion_pchip}
+y~\ref{sec:rampa_dac}). Esa solución se abandonó. La no linealidad del VCO se
+corrige ahora en el procesamiento (Sección~\ref{sec:proc_theta}).
+
+El ESP32-C3 digitaliza la señal de batido por I²S, desde el PCM1808, y
+además lee la triangular por una entrada analógica (GPIO3, a través de un
+divisor $\div 2$). Con esas lecturas la PC reconstruye por software el
+sincronismo entre el barrido y el muestreo: el período y la fase de la
+triangular, y con ellos dónde empieza cada rampa
+(Sección~\ref{sec:proc_sincronismo}). No hace falta una señal de sincronismo
+del generador.
+
+En la rama de transmisión, la triangular se amplifica, sintoniza
 el VCO (banda $1$--$2\,\text{GHz}$), se atenúa $3\,\text{dB}$ y se divide en
 un splitter: una salida excita la antena transmisora y la otra actúa como
 oscilador local (LO) del mezclador. En la rama de recepción, el eco captado
@@ -837,7 +854,7 @@ muestra la curva resultante junto con la sensibilidad $dF/dV$.
   \caption{Curva de sintonía medida del VCO: frecuencia de salida en
   función de la tensión de control $V_\text{in}$ (antes del mapeo a la
   tensión real de sintonía $V_\text{osc}$, más alta, que entrega el
-  amplificador entre el DAC y el VCO). El rango sombreado indica los
+  amplificador que ataca al VCO). El rango sombreado indica los
   $0$--$3{,}00\,\text{V}$ que efectivamente se usan para generar la
   rampa del radar.}
   \label{fig:curva_vco}
@@ -848,10 +865,10 @@ frecuencia va de $943$ a $2042\,\text{MHz}$. La sensibilidad $dF/dV$
 no es constante: varía entre $167$ y $468\,\text{MHz/V}$ (relación
 $2{,}8$ a $1$ entre el extremo más y menos sensible), lo cual es la
 razón por la que una rampa de tensión lineal no produce una rampa de
-frecuencia lineal (se retoma la predistorsión en la
-Sección~\ref{sec:rampa_dac}).
+frecuencia lineal. Cómo se corrige se trata en la
+Sección~\ref{sec:vco_correccion_actual}.
 
-Para no exceder el rango seguro de operación del VCO ni del DAC, el
+Para no exceder el rango seguro de operación del VCO ni del amplificador, el
 rango de tensión que efectivamente se usa para generar la rampa del
 radar se acotó a $V_\text{in} \in [0{,}00,\ 3{,}00]\,\text{V}$, lo que
 corresponde a una banda de $943$ a $1982\,\text{MHz}$
@@ -866,11 +883,20 @@ La Tabla~\ref{tab:vco_completa} lista los 34 puntos medidos.
 
 Para el último punto del barrido ($V_\text{in} = 3{,}321\,\text{V}$) se
 midió una tensión de $16{,}490\,\text{V}$ a la entrada del VCO (tras el
-amplificador entre el DAC y el VCO), que se encuentra dentro del rango
+amplificador que ataca al VCO), que se encuentra dentro del rango
 de funcionamiento del dispositivo (hasta $20\,\text{V}$).
 
-\section{Predistorsión: linealización mediante interpolación PCHIP}
+\section{Primera solución: predistorsión con DAC (en desuso)}
 \label{sec:predistorsion_pchip}
+
+\textbf{Esta sección y la siguiente documentan una solución que ya no se
+usa.} En la primera versión del banco, el propio ESP32-C3 generaba la rampa
+de sintonía con un DAC MCP4725 por I²C, y la no linealidad del VCO se
+compensaba en esa rampa. El banco actual sintoniza el VCO con una triangular
+externa, lineal en tensión, y corrige la no linealidad en el procesamiento
+(Sección~\ref{sec:vco_correccion_actual}). Se conservan porque la inversión
+de la curva medida y su verificación siguen siendo válidas, y porque
+explican la elección de la solución actual.
 
 Como se señaló en la Sección~\ref{sec:curva_vco}, la sensibilidad
 $dF/dV$ del VCO no es constante. En un radar FMCW la frecuencia de
@@ -944,7 +970,7 @@ sensibilidad; ambos cálculos coinciden en lo cualitativo (la
 sensibilidad varía fuertemente y no es constante), pero difieren en
 el valor puntual según el método de derivación utilizado.
 
-\section{Rampa del DAC: señal triangular, con y sin predistorsión}
+\section{Rampa del DAC medida, con y sin predistorsión (en desuso)}
 \label{sec:rampa_dac}
 
 Se capturó con el osciloscopio la salida real del DAC MCP4725 (la
@@ -971,6 +997,62 @@ medidos según la captura) es consistente con lo que predice la tabla
 ($57\,\text{mV}$~rms), dentro del ruido de cuantización del
 osciloscopio.
 
+\section{Solución actual: corrección en el procesamiento}
+\label{sec:vco_correccion_actual}
+
+Hay dos formas de que el eco de un blanco puntual caiga en una única
+frecuencia de batido a pesar de la curva del VCO:
+\begin{enumerate}
+  \item \textbf{Linealizar el barrido} (predistorsión): deformar la rampa de
+    tensión para que la \emph{frecuencia} transmitida crezca linealmente con
+    el tiempo. Es lo que hacía el DAC de las secciones anteriores.
+  \item \textbf{Linealizar el muestreo} (remuestreo): dejar que el barrido
+    sea no lineal, con una rampa de tensión lineal, y tomar las muestras del
+    batido a intervalos iguales de \emph{frecuencia} en lugar de intervalos
+    iguales de tiempo. Se hace en la PC, interpolando la señal digitalizada
+    sobre la variable $\theta(t) = \bigl(f(t) - f(0)\bigr)/\alpha_0$.
+\end{enumerate}
+Las dos usan la misma curva medida de la Tabla~\ref{tab:vco_completa}, y en
+las dos el resultado es un tono puro de frecuencia
+$\alpha_0\tau$ (Sección~\ref{sec:proc_theta}). El banco actual usa la
+segunda. La Tabla~\ref{tab:vco_comparacion} resume por qué.
+
+\begin{table}[H]
+  \centering
+  \caption{Predistorsión de la rampa contra remuestreo de la señal.}
+  \label{tab:vco_comparacion}
+  \small
+  \begin{tabular}{>{\raggedright\arraybackslash}p{3.0cm}
+                  >{\raggedright\arraybackslash}p{5.4cm}
+                  >{\raggedright\arraybackslash}p{5.4cm}}
+    \toprule
+    & \textbf{Predistorsión (DAC)} & \textbf{Remuestreo en $\theta$ (actual)} \\
+    \midrule
+    Dónde se corrige & en el hardware, antes de transmitir
+      & en el software, después de digitalizar \\
+    Quién genera la rampa & el ESP32-C3, escalón por escalón por I²C
+      & cualquier generador de triangular \\
+    Resolución de la rampa & escalones de $0{,}8\,\text{mV}$
+      ($\sim 0{,}27\,\text{MHz}$) y tasa limitada por el bus
+      & continua, sin escalones \\
+    Carga del microcontrolador & genera la rampa y digitaliza
+      & sólo digitaliza (y lee la triangular) \\
+    Cambiar la curva del VCO & regenerar la tabla y reflashear
+      & cambiar el archivo de la curva en la PC \\
+    Supuesto principal & la tabla invertida es exacta
+      & la rampa de tensión es lineal y va de $0$ a $3\,\text{V}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+El supuesto del remuestreo es una rampa de tensión \emph{lineal} con el
+rango completo de $0$ a $3\,\text{V}$. Si la triangular se recorta o no
+llega a los extremos, el mapa $\theta$ ya no corresponde al barrido real y
+las distancias salen escaladas. Por eso el programa de adquisición vigila
+en todo momento la fracción de lecturas de la triangular que tocan los
+rieles del ADC. Ese chequeo detectó una vez una resistencia suelta del
+divisor de GPIO3.
+
 %============================================================
 \chapter{Generador de Triangular Analógico}
 \label{ch:triangular}
@@ -994,12 +1076,17 @@ sobre el circuito físico quedan pendientes
 El generador de funciones empleado hasta ahora (Siglent SDG830) impone dos
 limitaciones sobre el banco, y la segunda pesa tanto como la primera.
 
-La primera es que \textbf{no entrega una señal de sincronismo}. Sin una
-referencia que marque dónde empieza cada rampa, el ESP32-C3 no puede saber
-qué tramo de la señal digitalizada corresponde a un barrido completo, y sin
-eso no hay forma de promediar coherentemente entre barridos sucesivos ni de
-aplicar la corrección de no linealidad del VCO, que necesita conocer el
-origen temporal de cada rampa.
+La primera es que \textbf{no entrega una señal de sincronismo}: su salida
+de sincronismo no funciona en este banco. Sin una referencia que marque
+dónde empieza cada rampa no se sabe qué tramo de la señal digitalizada
+corresponde a cada barrido, y eso hace falta para cortar las rampas y para
+la corrección de no linealidad del VCO. Mientras tanto, el problema se
+resolvió por software: el ESP32-C3 lee la propia triangular por GPIO3 y la
+PC ajusta su período y su fase (Sección~\ref{sec:proc_sincronismo}). Ese
+camino funciona, pero depende de un ajuste estadístico sobre $\sim 19$
+lecturas por período y del ADC del microcontrolador, que tiene un offset
+alternante sin resolver. Una onda cuadrada de sincronismo da la misma
+información de forma directa, flanco por flanco.
 
 La segunda es que \textbf{ata el banco a la red eléctrica}. Un GPR que no
 puede salir del laboratorio no sirve para medir sobre un terreno. El
@@ -2499,6 +2586,8 @@ cable dañado.
     volver al banco. Solo ese cable explicaba $1{,}9\,\text{dB}$ de
     pérdida.
 \end{itemize}
+
+\input{procesamiento.tex}
 
 %============================================================
 %  APÉNDICES
