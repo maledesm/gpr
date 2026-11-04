@@ -1,0 +1,511 @@
+%============================================================
+%  PLAN DE TRABAJO PROFESIONAL DE INGENIERÍA ELECTRÓNICA
+%  Radar FMCW de 1 a 2 GHz (GPR) — Martín y Santiago
+%
+%  Esqueleto para escribir a mano. Cada sección tiene un
+%  \cartel{tipo de texto}{de qué tiene que tratar}: un recuadro rojo
+%  que se reemplaza por el texto. Los datos sueltos que faltan están
+%  marcados con \pendiente{...}. Antes de presentarlo: buscar
+%  "\cartel" y "\pendiente" y no tiene que quedar ninguno.
+%
+%  Compilar con compilar.bat (pdflatex + biber + pdflatex x2).
+%============================================================
+
+\documentclass[11pt, a4paper, oneside]{article}
+
+%------------------------------------------------------------
+% PAQUETES
+%------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish, es-tabla, es-noshorthands]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% Márgenes amplios y aire entre líneas
+\usepackage[
+  top=3.0cm, bottom=3.0cm,
+  left=3.0cm, right=2.5cm,
+  headheight=14pt, headsep=1.0cm, footskip=1.4cm
+]{geometry}
+\linespread{1.2}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.7em}
+
+\usepackage{amsmath}
+\usepackage[table]{xcolor}
+\usepackage{graphicx}
+\usepackage{adjustbox}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{caption}
+\captionsetup{font=small, labelfont=bf, margin=0.5cm}
+\usepackage{enumitem}
+\setlist{itemsep=0.35em, topsep=0.4em, parsep=0pt}
+\setlist[itemize]{leftmargin=1.6em}
+\setlist[enumerate]{leftmargin=1.8em}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc, babel}
+
+% Celeste institucional de FIUBA
+\definecolor{fiuba}{RGB}{0,162,227}
+
+% Títulos de sección: número con punto, en celeste, con aire
+\usepackage{titlesec}
+\titleformat{\section}{\Large\bfseries}{\textcolor{fiuba}{\thesection.}}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries}{\textcolor{fiuba}{\thesubsection.}}{0.6em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection.}{0.6em}{}
+\titlespacing*{\section}{0pt}{2.4em}{1.0em}
+\titlespacing*{\subsection}{0pt}{1.8em}{0.6em}
+\titlespacing*{\subsubsection}{0pt}{1.4em}{0.4em}
+
+% Encabezado con el nombre de la sección y pie con el número de página
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{black!60}{Plan de Trabajo Profesional}}
+\fancyhead[R]{\small\nouppercase{\seccionactual}}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\sectionmark}[1]{\markboth{\thesection.\ #1}{}}
+% La sección vigente al principio de la página; si no hay ninguna
+% (la primera), la que arranca en ella
+\makeatletter
+\newcommand{\seccionactual}{%
+  \protected@edef\@seccionarriba{\TopMark{2e-left}}%
+  \ifx\@seccionarriba\@empty\FirstMark{2e-left}\else\@seccionarriba\fi}
+\makeatother
+
+% Carátula: solo la línea del pie con el tipo de documento
+\fancypagestyle{caratula}{%
+  \fancyhf{}%
+  \renewcommand{\headrulewidth}{0pt}%
+  \renewcommand{\footrulewidth}{0.4pt}%
+  \fancyfoot[L]{\small Plan de Trabajo Profesional de Ingeniería Electrónica}%
+}
+
+\usepackage[
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=fiuba!70!black,
+  urlcolor=fiuba!70!black
+]{hyperref}
+
+\usepackage{csquotes}
+\usepackage[backend=biber, style=ieee, sorting=none]{biblatex}
+\addbibresource{referencias_plan.bib}
+\AtBeginBibliography{\small\linespread{1.1}\selectfont\setlength{\parskip}{0pt}}
+\setlength{\bibitemsep}{0.45em}
+
+%------------------------------------------------------------
+% COMANDOS PROPIOS
+%------------------------------------------------------------
+% Lo que falta completar: en rojo, para que no se escape
+\newcommand{\pendiente}[1]{\textcolor{red!75!black}{[#1]}}
+% Recuadro rojo con el tipo de texto que va en ese lugar y de qué trata
+\usepackage[most]{tcolorbox}
+\newtcolorbox{cartelbox}[1]{
+  enhanced, breakable,
+  colback=red!3, colframe=red!65!black, colbacktitle=red!65!black,
+  coltitle=white, fonttitle=\small\bfseries,
+  title={A completar: #1},
+  fontupper=\small\color{red!40!black},
+  boxrule=0.6pt, arc=2pt,
+  left=8pt, right=8pt, top=5pt, bottom=6pt,
+  before skip=0.5em, after skip=0.9em
+}
+\newcommand{\cartel}[2]{\begin{cartelbox}{#1}#2\end{cartelbox}}
+% Sigla con su significado al pie, la primera vez que aparece
+\newcommand{\sigla}[2]{#1\footnote{#2.}}
+
+%------------------------------------------------------------
+% DATOS DEL TRABAJO
+%------------------------------------------------------------
+\newcommand{\Titulo}{Desarrollo y caracterización de un radar FMCW
+de 1 a 2~GHz para la detección de objetos ocultos}
+
+%============================================================
+\begin{document}
+
+%============================================================
+%  CARÁTULA
+%============================================================
+\begin{titlepage}
+  \thispagestyle{caratula}
+  \centering
+  \vspace*{-0.5cm}
+
+  \adjincludegraphics[width=0.62\textwidth, trim={{.105\width} {.33\height} {.10\width} {.34\height}}, clip]{figuras/logo_fiuba.png}
+
+  \vspace{0.9cm}
+  {\large\textsc{Universidad de Buenos Aires}}\\[0.15cm]
+  {\large\textsc{Facultad de Ingeniería}}\\[0.15cm]
+  {\small Año 2026}
+
+  \vspace{1.6cm}
+  {\large\bfseries PLAN DE TRABAJO PROFESIONAL DE INGENIERÍA ELECTRÓNICA}
+
+  \vspace{2.2cm}
+  {\Large\linespread{1.35}\selectfont \MakeUppercase{\Titulo}\par}
+
+  \vfill
+
+  {\small\bfseries INTEGRANTES:}\\[0.35cm]
+  \pendiente{Apellido}, Martín\\
+  Padrón: \pendiente{padrón}\\
+  \href{mailto:maledesma@fi.uba.ar}{maledesma@fi.uba.ar}\\[0.45cm]
+  Mogica, Santiago\\
+  Padrón: \pendiente{padrón}\\
+  \pendiente{mail @fi.uba.ar}
+
+  \vspace{0.9cm}
+  {\small\bfseries DIRECTOR:}\\[0.35cm]
+  Dr. Ing. Fano, Walter Gustavo\\
+  \pendiente{mail}
+
+  % Si hay codirector, descomentar:
+  % \vspace{0.9cm}
+  % {\small\bfseries CODIRECTOR:}\\[0.35cm]
+  % Apellido, Nombre\\
+  % mail
+
+  \vspace{1.2cm}
+\end{titlepage}
+
+%============================================================
+%  ÍNDICE
+%============================================================
+\setcounter{page}{2}
+{\setlength{\parskip}{0.25em}\tableofcontents}
+\markboth{}{}
+\clearpage
+
+%============================================================
+\section{Objeto y área del Trabajo Profesional}
+%============================================================
+
+\cartel{Presentación del trabajo}{Un párrafo: qué se va a hacer, sobre
+qué sistema y con qué fin. Mencionar que se parte de un prototipo
+recibido en estado parcial. Las siglas se definen al pie la primera vez
+que aparecen (FMCW, GPR, VCO\ldots).}
+
+\subsection{Objetivo general}
+
+\cartel{Objetivo general}{Una o dos oraciones. Mantenerlo general: la
+aplicación final (suelo, paredes u otra) se define con los ensayos.}
+
+\subsection{Objetivos particulares}
+
+\cartel{Objetivos particulares}{Lista en viñetas, de 5 a 8 ítems, cada
+uno verificable. Por ejemplo, uno por subsistema (barrido, cadena de RF,
+digitalización, software, simulación, integración) y uno de evaluación
+experimental.}
+
+\subsection{Área del Trabajo Profesional}
+
+\cartel{Áreas profesionales}{Nombrar las áreas de la carrera
+involucradas (por ejemplo telecomunicaciones, sistemas embebidos,
+procesamiento de señales) y aclarar que están dentro de los alcances
+del título de Ingeniero Electrónico.}
+
+%============================================================
+\section{Introducción y antecedentes}
+%============================================================
+
+\subsection{Motivación}
+
+\cartel{Motivación}{Breve, uno o dos párrafos: para qué sirve un GPR,
+por qué conviene uno de bajo costo y por qué la arquitectura FMCW lo
+hace viable. Con citas.}
+
+\subsection{Antecedentes}
+
+\subsubsection{Contexto del proyecto}
+
+\cartel{Contexto institucional y trabajo previo}{Quién empezó el
+prototipo y en qué laboratorio o grupo, qué componentes se heredaron y
+en qué estado se recibió (sin digitalización, barrido con generador de
+laboratorio, sin estimación de distancia).}
+
+\subsubsection{Marco normativo}
+
+\cartel{Normas aplicables}{Normas sobre radares de penetración
+terrestre y de pared, uso del espectro en la Argentina y exposición
+humana a radiofrecuencia. Aclarar que no se busca certificar el equipo
+y que las normas se usan para definir condiciones seguras de ensayo.}
+
+%============================================================
+\section{Desarrollo previsto del Trabajo Profesional}
+%============================================================
+
+\subsection{Teoría, enfoque y métodos a utilizar}
+
+\subsubsection{Principio de funcionamiento}
+
+\cartel{Introducción teórica}{Principio del radar FMCW en uno o dos
+párrafos: barrido lineal, retardo del eco y frecuencia de batido.
+Incluir la ecuación de la frecuencia de batido y la de la resolución en
+distancia, con los valores del sistema (ancho de banda de 1~GHz).}
+
+\subsubsection{Enfoque}
+
+\cartel{Enfoque y metodología}{Cómo se va a encarar el desarrollo (por
+subsistemas, con integración incremental). Dejar claro qué se hereda,
+qué son módulos comerciales y qué es desarrollo propio. Referenciar la
+Figura~\ref{fig:bloques}.}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[
+      font=\footnotesize,
+      >={Stealth[length=2mm]},
+      line width=0.6pt,
+      blk/.style={draw, rounded corners=2pt, minimum width=1.6cm,
+                  minimum height=1.05cm, inner xsep=2pt, align=center,
+                  line width=0.6pt},
+      her/.style={blk, draw=black!45, fill=black!8},
+      pro/.style={blk, draw=fiuba, fill=fiuba!12},
+      sub/.style={font=\scriptsize, text=black!70},
+      lab/.style={font=\scriptsize, midway, above, inner sep=1.5pt}
+    ]
+    \def\dx{2.3}
+    \def\yb{-2.3}
+    % Transmisión
+    \node[pro] (gen) at (0,0)      {Generador\\[-2pt]{\scriptsize triangular}};
+    \node[her] (amp) at (\dx,0)    {AMP\\[-2pt]{\scriptsize $\times 5$}};
+    \node[her] (vco) at (2*\dx,0)  {VCO\\[-2pt]{\scriptsize 1--2 GHz}};
+    \node[her] (att) at (3*\dx,0)  {Atenuador\\[-2pt]{\scriptsize $-3$ dB}};
+    \node[her] (spl) at (4*\dx,0)  {Divisor de\\[-2pt]potencia};
+    \node[her] (tx)  at (5*\dx,0)  {Antena\\[-2pt]TX};
+    % Recepción
+    \node[pro] (esp) at (0,\yb)     {ESP32-C3\\[-2pt]{\scriptsize firmware}};
+    \node[pro] (pcm) at (\dx,\yb)   {PCM1808\\[-2pt]{\scriptsize ADC 24 bit}};
+    \node[her] (lpf) at (2*\dx,\yb) {Filtro\\[-2pt]{\scriptsize pasabajos}};
+    \node[her] (mix) at (3*\dx,\yb) {Mezclador};
+    \node[her] (lna) at (4*\dx,\yb) {LNA};
+    \node[her] (rx)  at (5*\dx,\yb) {Antena\\[-2pt]RX};
+    % Medio y PC
+    \node[blk, dashed, draw=black!60, minimum width=1.4cm] (med) at (5*\dx+1.95,\yb/2) {Medio\\[-2pt]{\scriptsize bajo estudio}};
+    \node[pro] (pc) at (0,\yb-1.6) {PC\\[-2pt]{\scriptsize procesamiento}};
+    % Conexiones de transmisión
+    \draw[->] (gen) -- (amp);
+    \draw[->] (amp) -- (vco);
+    \draw[->] (vco) -- (att);
+    \draw[->] (att) -- (spl);
+    \draw[->] (spl) -- (tx);
+    \draw[->, dashed] (tx.east) -| (med.north);
+    \draw[->, dashed] (med.south) |- (rx.east);
+    % Conexiones de recepción
+    \draw[->] (rx) -- (lna);
+    \draw[->] (lna) -- node[lab]{RF} (mix);
+    \draw[->] (spl.south) -- ++(0,-0.62) -| node[pos=0.25, above, font=\scriptsize]{LO} (mix.north);
+    \draw[->] (mix) -- node[lab]{$f_b$} (lpf);
+    \draw[->] (lpf) -- (pcm);
+    \draw[->] (pcm) -- node[lab]{I$^2$S} (esp);
+    \draw[->] (gen) -- node[midway, left, font=\scriptsize]{sync} (esp);
+    \draw[->] (esp) -- node[midway, right, font=\scriptsize]{USB} (pc);
+    % Leyenda
+    \node[her, minimum width=0.55cm, minimum height=0.35cm] (lh) at (2.6,\yb-1.6) {};
+    \node[right=0.15cm of lh, font=\footnotesize] {Heredado del prototipo previo};
+    \node[pro, minimum width=0.55cm, minimum height=0.35cm] (lp) at (8.4,\yb-1.6) {};
+    \node[right=0.15cm of lp, font=\footnotesize, align=left] {Desarrollo propio\\[-2pt]{\scriptsize (incluye módulos comerciales integrados)}};
+  \end{tikzpicture}
+  \caption{Diagrama de bloques del radar. En gris, los componentes
+  recibidos del prototipo previo; en celeste, los desarrollados o
+  integrados en este trabajo.}
+  \label{fig:bloques}
+\end{figure}
+
+\cartel{Revisar el diagrama}{Confirmar los bloques y qué es heredado
+(gris) y qué es propio (celeste).}
+
+\subsubsection{Generación del barrido}
+
+\cartel{Hardware diseñado: generador del barrido}{Qué hace el bloque,
+cómo se implementa (generador de triangular analógico) y qué problema
+resuelve (alinealidad del VCO). Cerrar con las tareas previstas en
+viñetas.}
+
+\subsubsection{Cadena de radiofrecuencia y antenas}
+
+\cartel{Hardware heredado: cadena de RF y antenas}{Descripción breve de
+la cadena recibida y aclaración de que no se rediseña. Tareas previstas
+en viñetas: caracterización de cables con VNA, potencias, filtro y,
+si corresponde, antenas.}
+
+\subsubsection{Recepción y digitalización}
+
+\cartel{Hardware y firmware diseñados: digitalización}{ADC y
+microcontrolador elegidos, cómo se conectan y cómo llegan los datos a
+la PC. Tareas previstas en viñetas.}
+
+\subsubsection{Software desarrollado}
+
+\cartel{Software diseñado}{Qué hace el software propio: adquisición,
+corrección de la alinealidad, estimación de distancia, calibración y
+visualización en tiempo real. Tareas previstas en viñetas.}
+
+\subsubsection{Herramientas utilizadas}
+
+\cartel{Software y herramientas utilizados}{Herramientas de terceros y
+para qué se usa cada una: por ejemplo Python, LTspice, KiCad, MEEP, CST
+y el entorno del microcontrolador, además del instrumental de
+laboratorio (osciloscopio, analizador de espectro, VNA).}
+
+\subsubsection{Simulación electromagnética}
+
+\cartel{Simulación electromagnética}{Qué se simula (escenarios de
+ensayo, antenas, blancos), con qué método y herramienta, y para qué se
+usa (contrastar con las mediciones).}
+
+\subsubsection{Verificación}
+
+\cartel{Criterio de verificación}{Verificación progresiva: subsistema,
+integración y sistema completo. Cada resultado se contrasta por tres
+vías: cálculo analítico, simulación y medición. Ensayos de laboratorio
+y de campo.}
+
+\subsection{Estudios conexos}
+
+\cartel{Estudios conexos}{Materias de la carrera relacionadas con el
+trabajo, agrupadas, con una línea sobre qué aporta cada grupo.
+Opcional: formación extra (cursos, trabajo).}
+
+\subsection{Alcance proyectado para el Trabajo Profesional}
+
+\cartel{Resultados esperados}{Una oración de introducción (el alcance es
+general y la aplicación se define con los ensayos) y la lista de
+resultados concretos en viñetas, con el nombre de cada resultado en
+negrita.}
+
+\cartel{Aplicación a evaluar}{Orden de prioridad: 1) detección de
+objetos enterrados; 2) a través de paredes; 3) otro uso, por ejemplo
+SAR. Cada alternativa se aborda solo si la anterior no resulta viable.
+Indicar en qué revisión se decide.}
+
+\cartel{Qué no incluye}{Un párrafo con lo que queda fuera: rediseño de
+los componentes heredados, algoritmos avanzados de imagen, una campaña
+exhaustiva de suelos y la certificación del equipo.}
+
+\subsection{Plan de trabajo}
+\label{sec:plan}
+
+\cartel{Presentación del plan}{Duración (43 semanas, unos 10 meses,
+desde el 3 de agosto de 2026), esfuerzo total del equipo (unas
+1200~h), revisiones formales al cierre de cada etapa y redacción
+continua desde el principio. Referenciar las
+Tablas~\ref{tab:gantt} y~\ref{tab:etapas}.}
+
+\cartel{Revisar las tablas}{Las etapas, las semanas, las horas y las
+revisiones de las dos tablas son una propuesta inicial.}
+
+\newcommand{\hc}[1][]{\cellcolor{fiuba}\textcolor{white}{\scriptsize\bfseries #1}}
+\newcommand{\pc}[1][]{\cellcolor{fiuba!25}{\scriptsize\bfseries #1}}
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \setlength{\tabcolsep}{0pt}
+  \renewcommand{\arraystretch}{1.5}
+  \newcolumntype{M}{>{\centering\arraybackslash}p{0.95cm}}
+  \begin{tabular}{@{} >{\raggedright\arraybackslash}p{5.0cm} | M M M M M | M M M M M @{}}
+    & \multicolumn{5}{c|}{\textbf{2026}} & \multicolumn{5}{c}{\textbf{2027}} \\
+    \textbf{Etapa} & Ago & Sep & Oct & Nov & Dic & Ene & Feb & Mar & Abr & May \\
+    \midrule
+    E1 -- Banco de adquisición    & \hc[R1] & & & & & & & & & \\
+    E2 -- Cadena heredada         & \hc & \hc[R2] & & & & & & & & \\
+    E3 -- Mediciones y simulación & & \hc & \hc[R3] & & & & & & & \\
+    E4 -- Generador del barrido   & & \hc & \hc & \pc[R4] & & & & & & \\
+    E5 -- Integración             & & & & \pc & \pc[R5] & & & & & \\
+    E6 -- Ensayos en suelo        & & & & & \pc & \pc & \pc[R6] & & & \\
+    E7 -- Aplicación elegida      & & & & & & & \pc & \pc & \pc[R7] & \\
+    E8 -- Documentación final     & & & & & & & & & \pc & \pc[R8] \\
+    \midrule
+    Redacción del informe         & \hc & \hc & \hc & \pc & \pc & \pc & \pc & \pc & \pc & \pc \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.6em}
+  {\footnotesize
+   \tikz\fill[fiuba] (0,0) rectangle (0.35,0.22); \ cumplido
+   \qquad
+   \tikz\fill[fiuba!25] (0,0) rectangle (0.35,0.22); \ previsto
+   \qquad
+   R$n$: revisión de cierre de la etapa}
+  \caption{Cronograma mensual de las etapas.}
+  \label{tab:gantt}
+\end{table}
+
+\cartel{Descripción de las etapas}{Lista numerada de E1 a E8, con dos o
+tres líneas por etapa: qué se hace y con qué revisión cierra.}
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \renewcommand{\arraystretch}{1.35}
+  \begin{tabularx}{\textwidth}{@{} l c X c r @{}}
+    \toprule
+    \textbf{Etapa} & \textbf{Semanas} & \textbf{Revisión de cierre}
+      & \textbf{Estado} & \textbf{Esfuerzo} \\
+    \midrule
+    E1 -- Banco de adquisición        & 1--4   & R1: banco validado                   & Cumplida & 120 h \\
+    E2 -- Cadena heredada             & 3--7   & R2: cadena caracterizada             & Cumplida & 150 h \\
+    E3 -- Mediciones y simulación     & 5--10  & R3: distancia contra simulación      & Cumplida & 160 h \\
+    E4 -- Generador del barrido       & 8--17  & R4: generador verificado             & En curso & 110 h \\
+    E5 -- Integración                 & 14--22 & R5: prototipo integrado              & Prevista & 160 h \\
+    E6 -- Ensayos en suelo            & 21--28 & R6: definición de la aplicación      & Prevista & 170 h \\
+    E7 -- Aplicación elegida          & 29--37 & R7: resultados experimentales        & Prevista & 180 h \\
+    E8 -- Documentación final         & 36--43 & R8: entrega del informe              & Prevista & 150 h \\
+    \midrule
+    \textbf{Total} & \textbf{43} & & & \textbf{1200 h} \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Etapas, revisiones y esfuerzo estimado del equipo. La
+  semana 1 comienza el 3 de agosto de 2026.}
+  \label{tab:etapas}
+\end{table}
+
+%============================================================
+\section{Referencias}
+%============================================================
+
+\cartel{Referencias}{Se listan solas las entradas de
+\texttt{referencias\_plan.bib} citadas en el texto con
+\texttt{\textbackslash cite}. El archivo ya trae algunas sugeridas;
+borrar las que no se usen.}
+
+\printbibliography[heading=none]
+
+%============================================================
+%  FIRMAS
+%============================================================
+\clearpage
+\thispagestyle{empty}
+\vspace*{\fill}
+
+\begin{flushright}
+  Buenos Aires, \pendiente{fecha de presentación}
+\end{flushright}
+
+\vspace{3.5cm}
+
+\begin{center}
+  \begin{tabular}{@{} c @{\hspace{2.5cm}} c @{}}
+    \rule{6cm}{0.4pt} & \rule{6cm}{0.4pt} \\[0.2cm]
+    \pendiente{Apellido}, Martín & Mogica, Santiago \\
+    \small Integrante & \small Integrante \\
+  \end{tabular}
+
+  \vspace{3.5cm}
+
+  \begin{tabular}{@{} c @{}}
+    \rule{6cm}{0.4pt} \\[0.2cm]
+    Fano, Walter Gustavo \\
+    \small Director \\
+  \end{tabular}
+\end{center}
+
+\vspace*{\fill}
+
+\end{document}
