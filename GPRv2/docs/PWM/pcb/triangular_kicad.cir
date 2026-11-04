@@ -45,6 +45,6 @@ Rpote pote inv {max(Rpot*pos,1m)}
 .meas tran salmax MAX V(salida) FROM 0.9 TO 1.5
 .meas tran symin MIN V(sync) FROM 0.9 TO 1.5
 .meas tran symax MAX V(sync) FROM 0.9 TO 1.5
-.lib ../../TLC2272.lib
-.lib ../../zener_1N472xA.lib
+.lib ../simulacion/TLC2272.lib
+.lib ../simulacion/zener_1N472xA.lib
 .end

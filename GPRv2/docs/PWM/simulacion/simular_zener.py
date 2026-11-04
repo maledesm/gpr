@@ -2,7 +2,7 @@
 GPRv2 - Corridas del zener de proteccion del VCO (D1)
 =====================================================
 
-Arma variantes del netlist de la placa (pcb/triangular/triangular_kicad.cir,
+Arma variantes del netlist de la placa (../pcb/triangular_kicad.cir,
 que genera simular_kicad.py desde el esquematico de KiCad) y las corre en
 LTspice. Todo sale a zener/.
 
@@ -34,7 +34,7 @@ import subprocess
 import sys
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
-BASE = os.path.join(AQUI, "pcb", "triangular", "triangular_kicad.cir")
+BASE = os.path.join(AQUI, "..", "pcb", "triangular_kicad.cir")
 DEST = os.path.join(AQUI, "zener")
 LTSPICE = r"C:\Program Files\LTC\LTspice.exe"
 
@@ -90,7 +90,7 @@ def variante(base, nombre, zener, r9_abierta):
         if ln.startswith(".meas "):
             continue                          # las de abajo reemplazan a estas
         if ln.startswith(".lib "):
-            L.append(".lib ../" + ln.split()[1].replace("../../", ""))
+            L.append(".lib ../" + os.path.basename(ln.split()[1]))   # los modelos estan en simulacion/
             continue
         if ln.startswith(".end"):
             L.append(f".meas tran vmax MAX V(salida) FROM {DESDE:g} TO {T_SIM:g}")
@@ -109,7 +109,7 @@ def main():
     if not os.path.exists(LTSPICE):
         sys.exit(f"no encuentro LTspice en {LTSPICE}")
     if not os.path.exists(BASE):
-        sys.exit(f"falta {BASE}: corre antes pcb/triangular/simular_kicad.py")
+        sys.exit(f"falta {BASE}: corre antes ../pcb/simular_kicad.py")
     os.makedirs(DEST, exist_ok=True)
 
     base = open(BASE, encoding="ascii").read().splitlines()

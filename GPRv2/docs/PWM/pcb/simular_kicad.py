@@ -4,7 +4,7 @@ GPRv2 - Simular el esquematico de KiCad en LTspice
 
 Exporta el netlist de triangular.kicad_sch con kicad-cli y lo pasa a
 triangular_kicad.cir, un netlist de LTspice con el modelo del TLC2272
-(../../TLC2272.lib; el TLC2274 es el mismo operacional en cuadruple).
+(../simulacion/TLC2272.lib; el TLC2274 es el mismo operacional en cuadruple).
 
 Los nodos y los valores salen del esquematico tal cual. Lo unico que se
 agrega es lo que no esta en la placa:
@@ -16,7 +16,7 @@ Los operacionales que sobran (hoy U1D, U2C y U2D) se dejan afuera: no cambian
 nada (verificado: mismos periodos y niveles) y hacen la simulacion unas 8
 veces mas lenta. Se detectan solos: son las unidades cuya salida solo va a su
 propia entrada inversora. D1 (el zener de proteccion del VCO) entra con el modelo de Diodes
-Inc. de ../../zener_1N472xA.lib, que se elige por el valor del simbolo
+Inc. de ../simulacion/zener_1N472xA.lib, que se elige por el valor del simbolo
 (1N4729A -> DI_1N4729A).
 
 Uso
@@ -129,9 +129,9 @@ def escribir(comps, patas):
           f".meas tran salmax MAX V({sal}) FROM {desde} TO {T_SIM:g}",
           f".meas tran symin MIN V({syn}) FROM {desde} TO {T_SIM:g}",
           f".meas tran symax MAX V({syn}) FROM {desde} TO {T_SIM:g}",
-          ".lib ../../TLC2272.lib"]
+          ".lib ../simulacion/TLC2272.lib"]
     if zeners:
-        L.append(".lib ../../zener_1N472xA.lib")
+        L.append(".lib ../simulacion/zener_1N472xA.lib")
     L.append(".end")
     open(CIR, "w", encoding="ascii", newline="\r\n").write("\n".join(L) + "\n")
 

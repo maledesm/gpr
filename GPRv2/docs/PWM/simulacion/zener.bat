@@ -5,8 +5,8 @@ rem    1. simular_zener.py  corre las seis variantes en LTspice (~6 min)
 rem    2. graficar_zener.py arma zener_vertice.png y zener_falla.png
 rem    3. tolerancias.py    los numeros del apendice de la tesis
 rem
-rem  Antes hay que tener pcb/triangular/triangular_kicad.cir al dia
-rem  (lo genera pcb/triangular/simular_kicad.bat desde el esquematico).
+rem  Antes hay que tener ..\pcb	riangular_kicad.cir al dia
+rem  (lo genera ..\pcb\simular_kicad.bat desde el esquematico).
 rem ===========================================================================
 title GPRv2 - Zener de proteccion
 

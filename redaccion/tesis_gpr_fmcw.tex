@@ -1170,7 +1170,7 @@ Figura~\ref{fig:tri_esquematico} es el esquemático completo.
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figuras/triangular/esquematico.pdf}
-  \caption{Esquemático completo (\texttt{GPRv2/docs/PWM/pcb/triangular/\allowbreak
+  \caption{Esquemático completo (\texttt{GPRv2/docs/PWM/pcb/\allowbreak
   triangular.kicad\_sch}). Las cinco unidades usadas se reparten entre dos
   TLC2274: U1 lleva el oscilador y el sync, U2 la referencia y el restador.
   Las tres unidades sobrantes (U1D, U2C y U2D) quedan como seguidores con la
@@ -1334,7 +1334,7 @@ resolvió por ruido. En lugar de citar las hojas de datos se midió la
 densidad de ruido de entrada de cada modelo SPICE, con un análisis
 \texttt{.noise} sobre un seguidor de ganancia unitaria alimentado con los
 mismos $12\,\text{V}$ del circuito (script
-\texttt{GPRv2/docs/PWM/ruido\_opamp.py}). Los resultados están en la
+\texttt{GPRv2/docs/PWM/simulacion/ruido\_opamp.py}). Los resultados están en la
 Tabla~\ref{tab:tri_ruido}.
 
 \begin{table}[H]
@@ -1381,7 +1381,7 @@ lazo con integración \textit{gear} y arranque en rampa de las fuentes
 \texttt{.tran}).
 
 Además, el script
-\texttt{pcb/triangular/simular\_kicad.py} exporta
+\texttt{pcb/simular\_kicad.py} exporta
 el \textit{netlist} del esquemático de KiCad con \texttt{kicad-cli} y lo
 simula en LTspice, de modo que lo que se verifica es el circuito que
 efectivamente está dibujado en la placa y no una copia aparte que podría
@@ -1393,7 +1393,7 @@ corrida.
   \includegraphics[width=\linewidth]{figuras/triangular/triangular3.png}
   \caption{Salida y sincronismo del generador con el modelo real del
   TLC2272, en tres posiciones del potenciómetro (script
-  \texttt{GPRv2/docs/PWM/graficar\_triangular3.py}). Izquierda: la
+  \texttt{GPRv2/docs/PWM/simulacion/graficar\_triangular3.py}). Izquierda: la
   triangular de salida junto con la cuadrada de sync, con los niveles
   extremos indicados. Derecha: el espectro de dos lados de la salida
   ---cada raya es un armónico, y la del centro es la componente continua---
@@ -1470,7 +1470,7 @@ Figura~\ref{fig:tri_zener_vertice} compara los dos candidatos.
   \centering
   \includegraphics[width=\linewidth]{figuras/triangular/zener_vertice.png}
   \caption{Efecto de cada zener sobre la operación normal (scripts
-  \texttt{GPRv2/docs/PWM/simular\_zener.py} y \texttt{graficar\_zener.py}).
+  \texttt{GPRv2/docs/PWM/simulacion/simular\_zener.py} y \texttt{graficar\_zener.py}).
   Izquierda: el vértice superior de la triangular sin zener, con el 1N4729A
   y con el 1N4728A. Derecha: la curva de conducción inversa de los dos
   modelos, con la corriente que toma cada uno al pico de la triangular.}
@@ -2624,7 +2624,7 @@ resistencias que lo rodean. Para cuantificar el efecto conjunto se propagó
 la tolerancia de \emph{cada resistencia física} ---las de las combinaciones
 en serie por separado, que es como están en la placa--- por las ecuaciones
 del circuito, sin intervención del operacional (script
-\texttt{GPRv2/docs/PWM/tolerancias.py}). Los resultados están en la
+\texttt{GPRv2/docs/PWM/simulacion/tolerancias.py}). Los resultados están en la
 Tabla~\ref{tab:val_tolerancias}.
 
 \begin{table}[H]

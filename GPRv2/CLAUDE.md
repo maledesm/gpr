@@ -65,6 +65,54 @@ avisar antes de re-flashear con los valores del otro.
 **Antes de tocar estos parámetros**: fijate cuál de los dos bancos se está
 usando esa sesión, y avisá si los cambiás — el otro los necesita en su valor.
 
+## Pendiente: armónicos del VCO (visto el 2026-11-02, analizar pronto)
+
+Con el generador de triangular propio (`docs/PWM/`) barriendo el VCO, el SSA3032X en
+Max Hold de 0,8 a 3 GHz muestra **un 2º armónico fuerte**. Datos y figura en
+`docs/PWM/mediciones/2026-11-02_vco_maxhold/`, script
+`docs/PWM/mediciones/analizar_vco_maxhold.py`. Todavía no se hizo nada; los usuarios
+quieren ver si se puede contrarrestar en software, como la curva del VCO.
+
+Lo medido (RBW 1 MHz, atenuador de 50 dB, piso −30 dBm):
+
+| | |
+|---|---|
+| fundamental | **988 a 1991 MHz** en la captura más llena (1029 a 1991 en las otras dos), ~+2 dBm en pantalla |
+| 2º armónico | arranca en 2·f_min, a **−8/−9 dBc** |
+| ¿se superpone? | 2·f_min contra f_max: 1975 contra 1991 MHz en la más llena (**15 MHz**); 2058 contra 1991 en las otras. Justo en el borde |
+| 3º armónico | fuera del span (> 3 GHz), sin medir |
+
+- El armónico que cae en la banda es el de la parte **baja** del barrido, o sea el
+  vértice de abajo de la triangular (principio y final de cada rampa). Cae arriba de todo
+  de la banda, a ~2 GHz.
+- **La banda es más baja y angosta que lo que predice la curva estática**: para la
+  triangular de 0,36–3,36 V da 1089–2052 MHz. Arriba se planta en ~1991 MHz, que en la
+  curva estática es 3,02 V: lo más probable es que **sature el amplificador ×4,95**
+  (~15 V en el VCO) o el VCO. Abajo hay ~0,15 V de diferencia (offset o la precisión
+  del osciloscopio). Se confirma midiendo la salida del amplificador.
+- La diferencia de 41 MHz en el borde de abajo entre capturas no está explicada:
+  puede ser que la traza todavía no se hubiera llenado o que algo cambió entre capturas.
+- Con −30 dBm de piso, lo que esté por debajo de ~−32 dBc no se ve. Para buscar espurias
+  más chicas: atenuador externo y bajar el atenuador interno.
+
+**Para cuando se analice — ojo con el razonamiento de "se superpone".** El radar es
+homodino: en cada instante el LO y el RX llevan f(t) **y** 2f(t), y al mezclador llegan a
+la vez. Lo que baja a banda base es f−f (el batido que se quiere) y **2f−2f = el doble del
+batido**, o sea un **fantasma al doble de la distancia aparente**, con fase 2φ(t). Los
+productos cruzados f × 2f caen a ~1 GHz y los saca el pasabajos post-mezclador. Que el
+armónico del principio de la rampa y la fundamental del final compartan frecuencia
+**no los mezcla**, porque pasan en instantes distintos. Lo que hay que mirar es:
+
+1. el fantasma al doble de distancia: su nivel, y si se puede predecir y restar (su
+   alinealidad sale de 2·f(t), o sea de la misma curva del VCO que ya se usa para θ);
+2. cuánto pasa a 2f por las bocinas, los cables y el LNA;
+3. qué etapa lo genera: medir a la salida del VCO, antes del amplificador de potencia.
+
+Primera medición propuesta: con el barrel o la línea de retardo (TX unido a RX), buscar
+un pico al **doble** de la frecuencia de batido. La otra salida es por hardware: un
+pasabajos a la salida, que solo sirve si f_max < 2·f_min con margen (por ejemplo,
+barrer desde ~1050 MHz).
+
 ## Se puede medir SIN sync: la triangular se muestrea por GPIO3
 
 El generador del laboratorio (Siglent SDG830) **no está dando sync** por el

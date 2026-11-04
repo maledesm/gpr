@@ -143,10 +143,8 @@ GPRv2/datos/vivo_config.json
 # Salidas de LTspice: los .raw SI se versionan (el triangular.raw pesa 53 MB:
 # GitHub advierte desde 50 MB y rechaza desde 100). Los .log y .net se
 # regeneran simulando el .asc.
-GPRv2/docs/PWM/*.log
-GPRv2/docs/PWM/*.net
-GPRv2/docs/PWM/pcb/**/*.log
-GPRv2/docs/PWM/zener/*.log
+GPRv2/docs/PWM/**/*.log
+GPRv2/docs/PWM/**/*.net
 # KiCad 10: historial local (es un repositorio git propio) y archivos de bloqueo
 .history/
 *.lck
