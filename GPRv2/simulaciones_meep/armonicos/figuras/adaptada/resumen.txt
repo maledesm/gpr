@@ -1,0 +1,117 @@
+==============================================================================
+Armonicos del VCO - sonda adaptada - 2026-11-03 00:28
+==============================================================================
+MEEP: banda 0.90-6.25 GHz, resolucion 50, placa [0.7, 0.8, 0.9, 1.0, 1.2] m, pared 1.26 m
+cadena plana: g2 +1.2 dB, g3 -0.1 dB (lo que se reescala H del aire a 2f y 3f)
+fundamental (Max Hold): -2.4 a +2.1 dB; 2o armonico -13.7 a -5.2 dBc
+filtro post-mezclador G=1 ajustado: pasaaltos 1er orden 17 Hz, pasabajos Butterworth orden 5 en 21.4 kHz
+ruido: piso medido (cf, 1 m, 1800-2300 Hz) -44.6 dB -> sigma 0.0229
+
+--- Cascada: pico de la placa y fantasmas (cf | sf), dB respecto del maximo
+  paso                                                           d  f_placa      2f      3f |  f_placa      2f      3f
+  0  ideal: VCO lineal, triangular perfecta, solo f, sin cad  0.70    467.5   -41.4   -65.2 |    467.5   -43.3   -66.1
+  0  ideal: VCO lineal, triangular perfecta, solo f, sin cad  0.80    480.0   -42.1   -65.5 |    480.0   -43.9   -67.1
+  0  ideal: VCO lineal, triangular perfecta, solo f, sin cad  0.90    495.0   -45.4   -63.8 |    492.5   -48.1   -66.2
+  0  ideal: VCO lineal, triangular perfecta, solo f, sin cad  1.00    507.5   -48.3   -64.2 |    507.5   -49.4   -64.3
+  0  ideal: VCO lineal, triangular perfecta, solo f, sin cad  1.20    535.0   -37.4   -63.3 |    532.5   -34.5   -62.2
+  1  + cadena de IF y firmware                                0.70    467.5   -41.4   -65.2 |    467.5   -43.3   -66.1
+  1  + cadena de IF y firmware                                0.80    480.0   -42.1   -65.4 |    480.0   -43.9   -67.0
+  1  + cadena de IF y firmware                                0.90    495.0   -45.4   -63.9 |    492.5   -48.1   -66.3
+  1  + cadena de IF y firmware                                1.00    507.5   -48.3   -64.0 |    507.5   -49.4   -64.3
+  1  + cadena de IF y firmware                                1.20    535.0   -37.4   -63.4 |    532.5   -34.5   -62.3
+  2  + VCO real, corregido con su propia curva                0.70    466.9   -41.7   -65.3 |    466.9   -46.4   -69.0
+  2  + VCO real, corregido con su propia curva                0.80    479.4   -43.4   -67.4 |    479.4   -49.0   -69.9
+  2  + VCO real, corregido con su propia curva                0.90    494.4   -44.0   -62.9 |    494.4   -46.6   -63.8
+  2  + VCO real, corregido con su propia curva                1.00    509.4   -44.8   -63.6 |    506.9   -46.5   -63.7
+  2  + VCO real, corregido con su propia curva                1.20    536.8   -37.1   -62.8 |    531.8   -34.4   -61.6
+  3  + corregido con la curva vieja (la del software)         0.70    464.5   -37.0   -62.4 |    464.5   -99.0   -69.0
+  3  + corregido con la curva vieja (la del software)         0.80    477.0   -38.4   -69.5 |    477.0   -63.0   -77.5
+  3  + corregido con la curva vieja (la del software)         0.90    489.5   -34.8   -63.1 |    492.0   -41.6   -64.1
+  3  + corregido con la curva vieja (la del software)         1.00    504.4   -34.5   -64.3 |    506.9   -40.0   -62.6
+  3  + corregido con la curva vieja (la del software)         1.20    531.9   -38.3   -62.8 |    529.4   -40.6   -64.9
+  4  + 2º armónico (Max Hold), mezclador multiplicador        0.70    464.5   -22.3   -33.6 |    464.5   -22.4   -36.2
+  4  + 2º armónico (Max Hold), mezclador multiplicador        0.80    477.0   -24.1   -52.4 |    477.0   -24.4   -99.0
+  4  + 2º armónico (Max Hold), mezclador multiplicador        0.90    489.5   -25.0   -42.6 |    492.0   -26.9   -99.0
+  4  + 2º armónico (Max Hold), mezclador multiplicador        1.00    504.4   -27.6   -38.3 |    506.9   -43.1   -42.2
+  4  + 2º armónico (Max Hold), mezclador multiplicador        1.20    531.9   -32.9   -36.6 |    529.4   -32.9   -37.1
+  5  + 3er armónico a -15 dBc (supuesto)                      0.70    464.5   -22.3   -30.2 |    464.5   -22.4   -30.2
+  5  + 3er armónico a -15 dBc (supuesto)                      0.80    477.0   -24.1   -35.6 |    477.0   -24.4   -37.0
+  5  + 3er armónico a -15 dBc (supuesto)                      0.90    489.5   -25.0   -35.5 |    492.0   -27.0   -45.6
+  5  + 3er armónico a -15 dBc (supuesto)                      1.00    504.4   -27.7   -33.5 |    506.9   -43.3   -36.8
+  5  + 3er armónico a -15 dBc (supuesto)                      1.20    531.9   -32.8   -36.6 |    529.4   -32.8   -40.3
+  6  + ruido blanco al piso medido                            0.70    464.5   -22.5   -30.6 |    464.5   -22.8   -31.8
+  6  + ruido blanco al piso medido                            0.80    477.0   -23.7   -33.9 |    477.0   -24.2   -37.0
+  6  + ruido blanco al piso medido                            0.90    489.5   -24.7   -33.8 |    492.0   -26.7   -45.1
+  6  + ruido blanco al piso medido                            1.00    504.4   -27.0   -32.8 |    506.9   -39.5   -36.7
+  6  + ruido blanco al piso medido                            1.20    531.9   -33.0   -35.2 |    529.4   -35.5   -40.2
+
+--- La cascada con un blanco puntual a 3.68 m aparentes (sin MEEP)
+  0  ideal: VCO lineal, triangular perfecta, solo f, sin cad pico  512.5 Hz  ancho  47.5 Hz  lobulo  -23.0  2f  -61.9  3f  -65.4 dB
+  1  + cadena de IF y firmware                               pico  512.5 Hz  ancho  47.5 Hz  lobulo  -23.0  2f  -61.9  3f  -65.3 dB
+  2  + VCO real, corregido con su propia curva               pico  511.9 Hz  ancho  47.4 Hz  lobulo  -17.6  2f  -52.2  3f  -64.1 dB
+  3  + corregido con la curva vieja (la del software)        pico  509.4 Hz  ancho  47.4 Hz  lobulo   -5.3  2f  -39.6  3f  -66.6 dB
+  4  + 2º armónico (Max Hold), mezclador multiplicador       pico  509.4 Hz  ancho  47.4 Hz  lobulo   -5.3  2f  -23.0  3f  -44.4 dB
+  5  + 3er armónico a -15 dBc (supuesto)                     pico  509.4 Hz  ancho  47.4 Hz  lobulo   -5.3  2f  -23.0  3f  -33.5 dB
+  6  + ruido blanco al piso medido                           pico  509.4 Hz  ancho  47.4 Hz  lobulo   -5.3  2f  -23.1  3f  -33.8 dB
+
+--- Medido (28-09): pico y nivel donde caerian los fantasmas
+   0.70 m   cf: f_placa  467.0  en 2f  -25.9  en 3f  -27.9   sf: f_placa  464.5  en 2f  -23.3  en 3f  -31.3
+   0.80 m   cf: f_placa  479.5  en 2f  -22.0  en 3f  -29.0   sf: f_placa  482.0  en 2f  -26.1  en 3f  -26.6
+   0.90 m   cf: f_placa  494.5  en 2f  -22.8  en 3f  -28.0   sf: f_placa  499.4  en 2f  -33.7  en 3f  -30.0
+   1.00 m   cf: f_placa  509.4  en 2f  -27.4  en 3f  -29.1   sf: f_placa  511.9  en 2f  -35.4  en 3f  -30.2
+   1.20 m   cf: f_placa  534.4  en 2f  -28.1  en 3f  -31.9   sf: f_placa  529.4  en 2f  -36.3  en 3f  -35.6
+
+--- Fantasma de la placa sola (placa - vacio en complejo), cf, dB respecto del eco; promedio [min, max] sobre las 5 distancias
+  multiplicador, 3o sin            2f  -26.0 [ -34.3,  -21.1]   3f  -39.2 [ -44.2,  -35.1] dB
+  multiplicador, 3o -15 dBc        2f  -26.1 [ -34.3,  -21.1]   3f  -34.1 [ -39.6,  -30.3] dB
+  multiplicador, 3o -25 dBc        2f  -26.0 [ -34.3,  -21.1]   3f  -38.9 [ -43.7,  -34.5] dB
+  conmutado psi 0°, 3o sin         2f  -27.6 [ -36.0,  -22.2]   3f  -41.0 [ -43.8,  -38.7] dB
+  conmutado psi 0°, 3o -15 dBc     2f  -25.2 [ -33.6,  -19.6]   3f  -39.3 [ -43.6,  -36.4] dB
+  conmutado psi 45°, 3o sin        2f  -28.7 [ -33.8,  -25.0]   3f  -41.9 [ -44.7,  -39.8] dB
+  conmutado psi 45°, 3o -15 dBc    2f  -26.0 [ -31.9,  -21.4]   3f  -38.0 [ -43.1,  -34.6] dB
+  conmutado psi 90°, 3o sin        2f  -37.9 [ -49.2,  -31.5]   3f  -65.1 [ -71.7,  -60.4] dB
+  conmutado psi 90°, 3o -15 dBc    2f  -27.6 [ -32.2,  -24.5]   3f  -40.6 [ -44.0,  -37.4] dB
+  sin armónicos (paso 3)           2f  -38.9 [ -55.1,  -32.5]   3f  -63.5 [ -67.4,  -60.0] dB
+
+--- Lo mismo con un blanco puntual a 3.68 m aparentes (sin MEEP): el fantasma 'puro'
+  multiplicador, 3o sin            pico  509.4 Hz  ancho  47.4 Hz  lobulo   -5.3  2f  -23.0  3f  -44.4 dB
+  multiplicador, 3o -15 dBc        pico  509.4 Hz  ancho  47.4 Hz  lobulo   -5.3  2f  -23.0  3f  -33.5 dB
+  multiplicador, 3o -25 dBc        pico  509.4 Hz  ancho  47.4 Hz  lobulo   -5.3  2f  -23.0  3f  -42.8 dB
+  conmutado psi 0°, 3o sin         pico  509.4 Hz  ancho  42.5 Hz  lobulo   -6.2  2f  -24.4  3f  -46.4 dB
+  conmutado psi 0°, 3o -15 dBc     pico  509.4 Hz  ancho  42.5 Hz  lobulo   -6.2  2f  -22.1  3f  -39.6 dB
+  conmutado psi 45°, 3o sin        pico  509.4 Hz  ancho  42.5 Hz  lobulo   -6.1  2f  -25.5  3f  -47.1 dB
+  conmutado psi 45°, 3o -15 dBc    pico  509.4 Hz  ancho  42.5 Hz  lobulo   -6.1  2f  -22.9  3f  -40.9 dB
+  conmutado psi 90°, 3o sin        pico  509.4 Hz  ancho  42.5 Hz  lobulo   -6.2  2f  -40.4  3f  -70.3 dB
+  conmutado psi 90°, 3o -15 dBc    pico  509.4 Hz  ancho  42.5 Hz  lobulo   -6.2  2f  -24.3  3f  -36.4 dB
+  sin armónicos (paso 3)           pico  509.4 Hz  ancho  47.4 Hz  lobulo   -5.3  2f  -39.6  3f  -66.6 dB
+
+--- Potencia media en bandas (cf, dB respecto del maximo): medido contra la cascada
+                                                              150-400   650-1400 1400-2300
+  medido 28-09                                                   -12.5     -25.8     -38.0
+  0  ideal: VCO lineal, triangular perfecta, solo f, sin cad     -36.7     -31.7     -71.5
+  1  + cadena de IF y firmware                                   -36.7     -31.7     -71.4
+  2  + VCO real, corregido con su propia curva                   -27.8     -31.4     -71.3
+  3  + corregido con la curva vieja (la del software)            -18.5     -27.7     -69.6
+  4  + 2º armónico (Max Hold), mezclador multiplicador           -18.5     -25.8     -45.0
+  5  + 3er armónico a -15 dBc (supuesto)                         -18.5     -25.8     -39.5
+  6  + ruido blanco al piso medido                               -18.4     -25.6     -38.1
+
+--- Escenario B: generador propio (LM324), prediccion, placa a 1 m
+  triangular medida: T 100.95 ms, 0.360-3.328 V, subida 50.75 % del periodo; LTspice: subida 46.53 %
+  hipotesis Max Hold: corrimiento -0.255 V (lleva 0.36 V a 988 MHz), recorte en 1991 MHz
+  (pico, ancho a -6 dB, lobulo mas alto entre 45 y 250 Hz del pico (fuera del lobulo principal de Hann) y fantasmas: de un BLANCO PUNTUAL a 3.68 m aparentes, la placa a 1 m medida; sin MEEP)
+  A: SDG830 (paso 5)                                                 pico  509.4 Hz  ancho  47.4 Hz  lobulo   -5.3  2f  -23.0  3f  -33.5 dB
+  B1: LM324 medida, software de hoy (0-3 V)                          pico  490.8 Hz  ancho  74.0 Hz  lobulo   -2.5  2f  -27.5  3f  -33.6 dB
+  B2: LM324 medida, software con 0.36-3.33 V                         pico  453.5 Hz  ancho  76.4 Hz  lobulo   -5.8  2f  -21.6  3f  -33.8 dB
+  B3: LM324 segun LTspice, software actualizado                      pico  433.7 Hz  ancho 133.1 Hz  lobulo   -0.8  2f  -23.1  3f  -31.3 dB
+  B4: como B2 pero con el ajuste de fase de vivo_rapido              pico  451.0 Hz  ancho  76.4 Hz  lobulo   -5.8  2f  -21.3  3f  -32.6 dB
+  B5: como B2, y el software sabe del corrimiento (no del recorte)   pico  485.7 Hz  ancho  69.0 Hz  lobulo   -3.9  2f  -27.7  3f  -38.6 dB
+  B6: LM324 sin asimetria, sin residuo, sin recorte                  pico  488.2 Hz  ancho  46.8 Hz  lobulo   -4.8  2f  -24.0  3f  -33.4 dB
+  B7:   + solo la asimetria (50,75/49,25 %)                          pico  488.2 Hz  ancho  46.8 Hz  lobulo   -4.9  2f  -24.6  3f  -36.2 dB
+  B8:   + solo el residuo (curvatura y escalon)                      pico  485.7 Hz  ancho  66.6 Hz  lobulo   -3.5  2f  -25.1  3f  -37.8 dB
+  B9:   + solo el recorte en 1991 MHz                                pico  488.2 Hz  ancho  46.8 Hz  lobulo   -4.8  2f  -24.0  3f  -33.4 dB
+
+--- Variante: fuga interna ajustada a las capturas cf (200-800 Hz)
+  mejor: 3.10 m aparentes (430 Hz, tau 20.67 ns), nivel +8 dB respecto del eco de la placa a 1 m, fase 150°
+  error cuadratico medio en 200-800 Hz: 5.2 dB con fuga, 9.0 dB sin fuga
+  su fantasma 2f caeria en 859 Hz y el 3f en 1289 Hz
