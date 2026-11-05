@@ -1053,6 +1053,553 @@ en todo momento la fracción de lecturas de la triangular que tocan los
 rieles del ADC. Ese chequeo detectó una vez una resistencia suelta del
 divisor de GPIO3.
 
+\section{Distorsión armónica del VCO}
+\label{sec:vco_armonicos}
+
+Todo lo anterior trata al VCO como una fuente de \emph{un solo} tono cuya
+frecuencia sigue la curva $F(V)$. Un oscilador real no entrega una sinusoide
+pura: su salida trae además componentes en el doble, el triple, etc.\ de la
+frecuencia instantánea. Esta sección mide esos armónicos, desarrolla qué
+producen a la salida del mezclador y en qué frecuencia de batido aparecen, y
+de ahí saca los requisitos de un filtro de RF que los elimine antes de que
+lleguen al mezclador. El diseño de ese filtro queda para una sección
+posterior.
+
+\subsection{Medición con el analizador de espectro}
+\label{sub:armonicos_medicion}
+
+Se observó la salida del VCO barrido por el generador de triangular propio
+(Capítulo~\ref{ch:triangular}, versión con LM324, $T_c \approx 100\,\text{ms}$)
+con un analizador de espectro Siglent SSA3032X, de $0{,}8$ a $3\,\text{GHz}$,
+con RBW de $1\,\text{MHz}$, atenuador interno de $50\,\text{dB}$ y la traza en
+\textit{Max Hold}. La Figura~\ref{fig:ssa_maxhold} es la pantalla del
+analizador y la Figura~\ref{fig:vco_maxhold}, las trazas exportadas y
+procesadas.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.9\linewidth]{figuras/vco/ssa_maxhold_vco.png}
+  \caption{Pantalla del analizador de espectro (Siglent SSA3032X, Max Hold,
+  $0{,}8$ a $3\,\text{GHz}$, RBW $1\,\text{MHz}$) con el VCO barrido por la
+  triangular. De $\sim\!1$ a $\sim\!2\,\text{GHz}$ está la fundamental, el
+  barrido útil del radar. A partir de $\sim\!2\,\text{GHz}$ aparece el segundo
+  armónico, unos $8\,\text{dB}$ por debajo. Medición del 2026-11-02.}
+  \label{fig:ssa_maxhold}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/vco/vco_maxhold.png}
+  \caption{Las tres trazas exportadas del analizador. En azul, la captura
+  más llena. Se marcan la banda de la fundamental, la del segundo armónico y
+  la franja de $15\,\text{MHz}$ en la que se superponen. Las líneas
+  punteadas son los extremos que predice la curva estática del VCO para la
+  triangular medida con el osciloscopio.}
+  \label{fig:vco_maxhold}
+\end{figure}
+
+\textbf{Cómo leer el Max Hold.} El analizador barre $2{,}2\,\text{GHz}$ en
+$216\,\text{ms}$ y el VCO barre $1\,\text{GHz}$ en $50\,\text{ms}$. En cada
+barrido el analizador encuentra al chirp sólo en los puntos donde los dos
+barridos se cruzan, y el Max Hold va acumulando esos cruces. Por eso la traza
+tiene forma de peine y se va llenando de a poco. Lo que muestra es la
+\emph{envolvente} de todo lo que el VCO emitió a lo largo de muchos períodos,
+no lo que emite en un instante. Esto importa en la
+Sección~\ref{sub:armonicos_superposicion}.
+
+Los resultados se resumen en la Tabla~\ref{tab:armonicos_medidos}.
+
+\begin{table}[H]
+  \centering
+  \caption{Lo medido en la salida del VCO en Max Hold (2026-11-02).}
+  \label{tab:armonicos_medidos}
+  \begin{tabular}{>{\raggedright\arraybackslash}p{4.2cm}
+                  >{\raggedright\arraybackslash}p{9.0cm}}
+    \toprule
+    Fundamental & $f_\text{min} = 988$ a $f_\text{max} = 1991\,\text{MHz}$
+      en la captura más llena ($1029$ a $1991$ en las otras dos),
+      $\sim\!0$ a $+2\,\text{dBm}$ en pantalla \\
+    Segundo armónico & desde $2f_\text{min} = 1976\,\text{MHz}$, a
+      $-8$/$-9\,\text{dBc}$ ($-6$ a $-12$ según la frecuencia) \\
+    Superposición & $2f_\text{min} < f_\text{max}$ por $15\,\text{MHz}$ en
+      la captura más llena; en las otras dos, $2f_\text{min} =
+      2058\,\text{MHz}$ y no se superponen \\
+    Tercer armónico & $3f(t)$ va de $2{,}96$ a $5{,}97\,\text{GHz}$: fuera
+      del span, sin medir \\
+    Piso de la medición & $-30\,\text{dBm}$ (por el atenuador de
+      $50\,\text{dB}$): lo que esté por debajo de $\sim\!-32\,\text{dBc}$ no
+      se ve \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+La banda medida es más baja y más angosta que la que predice la curva
+estática para la triangular medida con el osciloscopio ($0{,}36$ a
+$3{,}36\,\text{V} \to 1089$ a $2052\,\text{MHz}$). Arriba la frecuencia se
+planta en $1991\,\text{MHz}$, que en la curva estática corresponde a
+$3{,}02\,\text{V}$: lo más probable es que sature el amplificador que ataca
+al VCO. Esa diferencia no cambia el análisis que sigue, pero sí los números
+del filtro, que dependen de $f_\text{min}$ y $f_\text{max}$.
+
+\subsection{La señal del VCO con armónicos}
+\label{sub:armonicos_modelo}
+
+Con la fase instantánea $\psi(t) = 2\pi\int_0^t f(u)\,du$ de la
+Sección~\ref{sec:proc_theta}, la salida del VCO se escribe como una suma de
+armónicos:
+\begin{equation}
+  s_\text{VCO}(t) = \sum_{n\geq 1} a_n \cos\!\bigl(n\,\psi(t) + \beta_n\bigr),
+  \label{eq:vco_armonicos}
+\end{equation}
+donde $a_n$ es la amplitud del armónico $n$ y $\beta_n$ una fase fija. Se
+define el nivel relativo de cada armónico respecto de la fundamental,
+\begin{equation}
+  H_n = 20\log_{10}\frac{a_n}{a_1}\quad[\text{dBc}],
+\end{equation}
+que según la Tabla~\ref{tab:armonicos_medidos} vale $H_2 \approx
+-8\,\text{dBc}$.
+
+La frecuencia instantánea del armónico $n$ es la derivada de su fase:
+\begin{equation}
+  f_n(t) = \frac{1}{2\pi}\frac{d}{dt}\bigl[n\,\psi(t)\bigr] = n\,f(t).
+\end{equation}
+\textbf{Cada armónico es otro chirp}: arranca en $n f_\text{min}$, termina en
+$n f_\text{max}$ y barre con una pendiente $n$ veces mayor. Es decir, si en
+un instante el VCO está en una frecuencia $f$, en ese mismo instante emite
+también $2f$, $3f$, etc. Mientras la fundamental barre de $\sim\!1$ a
+$\sim\!2\,\text{GHz}$:
+\begin{itemize}
+  \item el \textbf{segundo armónico} barre de $\sim\!2$ a
+    $\sim\!4\,\text{GHz}$ (con la banda medida, de $1976$ a
+    $3982\,\text{MHz}$);
+  \item el \textbf{tercer armónico} barre de $\sim\!3$ a
+    $\sim\!6\,\text{GHz}$ (de $2964$ a $5973\,\text{MHz}$).
+\end{itemize}
+Por ejemplo, cuando la fundamental pasa por $1{,}5\,\text{GHz}$, el VCO
+emite a la vez $3\,\text{GHz}$ y $4{,}5\,\text{GHz}$. La
+Figura~\ref{fig:armonicos_fantasmas}a dibuja los tres chirps a lo largo de un
+período de la triangular.
+
+Como el splitter divide la señal \emph{después} del VCO, el LO y la antena
+transmisora llevan los mismos armónicos. El eco que vuelve de un blanco
+con retardo total $\tau$ (aire más cables, ecuación~\eqref{eq:tau_total}) es
+\begin{equation}
+  s_\text{RX}(t) = \sum_{n\geq 1} g_n\,a_n
+    \cos\!\bigl(n\,\psi(t-\tau) + \beta_n + \gamma_n\bigr),
+  \label{eq:rx_armonicos}
+\end{equation}
+donde $g_n$ y $\gamma_n$ son la ganancia y la fase de todo el camino de
+recepción (cables, bocinas, blanco, LNA) evaluados en la frecuencia del
+armónico $n$. No hay motivo para que $g_n$ sea igual a $g_1$: las bocinas,
+los cables y el LNA están pensados para la banda de $1$ a $2\,\text{GHz}$, no
+para $2$ a $6\,\text{GHz}$.
+
+\subsection{Qué sale del mezclador}
+\label{sub:armonicos_mezclador}
+
+Se modela el mezclador como un multiplicador ideal: su salida es el producto
+del LO por la señal de RF. Con~\eqref{eq:vco_armonicos} en el LO
+y~\eqref{eq:rx_armonicos} en RF, el producto es una doble suma: cada
+armónico $m$ del LO se multiplica con cada armónico $n$ del eco,
+\begin{equation}
+  \begin{split}
+  s_\text{LO}(t)\,s_\text{RX}(t) = \sum_{m\geq 1}\sum_{n\geq 1}
+  \frac{a_m\,g_n\,a_n}{2}\Bigl[
+    &\cos\!\bigl(m\,\psi(t) - n\,\psi(t-\tau) + \dots\bigr) \\
+  + &\cos\!\bigl(m\,\psi(t) + n\,\psi(t-\tau) + \dots\bigr)
+  \Bigr],
+  \end{split}
+  \label{eq:producto_armonicos}
+\end{equation}
+donde los puntos suspensivos agrupan las fases fijas $\beta_m$, $\beta_n$ y
+$\gamma_n$. Para ver qué término llega a la señal digitalizada alcanza con
+mirar la frecuencia instantánea de cada uno. Usando
+$f(t-\tau) \approx f(t) - f'(t)\,\tau$ (porque $\tau$, decenas de
+nanosegundos, es despreciable frente a la escala en que cambia $f$):
+
+\begin{itemize}
+  \item \textbf{Términos de suma.} Frecuencia $m f(t) + n f(t-\tau) \approx
+    (m+n) f(t)$: de $2$ a varios GHz. Los elimina el pasabajos que sigue al
+    mezclador (Capítulo~\ref{ch:filtro}), igual que el término de suma de la
+    fundamental en la Sección~\ref{sec:mixing}.
+  \item \textbf{Términos de diferencia con $m \neq n$.} Frecuencia
+    \begin{equation}
+      m f(t) - n f(t-\tau) \approx (m-n)\,f(t) + n\,f'(t)\,\tau .
+    \end{equation}
+    Como $f(t) \geq f_\text{min} \approx 1\,\text{GHz}$, esto vale al menos
+    $|m-n| \times 1\,\text{GHz}$: también los elimina el pasabajos. Para que
+    un término cruzado cayera en banda base haría falta que $m f(t) \approx n
+    f(t-\tau)$, por ejemplo que la frecuencia del eco fuese el doble que la
+    del LO. Con la banda medida eso exige un retardo de medio barrido
+    ($\sim\!25\,\text{ms}$, miles de kilómetros): no ocurre.
+  \item \textbf{Términos de diferencia con $m = n$.} Acá la parte en
+    $f(t)$ se cancela y queda
+    \begin{equation}
+      n\,f(t) - n\,f(t-\tau) \approx n\,f'(t)\,\tau .
+    \end{equation}
+    Es \textbf{$n$ veces el batido de la fundamental}. Cae en banda base,
+    pasa el pasabajos y el PCM1808 lo digitaliza junto con la señal buscada.
+\end{itemize}
+
+\textbf{La conclusión es que el único producto de los armónicos que llega a la
+señal digitalizada es el de cada armónico del LO con el mismo armónico del
+eco}: el segundo con el segundo, el tercero con el tercero. Ninguna mezcla
+cruzada (la fundamental de uno con el armónico del otro) sobrevive.
+
+\subsection{Dónde cae: el fantasma en $n f_b$}
+\label{sub:armonicos_fantasma}
+
+Con la notación de la Sección~\ref{sec:proc_theta}, la fase del término
+$m=n$ es $n$ veces la del batido de la fundamental,
+ecuación~\eqref{eq:proc_fase_batido}:
+\begin{equation}
+  \Delta\psi_n(t) = n\,\psi(t) - n\,\psi(t-\tau) \approx n \cdot 2\pi\,\tau\,f(t).
+\end{equation}
+Al remuestrear en $\theta$, con $f(t) = f(0) + \alpha_0\theta$, queda
+\begin{equation}
+  \boxed{\;
+  x_n(\theta) = \frac{a_n^2\,g_n}{2}
+  \cos\!\bigl(2\pi\,n\,\alpha_0\tau\,\theta + \varphi_n\bigr),
+  \qquad f_{b,n} = n\,f_b = n\,\alpha_0\tau .
+  \;}
+  \label{eq:fantasma}
+\end{equation}
+
+Tres consecuencias:
+
+\begin{enumerate}
+  \item \textbf{Frecuencia.} Cada eco deja, además de su pico en $f_b$, un
+    pico en $2f_b$, otro en $3f_b$, etc. Como $f_b$ es proporcional al
+    retardo total, el fantasma del armónico $n$ es indistinguible de un
+    blanco real con retardo $n\tau$. En distancia, con el offset de los
+    cables de la ecuación~\eqref{eq:d_offset}, un blanco en $d$ deja un
+    fantasma en
+    \begin{equation}
+      \hat d_n = n\,(d + d_\text{offset}) - d_\text{offset},
+      \label{eq:d_fantasma}
+    \end{equation}
+    o sea, el offset de los cables también se multiplica por $n$.
+  \item \textbf{Forma.} El remuestreo en $\theta$ corrige al fantasma igual
+    que a la fundamental: si la curva del VCO es la correcta, el fantasma es
+    un tono puro y da un pico angosto. No se desparrama por la banda, sino que
+    aparece como un blanco más. Si la curva tiene error, el error de fase del
+    fantasma es $n$ veces el de la fundamental y el pico se ensancha más.
+  \item \textbf{Nivel.} Respecto del batido de la fundamental, la amplitud
+    del fantasma es $(a_n/a_1)^2\,(g_n/g_1)$. En dB:
+    \begin{equation}
+      R_n = 2H_n + \Delta G_n,
+      \qquad \Delta G_n = 20\log_{10}\frac{g_n}{g_1}.
+      \label{eq:nivel_fantasma}
+    \end{equation}
+    El armónico cuenta \emph{dos veces}, porque está en el LO y en el eco.
+    Con $H_2 = -8\,\text{dBc}$ el fantasma del segundo armónico queda en
+    $-16\,\text{dB} + \Delta G_2$.
+\end{enumerate}
+
+\textbf{Ejemplo numérico.} En las mediciones de la placa del 2026-09-28
+($T_c = 100\,\text{ms}$, $138{,}5\,\text{Hz/m}$), la placa a $1\,\text{m}$
+da su batido en $f_b \approx 509\,\text{Hz}$, que corresponde a
+$3{,}68\,\text{m}$ de distancia aparente sin calibrar ($1\,\text{m}$ de aire
+más $\sim\!2{,}7\,\text{m}$ de cables, bocinas y retardo interno). Su
+fantasma del segundo armónico cae en $2f_b \approx 1018\,\text{Hz}$
+($7{,}35\,\text{m}$ aparentes, o $\sim\!4{,}7\,\text{m}$ ya calibrado según
+la ecuación~\eqref{eq:d_fantasma}), y el del tercero, en
+$3f_b \approx 1527\,\text{Hz}$. Los dos caen dentro de la banda que
+el firmware digitaliza limpia ($0$ a $2400\,\text{Hz}$,
+Sección~\ref{sec:proc_diezmado}). La Figura~\ref{fig:armonicos_fantasmas}
+resume las dos caras del problema: en (a), dónde están los armónicos en RF;
+en (b), dónde aparecen después del mezclador.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/vco/armonicos_fantasmas.png}
+  \caption{(a) Frecuencia instantánea de la fundamental y de los armónicos
+  $2$ y $3$ a lo largo de un período de la triangular, con la banda medida
+  en Max Hold. Es esquemática (barrido dibujado lineal entre los extremos
+  medidos). En trazo grueso, el tramo cercano a los vértices de abajo donde
+  el segundo armónico cae dentro de la banda útil. (b) Lo que llega a banda
+  base para la placa a $1\,\text{m}$: el batido y sus fantasmas en $2f_b$ y
+  $3f_b$. Niveles estimados con una simulación del radar completo
+  (mezclador multiplicador, segundo armónico del Max Hold, tercero supuesto
+  a $-15\,\text{dBc}$).}
+  \label{fig:armonicos_fantasmas}
+\end{figure}
+
+% TODO: contraste con lo medido. Falta revisarlo antes de incluirlo; los
+% datos son de GPRv2/simulaciones_meep/armonicos/ (LEEME.md y
+% figuras/adaptada/resumen.txt):
+% - la simulacion de punta a punta (MEEP + Max Hold + mismo procesado) da el
+%   fantasma 2f_b de un blanco puntual en R_2 ~ -23 dB, o sea Delta G_2 ~ -7 dB;
+% - en las capturas reales de la placa (0,7 a 1,2 m, 2026-09-28) el espectro
+%   tiene en 2f_b entre -22 y -28 dB respecto del pico, pero ahi puede haber
+%   otros ecos: no aisla el fantasma;
+% - la energia de esas capturas entre 650 y 1400 Hz (-25,8 dB de potencia
+%   media) la reproduce la simulacion solo con el 2o armonico.
+% Para cerrarlo: medicion con TX y RX unidos por cable y atenuador (un solo
+% retardo, todo pico en 2f_b es fantasma).
+
+\subsection{Que se superpongan en el espectro no es el problema}
+\label{sub:armonicos_superposicion}
+
+Mirando la Figura~\ref{fig:ssa_maxhold} es tentador pensar que el problema
+está en la franja de $\sim\!2\,\text{GHz}$ donde el segundo armónico
+``pisa'' la fundamental. Pero el Max Hold muestra la envolvente de muchos
+períodos, no un instante. En la franja de superposición, el segundo armónico
+corresponde al vértice de abajo de la triangular ($f(t)\approx
+f_\text{min}$, principio y final de cada rampa) y la fundamental, al
+vértice de arriba ($f(t)\approx f_\text{max}$, mitad del período). Ocurren en
+\emph{instantes distintos}, separados medio período, y por la
+Sección~\ref{sub:armonicos_mezclador} su producto ($m=1$, $n=2$) no cae en
+banda base.
+
+\textbf{El fantasma existe aunque no haya ninguna superposición}: aparece
+siempre que el LO y el eco lleven el mismo armónico. Bajar la banda para que
+$2f_\text{min}$ quede por encima de $f_\text{max}$ no lo saca. Lo que la
+superposición sí determina es si un \emph{filtro} puede separar la
+fundamental de su armónico (Sección~\ref{sub:armonicos_requisitos}).
+
+\subsection{Por qué no se puede corregir en banda base}
+\label{sub:armonicos_banda_base}
+
+El fantasma de un eco en $f_b$ cae en $2f_b$, que es justamente la
+frecuencia de un blanco real al doble de retardo. Un filtro en banda base no
+puede separarlos, porque están en la misma banda: quitar $2f_b$ es quitar
+también los blancos que estén ahí. En un GPR esto es especialmente grave. El
+eco más fuerte suele ser el acoplamiento directo entre antenas o la
+reflexión en la superficie del suelo. Su fantasma aparece, $20$ a
+$25\,\text{dB}$ por debajo, como una \emph{interfase enterrada} que no
+existe, y puede tapar o imitar un eco real a esa profundidad.
+
+Restarlo por software es posible en principio, porque su posición se conoce
+(ecuación~\eqref{eq:d_fantasma}). Su nivel y su fase, en cambio, dependen de
+$g_n$ y $\gamma_n$, que cambian con el blanco y con el armado. La salida
+limpia es que los armónicos no lleguen al mezclador: \textbf{un filtro
+pasabajos de RF que corte a partir de $\sim\!2\,\text{GHz}$}.
+
+\subsection{Requisitos del filtro de RF}
+\label{sub:armonicos_requisitos}
+
+\paragraph{Dónde va.} Antes del splitter, a la salida del VCO (o del
+amplificador de RF, si éste genera sus propios armónicos), de manera que el
+LO y la antena transmisora reciban la señal ya filtrada. Hay dos razones:
+
+\begin{itemize}
+  \item \textbf{Su retardo se cancela.} Un filtro cerca de su corte tiene un
+    retardo de grupo $\tau_g(f)$ de varios nanosegundos que cambia con la
+    frecuencia. Antes del splitter ese retardo es común a los dos caminos, y
+    el mezclador sólo ve la diferencia: lo que sobrevive es
+    $2\pi\,\tau_g(f)\,f'(t)\,\tau$, del orden de $10^{-5}\,\text{rad}$. Si el
+    filtro estuviera sólo en el camino de transmisión, $\tau_g(f(t))$ se
+    sumaría al retardo de los cables, el retardo total variaría a lo largo
+    del barrido y el pico se ensancharía.
+  \item \textbf{Cuenta dos veces.} Con el filtro antes del splitter, el
+    armónico se atenúa en el LO y en el eco. Si $A_n$ es la atenuación del
+    filtro en $n f$, la ecuación~\eqref{eq:nivel_fantasma} pasa a
+    \begin{equation}
+      R_n = 2\,(H_n - A_n) + \Delta G_n .
+    \end{equation}
+\end{itemize}
+
+Alcanza con que uno de los dos lados esté limpio. Por la
+Sección~\ref{sub:armonicos_mezclador}, el producto que molesta exige el
+armónico $n$ en el LO \emph{y} en el eco. Un mezclador conmutado genera
+internamente armónicos de su LO aunque el LO sea puro, pero éstos no tienen
+con qué batir en banda base si el eco no trae armónicos.
+
+\paragraph{Cuánto tiene que atenuar.} El punto de partida es el nivel del
+fantasma con el filtro puesto, que se acaba de escribir:
+\begin{equation*}
+  R_2 = 2\,(H_2 - A_2) + \Delta G_2 .
+\end{equation*}
+Hay tres datos que entran en esa cuenta, y no todos tienen el mismo
+respaldo:
+\begin{itemize}
+  \item $H_2 = -8\,\text{dBc}$: el nivel del segundo armónico a la salida
+    del VCO. \textbf{Medido} (Tabla~\ref{tab:armonicos_medidos}).
+  \item $\Delta G_2$: cuánto mejor o peor que a $f$ pasa la señal a $2f$ por
+    el camino de recepción (cables, bocinas, blanco, LNA). \textbf{No está
+    medido.} Lo más pesimista es $\Delta G_2 = 0$, o sea que el camino trate
+    a $2f$ igual que a $f$. Una simulación del radar completo da
+    $\Delta G_2 \approx -7\,\text{dB}$, pendiente de verificar.
+  \item $R_\text{obj}$: hasta dónde se quiere bajar el fantasma. \textbf{Es
+    una elección}, no un dato. Se usan dos referencias: el piso de ruido de
+    las capturas actuales, $\sim\!-45\,\text{dB}$ respecto del pico (más
+    abajo el fantasma ya no se distingue del ruido), y $-60\,\text{dB}$,
+    un margen pensado para cuando el eco más fuerte sea la superficie del
+    suelo y haya que ver ecos enterrados mucho más débiles.
+\end{itemize}
+
+Sin filtro ($A_2 = 0$), el fantasma queda en $R_2 = 2(-8) + \Delta G_2 =
+-16\,\text{dB} + \Delta G_2$. Lo que falta para llegar a $R_\text{obj}$ lo
+tiene que poner el filtro, y como su atenuación cuenta dos veces, alcanza con
+la mitad. Pidiendo $R_2 \leq R_\text{obj}$ y despejando:
+\begin{equation}
+  A_2 \;\geq\; \frac{(2H_2 + \Delta G_2) - R_\text{obj}}{2}
+  \;=\; H_2 + \frac{\Delta G_2 - R_\text{obj}}{2}.
+  \label{eq:atenuacion_filtro}
+\end{equation}
+Por ejemplo, con $\Delta G_2 = -7\,\text{dB}$ y $R_\text{obj} =
+-60\,\text{dB}$: sin filtro el fantasma está en $-23\,\text{dB}$, faltan
+$37\,\text{dB}$, y el filtro tiene que poner la mitad, $18{,}5\,\text{dB}$.
+La Tabla~\ref{tab:atenuacion_filtro} da los cuatro casos.
+
+\begin{table}[H]
+  \centering
+  \caption{Atenuación mínima del filtro en $2f$, según la
+  ecuación~\eqref{eq:atenuacion_filtro}, con $H_2 = -8\,\text{dBc}$.}
+  \label{tab:atenuacion_filtro}
+  \begin{tabular}{lcc}
+    \toprule
+    & $R_\text{obj} = -45\,\text{dB}$ & $R_\text{obj} = -60\,\text{dB}$ \\
+    & (piso de las capturas) & (margen para GPR) \\
+    \midrule
+    $\Delta G_2 = 0$ (pesimista) & $14{,}5\,\text{dB}$ & $22\,\text{dB}$ \\
+    $\Delta G_2 = -7\,\text{dB}$ (simulación) & $11\,\text{dB}$ &
+      $18{,}5\,\text{dB}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Cada dB de error en $\Delta G_2$ mueve el requisito sólo medio dB, porque el
+filtro cuenta dos veces. Diseñando para el caso pesimista, $\sim\!20$ a
+$22\,\text{dB}$ en $2f$ cubren los dos objetivos. El tercer armónico arranca
+en $2{,}96\,\text{GHz}$, una vez y media el corte: atenuarlo es fácil, pero
+su nivel no está medido y hay que medirlo para cerrar este número.
+
+\paragraph{La banda de transición.} El filtro tiene que dejar pasar hasta
+$f_\text{max}$ y rechazar desde $2f_\text{min}$. Con la banda medida,
+$2f_\text{min} = 1976\,\text{MHz}$ está \emph{por debajo} de $f_\text{max} =
+1991\,\text{MHz}$: no hay banda de transición, sino $15\,\text{MHz}$ de
+superposición. Ningún filtro separa del todo la fundamental de su segundo
+armónico con este barrido.
+
+Correr la banda (subir $f_\text{min}$ hasta que $2f_\text{min}$ quede por
+encima de $f_\text{max}$) no es una opción práctica: el VCO, el splitter,
+las bocinas y el resto de la cadena de RF están elegidos para la banda de
+$1$ a $2\,\text{GHz}$, y achicarla cuesta resolución en distancia ($c/2B$).
+Lo más sencillo es \textbf{aceptar un tramo contaminado de la rampa}, y se
+puede, porque ese tramo cae donde la ventana de Hann casi no pesa.
+
+\subparagraph{Paso 1: qué tramo de la rampa queda contaminado.} Ningún
+filtro real pasa de ``deja pasar todo'' a ``atenúa $A_2$'' de golpe: necesita
+un margen de frecuencia para caer. Se llama $f_s$ a la frecuencia en la que el
+filtro ya alcanzó la atenuación $A_2$ que pide la
+Tabla~\ref{tab:atenuacion_filtro}. El segundo armónico está en $2f(t)$, así
+que el filtro lo atenúa lo suficiente sólo cuando $2f(t) \geq f_s$. Mientras
+$f(t) < f_s/2$, el armónico pasa sin atenuar del todo. Eso ocurre únicamente
+al principio de la rampa, cuando el VCO está en la parte baja del barrido, y
+dura una fracción de la rampa
+\begin{equation}
+  x_s = \frac{f_s/2 - f_\text{min}}{B}.
+\end{equation}
+Por ejemplo, si el filtro llega a su atenuación en $f_s = 2{,}2\,\text{GHz}$,
+el armónico pasa mientras $f(t) < 1{,}1\,\text{GHz}$, y la fracción es
+$(1100 - 988)/1003 \approx 11$\,\% de la rampa.
+
+\subparagraph{Paso 2: cuánto pesa ese tramo.} Antes de la FFT, cada rampa
+se multiplica por la ventana de Hann (Sección~\ref{sec:proc_fft}), que vale
+cero en los bordes y uno en el centro. El tramo contaminado está justo en un
+borde, donde la ventana casi anula la señal. Además, la ventana se aplica
+sobre $\theta$, que es lineal en la frecuencia, así que la fracción $x_s$ en
+frecuencia es exactamente la fracción de la ventana. La parte de la amplitud
+del fantasma que aporta ese tramo es el área de la ventana sobre él,
+dividida por el área total:
+\begin{equation}
+  \rho(x_s) = \frac{\int_0^{x_s} \sin^2(\pi u)\,du}{\int_0^{1}
+  \sin^2(\pi u)\,du} = x_s - \frac{\sin(2\pi x_s)}{2\pi}.
+\end{equation}
+Con $f_s = 2{,}2\,\text{GHz}$ da $\rho \approx 0{,}009$, o sea
+$-41\,\text{dB}$: el $11$\,\% de la rampa aporta menos del $1$\,\% del
+fantasma, porque en ese tramo la ventana vale entre $0$ y $0{,}1$. La cuenta
+es pesimista, porque supone que ese tramo no tiene \emph{ninguna}
+atenuación, cuando en realidad el filtro ya lo está atenuando en parte.
+
+\subparagraph{Paso 3: dónde queda el fantasma.} Lo que se cuela por el
+borde está $\rho$ por debajo del fantasma sin filtro, que es $2H_2 + \Delta
+G_2$: $-23\,\text{dB}$ con la simulación y $-16\,\text{dB}$ en el caso
+pesimista. Con $f_s = 2{,}2\,\text{GHz}$ queda en
+$-23 - 41 = -64\,\text{dB}$, o $-16 - 41 = -57\,\text{dB}$. La
+Tabla~\ref{tab:filtro_transicion} repite la cuenta para varios $f_s$.
+
+\begin{table}[H]
+  \centering
+  \caption{Lo que se cuela por el borde de la rampa, según la frecuencia
+  $f_s$ en la que el filtro alcanza su atenuación. Banda medida, $988$ a
+  $1991\,\text{MHz}$. La cuarta y la quinta columna son el nivel de esa parte
+  del fantasma respecto del pico del blanco.}
+  \label{tab:filtro_transicion}
+  \begin{tabular}{ccccc}
+    \toprule
+    $f_s$ & tramo sin & peso con Hann & fantasma & fantasma \\
+    & atenuar & $20\log_{10}\rho$ & ($\Delta G_2 = -7\,\text{dB}$)
+      & ($\Delta G_2 = 0$) \\
+    \midrule
+    $2{,}0\,\text{GHz}$ (ideal) & $1$\,\% & $-111\,\text{dB}$ & ---
+      & --- \\
+    $2{,}1\,\text{GHz}$ & $6$\,\%  & $-56\,\text{dB}$ & $-79\,\text{dB}$
+      & $-72\,\text{dB}$ \\
+    $2{,}2\,\text{GHz}$ & $11$\,\% & $-41\,\text{dB}$ & $-64\,\text{dB}$
+      & $-57\,\text{dB}$ \\
+    $2{,}3\,\text{GHz}$ & $16$\,\% & $-32\,\text{dB}$ & $-55\,\text{dB}$
+      & $-48\,\text{dB}$ \\
+    $2{,}5\,\text{GHz}$ & $26$\,\% & $-20\,\text{dB}$ & $-43\,\text{dB}$
+      & $-36\,\text{dB}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Cuanto más lento cae el filtro, más rampa queda contaminada y más fantasma se
+cuela. Para el objetivo de $-60\,\text{dB}$, el filtro tiene que alcanzar su
+atenuación en $\sim\!2{,}2\,\text{GHz}$ con el $\Delta G_2$ de la
+simulación, o en $\sim\!2{,}15\,\text{GHz}$ en el caso pesimista.
+
+\subparagraph{Resumen: lo que se le pide al filtro.} El fantasma que queda
+tiene dos partes: la del cuerpo de la rampa, que el filtro atenúa $A_2$
+(Tabla~\ref{tab:atenuacion_filtro}), y la del borde, que se cuela pero pesa
+poco (Tabla~\ref{tab:filtro_transicion}). Se pide que cada una quede, por
+separado, debajo del objetivo. Redondeando hacia el lado seguro:
+\begin{center}
+  \fbox{\begin{minipage}{0.85\linewidth}
+  \centering
+  pasabajos de RF que deje pasar hasta $2\,\text{GHz}$\\
+  y atenúe al menos $22\,\text{dB}$ a partir de $2{,}15\,\text{GHz}$.
+  \end{minipage}}
+\end{center}
+Es una transición de un $8$\,\% ($2{,}15/1{,}99 \approx 1{,}08$): pide un
+filtro empinado, pero realizable, y \textbf{gracias a la ventana de Hann no
+hace falta resignar ancho de banda}. El diseño se trata aparte.
+
+Para el diseño quedan además estos requisitos:
+\begin{itemize}
+  \item \textbf{Banda de paso plana.} Un rizado de amplitud en la banda de
+    paso es una modulación de amplitud de la rampa y sube los lóbulos
+    laterales del pico. La simulación muestra que los $\pm 2\,\text{dB}$ de
+    rizado de la propia fundamental ya los llevan de $-31$ a $-23\,\text{dB}$.
+  \item \textbf{Pérdida de inserción baja}, porque el filtro está antes del
+    splitter y su pérdida se resta a la potencia transmitida y al nivel de LO
+    que necesita el mezclador.
+  \item \textbf{Adaptación} a $50\,\Omega$ en la banda de paso, para no
+    agregar reflexiones entre el VCO y el splitter.
+\end{itemize}
+
+\paragraph{Una advertencia: no todo $2f_b$ viene de la RF.} Una alinealidad
+en banda base (el amplificador del pasabajos post-mezclador, que en el
+Capítulo~\ref{ch:filtro} ya mostró distorsión a amplitudes altas, o el
+propio PCM1808) también genera armónicos del batido en $2f_b$, $3f_b$, y el
+filtro de RF no los saca. Se distinguen atenuando el camino de recepción:
+el fantasma que viene de la RF mantiene su nivel \emph{relativo} (la
+ecuación~\eqref{eq:nivel_fantasma} no depende de la amplitud del eco),
+mientras que el de una alinealidad de segundo orden baja $1\,\text{dB}$ por
+cada dB de atenuación. Para lo mismo sirve conectar la salida de TX con la
+entrada de RX por un cable y un atenuador, sin antenas. Así hay un único
+retardo, y todo pico en $2f_b$ o $3f_b$ es un fantasma puro.
+
+\paragraph{Lo que falta medir} para cerrar los números de esta sección:
+el segundo y el tercer armónico hasta $\sim\!6\,\text{GHz}$, a la salida del
+VCO, del amplificador de RF y en la entrada LO del mezclador, con un
+atenuador externo para bajar el piso de $-32\,\text{dBc}$. Eso reemplaza el
+$\Delta G_2$ estimado y el tercer armónico supuesto por valores medidos.
+
 %============================================================
 \chapter{Generador de Triangular Analógico}
 \label{ch:triangular}
