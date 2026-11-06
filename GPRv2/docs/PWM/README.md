@@ -59,6 +59,18 @@ huella de la biblioteca, que ya estaba).
 | `2026-11-02_tanda1/` | osciloscopio, 20 / 100 / 275 ms, pocos períodos por captura |
 | `2026-11-02_tanda2/` | osciloscopio, 20 / 101 / 273 ms, más períodos (81 / 15 / 30) |
 | `2026-11-02_vco_maxhold/` | salida del VCO en el SSA3032X, Max Hold de 0,8 a 3 GHz |
+| `2026-11-06-tektronix_triangular/` | Tektronix TBS1102B a 0,5 V/div: 20, 100 y 273 ms. La medición buena de la triangular |
+| `2026-11-06-siglent_vco+triangular/` | zero span del VCO cada 25 MHz (995 a 1995 MHz), disparado por el sync, más un Max Hold |
+
+- `analizar_tektronix.py [carpeta]` — una figura por captura del Tek (`ALL000x_analisis.png`).
+- `analizar_zerospan.py [carpeta]` — f(t), df/dt, f(V) contra la curva estática y desvío de
+  una recta; los puntos medidos quedan en `zerospan_puntos.csv` (base del mapa θ).
+
+**Resultados del 2026-11-06:** triangular de 0,12 a 3,06 V con no linealidad de 0,1–0,3 %
+(el ~1 % y el escalón de 0,95 V que mostraba el Siglent eran del osciloscopio), subida y
+bajada con ~3 % de diferencia de pendiente. El VCO barre **985 a 1999 MHz** (1014 MHz),
+la subida dura 50,5 ms y la bajada 49,4 ms, df/dt va de ~14 a ~27 MHz/ms y f(t) se aparta
+hasta ~78 MHz de una recta.
 
 - `analizar_mediciones.py [carpeta]` — período, ciclo útil, linealidad, espectro contra una
   triangular ideal y huecos en el registro. Cada carpeta tiene su asignación
