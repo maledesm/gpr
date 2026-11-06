@@ -123,7 +123,7 @@
 % DATOS DEL TRABAJO
 %------------------------------------------------------------
 \newcommand{\Titulo}{Desarrollo y caracterización de un radar FMCW
-de 1 a 2~GHz para la detección de objetos ocultos}
+de 1 a 2~GHz para sensado a través de medios opacos}
 
 %============================================================
 \begin{document}
@@ -152,17 +152,17 @@ de 1 a 2~GHz para la detección de objetos ocultos}
   \vfill
 
   {\small\bfseries INTEGRANTES:}\\[0.35cm]
-  \pendiente{Apellido}, Martín\\
-  Padrón: \pendiente{padrón}\\
+  Ledesma, Martín\\
+  Padrón: 108068\\
   \href{mailto:maledesma@fi.uba.ar}{maledesma@fi.uba.ar}\\[0.45cm]
   Mogica, Santiago\\
-  Padrón: \pendiente{padrón}\\
-  \pendiente{mail @fi.uba.ar}
+  Padrón: 109026\\
+  \href{mailto:smogica@fi.uba.ar}{smogica@fi.uba.ar}
 
   \vspace{0.9cm}
   {\small\bfseries DIRECTOR:}\\[0.35cm]
   Dr. Ing. Fano, Walter Gustavo\\
-  \pendiente{mail}
+  \href{mailto:gfano@fi.uba.ar}{gfano@fi.uba.ar}
 
   % Si hay codirector, descomentar:
   % \vspace{0.9cm}
@@ -185,29 +185,53 @@ de 1 a 2~GHz para la detección de objetos ocultos}
 \section{Objeto y área del Trabajo Profesional}
 %============================================================
 
-\cartel{Presentación del trabajo}{Un párrafo: qué se va a hacer, sobre
-qué sistema y con qué fin. Mencionar que se parte de un prototipo
-recibido en estado parcial. Las siglas se definen al pie la primera vez
-que aparecen (FMCW, GPR, VCO\ldots).}
+En el presente Trabajo Profesional se completará y validará un radar de
+penetración terrestre (\sigla{GPR}{\textit{Ground Penetrating Radar},
+radar de penetración terrestre}) de onda continua modulada en
+frecuencia (\sigla{FMCW}{\textit{Frequency Modulated Continuous Wave},
+onda continua modulada en frecuencia}), tomando como punto de partida
+el prototipo desarrollado por Joaquín Raña en su tesis de grado
+\cite{Rana2026}. El trabajo se concentrará en completar el sistema,
+corregir sus no idealidades y evaluar experimentalmente en qué
+aplicaciones resulta útil.
 
 \subsection{Objetivo general}
 
-\cartel{Objetivo general}{Una o dos oraciones. Mantenerlo general: la
-aplicación final (suelo, paredes u otra) se define con los ensayos.}
+Desarrollar un radar GPR FMCW funcional y autónomo a partir del
+prototipo existente, y evaluar experimentalmente su desempeño como
+radar de distancia, como GPR y, de no resultar viable, en otras
+aplicaciones de sensado a través de medios opacos.
 
 \subsection{Objetivos particulares}
 
-\cartel{Objetivos particulares}{Lista en viñetas, de 5 a 8 ítems, cada
-uno verificable. Por ejemplo, uno por subsistema (barrido, cadena de RF,
-digitalización, software, simulación, integración) y uno de evaluación
-experimental.}
+\begin{itemize}
+  \item Caracterizar los componentes de la cadena de radiofrecuencia e
+        identificar los fenómenos físicos que degradan la medición.
+  \item Diseñar e implementar subsistemas que compensen dichos
+        fenómenos.
+  \item Diseñar e implementar la digitalización de la señal de batido y
+        su firmware.
+  \item Desarrollar el software de adquisición, procesamiento y
+        visualización de la señal.
+  \item Modelar y simular los escenarios de ensayo, a fin de contrastar
+        las hipótesis formuladas sobre los fenómenos que degradan la
+        medición.
+  \item Desarrollar los subsistemas que permitan operar el radar de
+        forma autónoma, sin depender del instrumental de laboratorio.
+  \item Evaluar experimentalmente el alcance, la resolución y la
+        capacidad de detección del sistema.
+\end{itemize}
 
 \subsection{Área del Trabajo Profesional}
 
-\cartel{Áreas profesionales}{Nombrar las áreas de la carrera
-involucradas (por ejemplo telecomunicaciones, sistemas embebidos,
-procesamiento de señales) y aclarar que están dentro de los alcances
-del título de Ingeniero Electrónico.}
+Las áreas profesionales involucradas en este Trabajo Profesional son
+principalmente las Telecomunicaciones, en particular la
+radiofrecuencia, la propagación y los sistemas irradiantes; los
+Sistemas Embebidos y el Procesamiento de Señales, todas ellas
+comprendidas dentro de los alcances del título de Ingeniero Electrónico
+de la Universidad de Buenos Aires. El trabajo involucra además
+actividades de instrumentación y mediciones electrónicas, diseño de
+circuitos analógicos y simulación electromagnética.
 
 %============================================================
 \section{Introducción y antecedentes}
@@ -215,25 +239,55 @@ del título de Ingeniero Electrónico.}
 
 \subsection{Motivación}
 
-\cartel{Motivación}{Breve, uno o dos párrafos: para qué sirve un GPR,
-por qué conviene uno de bajo costo y por qué la arquitectura FMCW lo
-hace viable. Con citas.}
+Los radares FMCW tienen numerosas aplicaciones, como la medición de
+nivel, la altimetría y la detección de discontinuidades dieléctricas
+bajo la superficie \cite{Stove1992}. En este último caso se encuentran
+los conocidos GPR, que no solo se emplean en ingeniería civil,
+arqueología y geología, sino también en la caracterización
+electromagnética de materiales \cite{Daniels2004}. Sin embargo, su
+costo suele ser la principal limitación para usarlos y estudiarlos en
+el ámbito educativo. La arquitectura propuesta permite un desarrollo de
+bajo costo, y deja abierto el abanico para estudiar las limitaciones
+del sistema y probar futuras modificaciones y mejoras.
 
 \subsection{Antecedentes}
 
 \subsubsection{Contexto del proyecto}
 
-\cartel{Contexto institucional y trabajo previo}{Quién empezó el
-prototipo y en qué laboratorio o grupo, qué componentes se heredaron y
-en qué estado se recibió (sin digitalización, barrido con generador de
-laboratorio, sin estimación de distancia).}
+El presente trabajo parte del prototipo de GPR FMCW desarrollado por
+Joaquín Raña en su tesis de grado, actualmente en curso
+\cite{Rana2026}, en el ámbito del \pendiente{laboratorio o grupo} de la
+Facultad de Ingeniería de la Universidad de Buenos Aires. De ese
+desarrollo provienen la cadena de radiofrecuencia, las antenas bocina y
+el oscilador controlado por tensión (\sigla{VCO}{\textit{Voltage
+Controlled Oscillator}, oscilador controlado por tensión}). Sobre esa
+base, este trabajo se enfoca en la adquisición propia de la señal, su
+procesamiento, la corrección de las no idealidades del sistema y su
+operación autónoma.
 
 \subsubsection{Marco normativo}
 
-\cartel{Normas aplicables}{Normas sobre radares de penetración
-terrestre y de pared, uso del espectro en la Argentina y exposición
-humana a radiofrecuencia. Aclarar que no se busca certificar el equipo
-y que las normas se usan para definir condiciones seguras de ensayo.}
+El sistema emite entre 1 y 2~GHz con unos $+24$~dBm, en una banda
+compartida con la telefonía móvil. Las normas que lo alcanzan son:
+
+\begin{itemize}
+  \item Las del \sigla{ENACOM}{Ente Nacional de Comunicaciones}, que
+        regula el uso del espectro radioeléctrico en la Argentina. En
+        esta banda operan servicios como la telefonía móvil y la
+        radionavegación por satélite, por lo que el prototipo no puede
+        transmitir libremente fuera de un entorno de ensayo.
+  \item La Resolución 202/95 del Ministerio de Salud \cite{Res202-95},
+        que fija los límites de exposición humana a radiofrecuencias.
+        Para la población general son de 6,3~W/m$^2$ a 943~MHz y de
+        10~W/m$^2$ por encima de 1,5~GHz.
+  \item La Resolución 530/2000 de la Secretaría de Comunicaciones
+        \cite{Res530-00}, que hace obligatorio ese estándar para todo
+        sistema de telecomunicaciones que irradie en esas frecuencias.
+\end{itemize}
+
+Al tratarse de un prototipo experimental, este trabajo no busca
+certificar el equipo, y estas normas se tomarán como referencia para
+definir condiciones seguras de ensayo.
 
 %============================================================
 \section{Desarrollo previsto del Trabajo Profesional}
@@ -243,17 +297,51 @@ y que las normas se usan para definir condiciones seguras de ensayo.}
 
 \subsubsection{Principio de funcionamiento}
 
-\cartel{Introducción teórica}{Principio del radar FMCW en uno o dos
-párrafos: barrido lineal, retardo del eco y frecuencia de batido.
-Incluir la ecuación de la frecuencia de batido y la de la resolución en
-distancia, con los valores del sistema (ancho de banda de 1~GHz).}
+A diferencia de los radares de pulsos, que miden directamente el
+tiempo de vuelo del eco, un radar FMCW transmite de forma continua una
+señal de radiofrecuencia cuya frecuencia varía linealmente en el
+tiempo. De esta forma, la diferencia entre la frecuencia transmitida y
+la recibida permite estimar la distancia al objeto que generó el eco.
+
+Para medir esta diferencia se mezclan la señal transmitida y la
+recibida, y se obtiene una señal de batido de baja frecuencia, cuya
+digitalización es sencilla y de bajo costo. La frecuencia de esta señal
+se relaciona directamente con la distancia al blanco mediante
+\begin{equation}
+  f_b = \frac{2\,R\,B}{c\,T},
+  \label{eq:fb}
+\end{equation}
+donde $R$ es la distancia, $B$ el ancho de banda del barrido, $T$ su
+duración y $c$ la velocidad de la luz \cite{Stove1992}. A su vez, la
+resolución en distancia depende solo del ancho de banda y del medio:
+\begin{equation}
+  \Delta R = \frac{c}{2\,B\,\sqrt{\varepsilon_r}}.
+  \label{eq:resolucion}
+\end{equation}
+Con $B = 1$~GHz es de 15~cm en aire y de unos 5~cm en un suelo con
+$\varepsilon_r \approx 9$. Estas relaciones suponen un barrido
+perfectamente lineal. Cualquier alinealidad desparrama el pico de la
+señal de batido y degrada la medición.
 
 \subsubsection{Enfoque}
 
-\cartel{Enfoque y metodología}{Cómo se va a encarar el desarrollo (por
-subsistemas, con integración incremental). Dejar claro qué se hereda,
-qué son módulos comerciales y qué es desarrollo propio. Referenciar la
-Figura~\ref{fig:bloques}.}
+El desarrollo se encarará por subsistemas, cada uno de los cuales se
+diseñará, implementará y verificará por separado antes de integrarse
+al conjunto. De esta forma, cada etapa deja una parte del radar
+funcionando y permite detectar los problemas de forma aislada. Los
+subsistemas definidos, que se desarrollarán en gran medida en
+paralelo, son la caracterización de la cadena de radiofrecuencia, la
+simulación electromagnética, la generación del barrido, el filtrado,
+la adquisición, el procesamiento y la corrección de fenómenos físicos,
+y la autonomía.
+
+La Figura~\ref{fig:bloques} muestra la arquitectura propuesta. En gris
+se indican los componentes heredados del prototipo previo, que se
+utilizarán y caracterizarán sin rediseñarse, y en celeste, los
+desarrollados en este trabajo. Siempre que sea posible se emplearán
+módulos comerciales, de modo que el desarrollo propio se concentre en
+su integración, en la corrección de las no idealidades del sistema y en
+su operación autónoma.
 
 \begin{figure}[htbp]
   \centering
@@ -261,38 +349,42 @@ Figura~\ref{fig:bloques}.}
       font=\footnotesize,
       >={Stealth[length=2mm]},
       line width=0.6pt,
-      blk/.style={draw, rounded corners=2pt, minimum width=1.6cm,
-                  minimum height=1.05cm, inner xsep=2pt, align=center,
+      blk/.style={draw, rounded corners=2pt, minimum width=1.5cm,
+                  minimum height=1.05cm, inner xsep=1.5pt, align=center,
                   line width=0.6pt},
       her/.style={blk, draw=black!45, fill=black!8},
       pro/.style={blk, draw=fiuba, fill=fiuba!12},
       sub/.style={font=\scriptsize, text=black!70},
       lab/.style={font=\scriptsize, midway, above, inner sep=1.5pt}
     ]
-    \def\dx{2.3}
+    \def\dx{1.95}
+    \def\db{2.34}
     \def\yb{-2.3}
     % Transmisión
     \node[pro] (gen) at (0,0)      {Generador\\[-2pt]{\scriptsize triangular}};
     \node[her] (amp) at (\dx,0)    {AMP\\[-2pt]{\scriptsize $\times 5$}};
     \node[her] (vco) at (2*\dx,0)  {VCO\\[-2pt]{\scriptsize 1--2 GHz}};
     \node[her] (att) at (3*\dx,0)  {Atenuador\\[-2pt]{\scriptsize $-3$ dB}};
-    \node[her] (spl) at (4*\dx,0)  {Divisor de\\[-2pt]potencia};
-    \node[her] (tx)  at (5*\dx,0)  {Antena\\[-2pt]TX};
+    \node[her] (pa)  at (4*\dx,0)  {PA\\[-2pt]{\scriptsize $+24$ dBm}};
+    \node[her] (spl) at (5*\dx,0)  {Divisor de\\[-2pt]potencia};
+    \node[her] (tx)  at (6*\dx,0)  {Antena\\[-2pt]TX};
     % Recepción
     \node[pro] (esp) at (0,\yb)     {ESP32-C3\\[-2pt]{\scriptsize firmware}};
-    \node[pro] (pcm) at (\dx,\yb)   {PCM1808\\[-2pt]{\scriptsize ADC 24 bit}};
-    \node[her] (lpf) at (2*\dx,\yb) {Filtro\\[-2pt]{\scriptsize pasabajos}};
-    \node[her] (mix) at (3*\dx,\yb) {Mezclador};
-    \node[her] (lna) at (4*\dx,\yb) {LNA};
-    \node[her] (rx)  at (5*\dx,\yb) {Antena\\[-2pt]RX};
-    % Medio y PC
-    \node[blk, dashed, draw=black!60, minimum width=1.4cm] (med) at (5*\dx+1.95,\yb/2) {Medio\\[-2pt]{\scriptsize bajo estudio}};
+    \node[pro] (pcm) at (\db,\yb)   {PCM1808\\[-2pt]{\scriptsize ADC 24 bit}};
+    \node[pro] (lpf) at (2*\db,\yb) {Filtro\\[-2pt]{\scriptsize pasabajos}};
+    \node[her] (mix) at (3*\db,\yb) {Mezclador};
+    \node[her] (lna) at (4*\db,\yb) {LNA};
+    \node[her] (rx)  at (6*\dx,\yb) {Antena\\[-2pt]RX};
+    % Medio, PC y alimentación
+    \node[blk, dashed, draw=black!60, minimum width=1.4cm] (med) at (6*\dx+1.85,\yb/2) {Medio\\[-2pt]{\scriptsize bajo estudio}};
     \node[pro] (pc) at (0,\yb-1.6) {PC\\[-2pt]{\scriptsize procesamiento}};
+    \node[pro] (pwr) at (\db,\yb-1.6) {Powerbank\\[-2pt]{\scriptsize alimentación}};
     % Conexiones de transmisión
     \draw[->] (gen) -- (amp);
     \draw[->] (amp) -- (vco);
     \draw[->] (vco) -- (att);
-    \draw[->] (att) -- (spl);
+    \draw[->] (att) -- (pa);
+    \draw[->] (pa) -- (spl);
     \draw[->] (spl) -- (tx);
     \draw[->, dashed] (tx.east) -| (med.north);
     \draw[->, dashed] (med.south) |- (rx.east);
@@ -306,19 +398,65 @@ Figura~\ref{fig:bloques}.}
     \draw[->] (gen) -- node[midway, left, font=\scriptsize]{sync} (esp);
     \draw[->] (esp) -- node[midway, right, font=\scriptsize]{USB} (pc);
     % Leyenda
-    \node[her, minimum width=0.55cm, minimum height=0.35cm] (lh) at (2.6,\yb-1.6) {};
+    \node[her, minimum width=0.55cm, minimum height=0.35cm] (lh) at (5.2,\yb-1.6) {};
     \node[right=0.15cm of lh, font=\footnotesize] {Heredado del prototipo previo};
-    \node[pro, minimum width=0.55cm, minimum height=0.35cm] (lp) at (8.4,\yb-1.6) {};
-    \node[right=0.15cm of lp, font=\footnotesize, align=left] {Desarrollo propio\\[-2pt]{\scriptsize (incluye módulos comerciales integrados)}};
+    \node[pro, minimum width=0.55cm, minimum height=0.35cm] (lp) at (10.6,\yb-1.6) {};
+    \node[right=0.15cm of lp, font=\footnotesize] {Desarrollo propio};
   \end{tikzpicture}
-  \caption{Diagrama de bloques del radar. En gris, los componentes
-  recibidos del prototipo previo; en celeste, los desarrollados o
-  integrados en este trabajo.}
+  \caption{Diagrama de bloques del radar.}
   \label{fig:bloques}
 \end{figure}
 
-\cartel{Revisar el diagrama}{Confirmar los bloques y qué es heredado
-(gris) y qué es propio (celeste).}
+\subsubsection{Caracterización de la cadena de radiofrecuencia}
+
+La cadena de radiofrecuencia heredada no se rediseñará, pero su
+comportamiento real condiciona la calidad de la medición, por lo que
+cada componente se caracterizará por separado. El elemento más crítico
+es el VCO, que difícilmente sea lineal en todo su ancho de banda. Ante
+un VCO fuertemente alineal, la señal de batido se dispersa en
+frecuencia, lo que dificulta medir distancias con precisión. Por otro
+lado, los cables entre módulos atenúan la señal y agregan un retardo
+que se suma al del recorrido, lo que se traduce en un desplazamiento
+constante en la distancia medida.
+
+Las tareas previstas son:
+\begin{itemize}
+  \item Medir la curva de sintonía del VCO y evaluar su repetibilidad.
+  \item Medir los niveles de potencia a lo largo de la cadena.
+  \item Medir el retardo y las pérdidas de los cables con un
+        analizador vectorial de redes (\sigla{VNA}{\textit{Vector
+        Network Analyzer}, analizador vectorial de redes}).
+  \item Caracterizar las antenas, en la medida en que lo permita el
+        instrumental disponible.
+  \item Identificar otros fenómenos que puedan degradar la medición.
+\end{itemize}
+
+\subsubsection{Simulación electromagnética}
+
+Se utilizarán simulaciones electromagnéticas para formular y contrastar
+hipótesis sobre los fenómenos individuales que degradan la medición, y
+para comprobar el correcto funcionamiento de cada subsistema y del
+sistema completo. En una medición real todos estos fenómenos aparecen
+superpuestos, mientras que en simulación pueden incorporarse de a uno,
+lo que permite identificar el efecto de cada uno sobre la señal de
+batido.
+
+Las simulaciones del escenario de medición se realizarán con MEEP, un
+software de código abierto desarrollado en el MIT \cite{Oskooi2010},
+mientras que las simulaciones de radiación de componentes individuales,
+como las antenas, se realizarán con CST Studio Suite.
+
+Las tareas previstas son:
+\begin{itemize}
+  \item Desarrollar los modelos de los escenarios de ensayo.
+  \item Desarrollar modelos que reproduzcan de forma aislada los
+        fenómenos que se busque contrastar.
+  \item Simular la propagación de la onda en los distintos medios para
+        verificar el modelo físico del sistema.
+  \item Simular los escenarios de la aplicación, como suelos de
+        distinta permitividad o paredes.
+  \item Contrastar cada hipótesis con su medición correspondiente.
+\end{itemize}
 
 \subsubsection{Generación del barrido}
 
@@ -327,24 +465,31 @@ cómo se implementa (generador de triangular analógico) y qué problema
 resuelve (alinealidad del VCO). Cerrar con las tareas previstas en
 viñetas.}
 
-\subsubsection{Cadena de radiofrecuencia y antenas}
+\subsubsection{Filtrado}
 
-\cartel{Hardware heredado: cadena de RF y antenas}{Descripción breve de
-la cadena recibida y aclaración de que no se rediseña. Tareas previstas
-en viñetas: caracterización de cables con VNA, potencias, filtro y,
-si corresponde, antenas.}
+\cartel{Hardware diseñado: filtro de la señal de batido}{Qué función
+cumple el filtro, qué limitaciones tiene el actual (por ejemplo su corte
+inferior) y qué se busca con el nuevo diseño. Tareas previstas en
+viñetas.}
 
-\subsubsection{Recepción y digitalización}
+\subsubsection{Adquisición}
 
-\cartel{Hardware y firmware diseñados: digitalización}{ADC y
-microcontrolador elegidos, cómo se conectan y cómo llegan los datos a
-la PC. Tareas previstas en viñetas.}
+\cartel{Hardware y firmware diseñados: adquisición}{ADC y
+microcontrolador elegidos, cómo se conectan, cómo se sincroniza con el
+barrido y cómo llegan los datos a la PC. Tareas previstas en viñetas.}
 
-\subsubsection{Software desarrollado}
+\subsubsection{Procesamiento y corrección de fenómenos físicos}
 
-\cartel{Software diseñado}{Qué hace el software propio: adquisición,
-corrección de la alinealidad, estimación de distancia, calibración y
-visualización en tiempo real. Tareas previstas en viñetas.}
+\cartel{Software diseñado}{Qué hace el software propio (estimación de
+distancia, visualización) y qué fenómenos corrige (alinealidad del
+barrido, retardo de los cables, ruido). Tareas previstas en viñetas.}
+
+\subsubsection{Autonomía}
+
+\cartel{Hardware diseñado: alimentación e integración}{Qué hace falta
+para que el radar funcione sin instrumental de laboratorio
+(alimentación con powerbank y conversores, reemplazo del generador de
+funciones, montaje del conjunto). Tareas previstas en viñetas.}
 
 \subsubsection{Herramientas utilizadas}
 
@@ -352,12 +497,6 @@ visualización en tiempo real. Tareas previstas en viñetas.}
 para qué se usa cada una: por ejemplo Python, LTspice, KiCad, MEEP, CST
 y el entorno del microcontrolador, además del instrumental de
 laboratorio (osciloscopio, analizador de espectro, VNA).}
-
-\subsubsection{Simulación electromagnética}
-
-\cartel{Simulación electromagnética}{Qué se simula (escenarios de
-ensayo, antenas, blancos), con qué método y herramienta, y para qué se
-usa (contrastar con las mediciones).}
 
 \subsubsection{Verificación}
 
@@ -493,7 +632,7 @@ borrar las que no se usen.}
 \begin{center}
   \begin{tabular}{@{} c @{\hspace{2.5cm}} c @{}}
     \rule{6cm}{0.4pt} & \rule{6cm}{0.4pt} \\[0.2cm]
-    \pendiente{Apellido}, Martín & Mogica, Santiago \\
+    Ledesma, Martín & Mogica, Santiago \\
     \small Integrante & \small Integrante \\
   \end{tabular}
 
