@@ -225,11 +225,12 @@ aplicaciones de sensado a través de medios opacos.
 \subsection{Área del Trabajo Profesional}
 
 Las áreas profesionales involucradas en este Trabajo Profesional son
-principalmente las Telecomunicaciones, en particular la
-radiofrecuencia, la propagación y los sistemas irradiantes; los
-Sistemas Embebidos y el Procesamiento de Señales, todas ellas
-comprendidas dentro de los alcances del título de Ingeniero Electrónico
-de la Universidad de Buenos Aires. El trabajo involucra además
+principalmente las Telecomunicaciones, los Sistemas Embebidos y el
+Procesamiento de Señales, todas ellas comprendidas dentro de los
+alcances del título de Ingeniero Electrónico de la Universidad de
+Buenos Aires. Dentro de las Telecomunicaciones, el trabajo abarca la
+radiofrecuencia, la propagación y los sistemas irradiantes. Involucra
+además
 actividades de instrumentación y mediciones electrónicas, diseño de
 circuitos analógicos y simulación electromagnética.
 
@@ -358,25 +359,26 @@ su operación autónoma.
       lab/.style={font=\scriptsize, midway, above, inner sep=1.5pt}
     ]
     \def\dx{1.95}
-    \def\db{2.34}
-    \def\yb{-2.3}
+    \def\db{2.73}
+    \def\yb{-3.0}
     % Transmisión
     \node[pro] (gen) at (0,0)      {Generador\\[-2pt]{\scriptsize triangular}};
     \node[her] (amp) at (\dx,0)    {AMP\\[-2pt]{\scriptsize $\times 5$}};
     \node[her] (vco) at (2*\dx,0)  {VCO\\[-2pt]{\scriptsize 1--2 GHz}};
     \node[her] (att) at (3*\dx,0)  {Atenuador\\[-2pt]{\scriptsize $-3$ dB}};
     \node[her] (pa)  at (4*\dx,0)  {PA\\[-2pt]{\scriptsize $+24$ dBm}};
-    \node[her] (spl) at (5*\dx,0)  {Divisor de\\[-2pt]potencia};
-    \node[her] (tx)  at (6*\dx,0)  {Antena\\[-2pt]TX};
+    \node[pro] (frf) at (5*\dx,0)  {Filtrado\\[-2pt]{\scriptsize RF}};
+    \node[her] (spl) at (6*\dx,0)  {Divisor de\\[-2pt]potencia};
+    \node[her] (tx)  at (7*\dx,0)  {Antena\\[-2pt]TX};
     % Recepción
     \node[pro] (esp) at (0,\yb)     {ESP32-C3\\[-2pt]{\scriptsize firmware}};
     \node[pro] (pcm) at (\db,\yb)   {PCM1808\\[-2pt]{\scriptsize ADC 24 bit}};
-    \node[pro] (lpf) at (2*\db,\yb) {Filtro\\[-2pt]{\scriptsize pasabajos}};
+    \node[pro] (lpf) at (2*\db,\yb) {Filtrado\\[-2pt]{\scriptsize banda base}};
     \node[her] (mix) at (3*\db,\yb) {Mezclador};
     \node[her] (lna) at (4*\db,\yb) {LNA};
-    \node[her] (rx)  at (6*\dx,\yb) {Antena\\[-2pt]RX};
+    \node[her] (rx)  at (7*\dx,\yb) {Antena\\[-2pt]RX};
     % Medio, PC y alimentación
-    \node[blk, dashed, draw=black!60, minimum width=1.4cm] (med) at (6*\dx+1.85,\yb/2) {Medio\\[-2pt]{\scriptsize bajo estudio}};
+    \node[blk, dashed, draw=black!60] (med) at (7*\dx,\yb/2) {Medio\\[-2pt]{\scriptsize bajo estudio}};
     \node[pro] (pc) at (0,\yb-1.6) {PC\\[-2pt]{\scriptsize procesamiento}};
     \node[pro] (pwr) at (\db,\yb-1.6) {Powerbank\\[-2pt]{\scriptsize alimentación}};
     % Conexiones de transmisión
@@ -384,10 +386,11 @@ su operación autónoma.
     \draw[->] (amp) -- (vco);
     \draw[->] (vco) -- (att);
     \draw[->] (att) -- (pa);
-    \draw[->] (pa) -- (spl);
+    \draw[->] (pa) -- (frf);
+    \draw[->] (frf) -- (spl);
     \draw[->] (spl) -- (tx);
-    \draw[->, dashed] (tx.east) -| (med.north);
-    \draw[->, dashed] (med.south) |- (rx.east);
+    \draw[->, dashed] (tx) -- (med);
+    \draw[->, dashed] (med) -- (rx);
     % Conexiones de recepción
     \draw[->] (rx) -- (lna);
     \draw[->] (lna) -- node[lab]{RF} (mix);
@@ -460,29 +463,85 @@ Las tareas previstas son:
 
 \subsubsection{Generación del barrido}
 
-\cartel{Hardware diseñado: generador del barrido}{Qué hace el bloque,
-cómo se implementa (generador de triangular analógico) y qué problema
-resuelve (alinealidad del VCO). Cerrar con las tareas previstas en
-viñetas.}
+La señal de sintonía del VCO define el barrido de frecuencia.
+Actualmente esta señal se obtiene de un generador de funciones de
+laboratorio, lo que impide la operación autónoma del radar. Por este
+motivo, se desarrollará un generador propio de señal triangular lo más
+lineal posible. La alinealidad propia del VCO no se resolverá en este
+bloque, sino en conjunto con el procesamiento de la señal.
+
+Las tareas previstas son:
+\begin{itemize}
+  \item Definir los requisitos de la señal a partir de la
+        caracterización del VCO.
+  \item Diseñar, simular e implementar el generador.
+  \item Verificar la linealidad, el ruido y el funcionamiento de la
+        señal generada.
+\end{itemize}
 
 \subsubsection{Filtrado}
 
-\cartel{Hardware diseñado: filtro de la señal de batido}{Qué función
-cumple el filtro, qué limitaciones tiene el actual (por ejemplo su corte
-inferior) y qué se busca con el nuevo diseño. Tareas previstas en
-viñetas.}
+El filtrado de la señal se analizará en dos puntos de la cadena. En
+banda base, la salida del mezclador contiene, además de la señal de
+batido, componentes de alta frecuencia, componentes espurias y una
+continua que no aportan información. En radiofrecuencia, dependiendo de
+la calidad de la señal de salida del VCO, podrían aparecer armónicos o
+componentes espurias que se transmitirían y generarían ecos
+indeseados, degradando la medición. En ambos casos se evaluará si es
+necesario filtrar y, de serlo, se definirán los requisitos, el rango de
+frecuencias de interés y la topología del sistema de filtrado a
+utilizar.
+
+Las tareas previstas son:
+\begin{itemize}
+  \item Analizar la necesidad de filtrado en banda base y en
+        radiofrecuencia.
+  \item Definir los requisitos de cada filtro necesario.
+  \item Diseñar, simular e implementar los filtros que resulten
+        necesarios.
+  \item Verificar su respuesta en frecuencia y su efecto sobre la
+        medición.
+\end{itemize}
 
 \subsubsection{Adquisición}
 
-\cartel{Hardware y firmware diseñados: adquisición}{ADC y
-microcontrolador elegidos, cómo se conectan, cómo se sincroniza con el
-barrido y cómo llegan los datos a la PC. Tareas previstas en viñetas.}
+La señal de batido se digitalizará con un conversor analógico-digital
+(\sigla{ADC}{\textit{Analog-to-Digital Converter}, conversor
+analógico-digital}) controlado por un microcontrolador, que enviará las
+muestras a una computadora para su procesamiento. El conversor deberá
+incluir una señal de sincronismo para poder procesar coherentemente la
+medición. La frecuencia de muestreo y la resolución del conversor se
+elegirán a partir del rango de frecuencias de batido esperado y del
+rango dinámico de la señal.
+
+Las tareas previstas son:
+\begin{itemize}
+  \item Seleccionar el conversor y el microcontrolador.
+  \item Desarrollar el firmware de adquisición y la comunicación con la
+        computadora.
+  \item Implementar el sincronismo entre la adquisición y el barrido.
+  \item Validar la adquisición con señales conocidas.
+\end{itemize}
 
 \subsubsection{Procesamiento y corrección de fenómenos físicos}
 
-\cartel{Software diseñado}{Qué hace el software propio (estimación de
-distancia, visualización) y qué fenómenos corrige (alinealidad del
-barrido, retardo de los cables, ruido). Tareas previstas en viñetas.}
+Se obtendrá el espectro de la señal de batido mediante la transformada
+rápida de Fourier (\sigla{FFT}{\textit{Fast Fourier Transform},
+transformada rápida de Fourier}) y se convertirá cada pico en una
+distancia según la Ecuación~\eqref{eq:fb}. Sobre este procesamiento se
+compensarán los fenómenos identificados en la caracterización y en la
+simulación, y los resultados se visualizarán en tiempo real.
+
+Las tareas previstas son:
+\begin{itemize}
+  \item Implementar la cadena de procesamiento y la estimación de
+        distancia.
+  \item Implementar las correcciones de los fenómenos identificados.
+  \item Desarrollar la visualización en tiempo real y el registro de
+        las capturas.
+  \item Validar el procesamiento con señales simuladas y con
+        mediciones sobre blancos conocidos.
+\end{itemize}
 
 \subsubsection{Autonomía}
 
