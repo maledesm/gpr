@@ -151,24 +151,25 @@ de 1 a 2~GHz para sensado a través de medios opacos}
 
   \vfill
 
-  {\small\bfseries INTEGRANTES:}\\[0.35cm]
-  Ledesma, Martín\\
-  Padrón: 108068\\
-  \href{mailto:maledesma@fi.uba.ar}{maledesma@fi.uba.ar}\\[0.45cm]
-  Mogica, Santiago\\
-  Padrón: 109026\\
-  \href{mailto:smogica@fi.uba.ar}{smogica@fi.uba.ar}
+  % Columnas de ancho fijo e iguales en las dos tablas, para que los
+  % integrantes queden alineados con el director y el codirector
+  {\normalsize\bfseries INTEGRANTES:}\\[0.6cm]
+  \begin{tabular}{@{} >{\centering\arraybackslash}p{6.5cm}
+                      >{\centering\arraybackslash}p{6.5cm} @{}}
+    Ledesma, Martín & Mogica, Santiago \\
+    Padrón: 108068  & Padrón: 109026 \\
+    \href{mailto:maledesma@fi.uba.ar}{maledesma@fi.uba.ar} &
+    \href{mailto:smogica@fi.uba.ar}{smogica@fi.uba.ar} \\
+  \end{tabular}
 
-  \vspace{0.9cm}
-  {\small\bfseries DIRECTOR:}\\[0.35cm]
-  Dr. Ing. Fano, Walter Gustavo\\
-  \href{mailto:gfano@fi.uba.ar}{gfano@fi.uba.ar}
-
-  % Si hay codirector, descomentar:
-  % \vspace{0.9cm}
-  % {\small\bfseries CODIRECTOR:}\\[0.35cm]
-  % Apellido, Nombre\\
-  % mail
+  \vspace{1.0cm}
+  \begin{tabular}{@{} >{\centering\arraybackslash}p{6.5cm}
+                      >{\centering\arraybackslash}p{6.5cm} @{}}
+    {\normalsize\bfseries DIRECTOR:} & {\normalsize\bfseries CODIRECTOR:} \\[0.45cm]
+    Dr. Ing. Fano, Walter Gustavo & Ing. Alonso, Ramiro \\
+    \href{mailto:gfano@fi.uba.ar}{gfano@fi.uba.ar} &
+    \href{mailto:ralonso@fi.uba.ar}{ralonso@fi.uba.ar} \\
+  \end{tabular}
 
   \vspace{1.2cm}
 \end{titlepage}
@@ -276,7 +277,7 @@ compartida con la telefonía móvil. Las normas que lo alcanzan son:
         esta banda operan servicios como la telefonía móvil y la
         radionavegación por satélite, por lo que el prototipo no puede
         transmitir libremente fuera de un entorno de ensayo.
-  \item La Resolución 202/95 del Ministerio de Salud \cite{Res202-95},
+  \item La Resolución 202/95 del Ministerio de Salud y Acción Social \cite{Res202-95},
         que fija los límites de exposición humana a radiofrecuencias.
         Para la población general son de 6,3~W/m$^2$ a 943~MHz y de
         10~W/m$^2$ por encima de 1,5~GHz.
@@ -320,7 +321,7 @@ resolución en distancia depende solo del ancho de banda y del medio:
 \end{equation}
 Con $B = 1$~GHz es de 15~cm en aire y de unos 5~cm en un suelo con
 $\varepsilon_r \approx 9$. Estas relaciones suponen un barrido
-perfectamente lineal. Cualquier alinealidad desparrama el pico de la
+perfectamente lineal. Cualquier alinealidad ensancha el pico de la
 señal de batido y degrada la medición.
 
 \subsubsection{Enfoque}
@@ -397,7 +398,6 @@ su operación autónoma.
     \draw[->] (mix) -- node[lab]{$f_b$} (lpf);
     \draw[->] (lpf) -- (pcm);
     \draw[->] (pcm) -- node[lab]{I$^2$S} (esp);
-    \draw[->] (gen) -- node[midway, left, font=\scriptsize]{sync} (esp);
     \draw[->] (esp) -- node[midway, right, font=\scriptsize]{USB} (pc);
     % Leyenda
     \node[her, minimum width=0.55cm, minimum height=0.35cm] (lh) at (5.2,\yb-1.6) {};
@@ -405,7 +405,8 @@ su operación autónoma.
     \node[pro, minimum width=0.55cm, minimum height=0.35cm] (lp) at (10.6,\yb-1.6) {};
     \node[right=0.15cm of lp, font=\footnotesize] {Desarrollo propio};
   \end{tikzpicture}
-  \caption{Diagrama de bloques del radar.}
+  \caption{Diagrama de bloques del radar. PA, amplificador de potencia.
+  LNA, amplificador de bajo ruido. LO, oscilador local.}
   \label{fig:bloques}
 \end{figure}
 
@@ -507,9 +508,7 @@ Las tareas previstas son:
 La señal de batido se digitalizará con un conversor analógico-digital
 (\sigla{ADC}{\textit{Analog-to-Digital Converter}, conversor
 analógico-digital}) controlado por un microcontrolador, que enviará las
-muestras a una computadora para su procesamiento. El conversor deberá
-incluir una señal de sincronismo para poder procesar coherentemente la
-medición. La frecuencia de muestreo y la resolución del conversor se
+muestras a una computadora para su procesamiento. La frecuencia de muestreo y la resolución del conversor se
 elegirán a partir del rango de frecuencias de batido esperado y del
 rango dinámico de la señal.
 
@@ -518,7 +517,6 @@ Las tareas previstas son:
   \item Seleccionar el conversor y el microcontrolador.
   \item Desarrollar el firmware de adquisición y la comunicación con la
         computadora.
-  \item Implementar el sincronismo entre la adquisición y el barrido.
   \item Validar la adquisición con señales conocidas.
 \end{itemize}
 
@@ -544,133 +542,140 @@ Las tareas previstas son:
 
 \subsubsection{Autonomía}
 
-\cartel{Hardware diseñado: alimentación e integración}{Qué hace falta
-para que el radar funcione sin instrumental de laboratorio
-(alimentación con powerbank y conversores, reemplazo del generador de
-funciones, montaje del conjunto). Tareas previstas en viñetas.}
+El prototipo depende hoy de instrumental de laboratorio, como fuentes
+de alimentación y generadores de señal, para su funcionamiento. Para
+poder operarlo de forma autónoma, se deberán diseñar subsistemas que
+cumplan estas funciones por su cuenta dentro de un gabinete.
+
+Las tareas previstas son:
+\begin{itemize}
+  \item Realizar una lista de requisitos de cada bloque.
+  \item Diseñar, implementar e integrar los distintos subsistemas.
+  \item Verificar el funcionamiento del radar sin instrumental de
+        laboratorio.
+\end{itemize}
 
 \subsubsection{Herramientas utilizadas}
 
-\cartel{Software y herramientas utilizados}{Herramientas de terceros y
-para qué se usa cada una: por ejemplo Python, LTspice, KiCad, MEEP, CST
-y el entorno del microcontrolador, además del instrumental de
-laboratorio (osciloscopio, analizador de espectro, VNA).}
+El trabajo se apoyará en herramientas de software y en instrumental de
+laboratorio. Las herramientas de software previstas son:
+\begin{itemize}
+  \item Python, para el software de adquisición, procesamiento y
+        visualización.
+  \item Arduino IDE, para el firmware de adquisición de datos.
+  \item LTspice, para la simulación de los circuitos.
+  \item KiCad, para el diseño de los circuitos impresos.
+  \item MEEP y CST Studio Suite, para las simulaciones
+        electromagnéticas.
+  \item Git, para el control de versiones del código y de la
+        documentación.
+\end{itemize}
+
+El instrumental de laboratorio previsto es:
+\begin{itemize}
+  \item Un osciloscopio.
+  \item Un analizador de espectro.
+  \item Un analizador vectorial de redes.
+\end{itemize}
 
 \subsubsection{Verificación}
 
-\cartel{Criterio de verificación}{Verificación progresiva: subsistema,
-integración y sistema completo. Cada resultado se contrasta por tres
-vías: cálculo analítico, simulación y medición. Ensayos de laboratorio
-y de campo.}
+La verificación se realizará en forma progresiva, primero sobre cada
+subsistema, luego sobre su integración y por último sobre el sistema
+completo. Cada resultado se contrastará por tres vías, que son el
+cálculo analítico, la simulación y la medición.
 
 \subsection{Estudios conexos}
 
-\cartel{Estudios conexos}{Materias de la carrera relacionadas con el
-trabajo, agrupadas, con una línea sobre qué aporta cada grupo.
-Opcional: formación extra (cursos, trabajo).}
+El trabajo se apoya en los conocimientos adquiridos en las siguientes
+asignaturas de la carrera:
+\begin{itemize}
+  \item Electromagnetismo, para los fundamentos de los campos y las
+        ondas.
+  \item Propagación y Sistemas Irradiantes, para el estudio de antenas
+        y cadenas de radiofrecuencia.
+  \item Señales y Sistemas, para el análisis de señales en frecuencia.
+  \item Taller de Procesamiento de Señales, para el procesamiento
+        digital y el filtrado.
+  \item Diseño de Circuitos Electrónicos, para el desarrollo del
+        generador y de los filtros.
+  \item Introducción al Diseño Asistido por Computadora, para la
+        simulación y el diseño de los circuitos impresos.
+  \item Laboratorio de Microprocesadores, para el desarrollo del
+        firmware.
+  \item Instrumentos y Mediciones Electrónicas, para la caracterización
+        con instrumental de laboratorio.
+\end{itemize}
 
 \subsection{Alcance proyectado para el Trabajo Profesional}
 
-\cartel{Resultados esperados}{Una oración de introducción (el alcance es
-general y la aplicación se define con los ensayos) y la lista de
-resultados concretos en viñetas, con el nombre de cada resultado en
-negrita.}
+El alcance del trabajo se plantea de manera general, ya que las
+capacidades reales del sistema recién se conocerán con los ensayos. Al
+finalizar el Trabajo Profesional se prevé obtener:
+\begin{itemize}
+  \item Modelos de simulación electromagnética de los escenarios de
+        ensayo, contrastados con mediciones.
+  \item Una caracterización de la cadena de radiofrecuencia y de los
+        fenómenos que degradan la medición.
+  \item Un software de adquisición y procesamiento que estime
+        distancias y compense dichos fenómenos físicos.
+  \item Un prototipo integrado en un gabinete que funcione de forma
+        autónoma.
+  \item Una evaluación experimental del alcance, la resolución y la
+        capacidad de detección del radar.
+  \item La documentación técnica del trabajo completo.
+\end{itemize}
 
-\cartel{Aplicación a evaluar}{Orden de prioridad: 1) detección de
-objetos enterrados; 2) a través de paredes; 3) otro uso, por ejemplo
-SAR. Cada alternativa se aborda solo si la anterior no resulta viable.
-Indicar en qué revisión se decide.}
+La aplicación sobre la que se evaluará el sistema se definirá a partir
+de los resultados de los ensayos, según el siguiente orden de
+prioridad:
+\begin{enumerate}
+  \item Detección de objetos enterrados, es decir, su uso como GPR.
+  \item Detección de objetos o estructuras detrás de paredes.
+  \item Otras aplicaciones de sensado.
+\end{enumerate}
 
-\cartel{Qué no incluye}{Un párrafo con lo que queda fuera: rediseño de
-los componentes heredados, algoritmos avanzados de imagen, una campaña
-exhaustiva de suelos y la certificación del equipo.}
+El alcance no incluye el rediseño de los componentes heredados de la
+cadena de radiofrecuencia, que se utilizarán y caracterizarán tal como
+fueron recibidos.
 
 \subsection{Plan de trabajo}
 \label{sec:plan}
 
-\cartel{Presentación del plan}{Duración (43 semanas, unos 10 meses,
-desde el 3 de agosto de 2026), esfuerzo total del equipo (unas
-1200~h), revisiones formales al cierre de cada etapa y redacción
-continua desde el principio. Referenciar las
-Tablas~\ref{tab:gantt} y~\ref{tab:etapas}.}
-
-\cartel{Revisar las tablas}{Las etapas, las semanas, las horas y las
-revisiones de las dos tablas son una propuesta inicial.}
-
-\newcommand{\hc}[1][]{\cellcolor{fiuba}\textcolor{white}{\scriptsize\bfseries #1}}
-\newcommand{\pc}[1][]{\cellcolor{fiuba!25}{\scriptsize\bfseries #1}}
-
-\begin{table}[htbp]
-  \centering
-  \small
-  \setlength{\tabcolsep}{0pt}
-  \renewcommand{\arraystretch}{1.5}
-  \newcolumntype{M}{>{\centering\arraybackslash}p{0.95cm}}
-  \begin{tabular}{@{} >{\raggedright\arraybackslash}p{5.0cm} | M M M M M | M M M M M @{}}
-    & \multicolumn{5}{c|}{\textbf{2026}} & \multicolumn{5}{c}{\textbf{2027}} \\
-    \textbf{Etapa} & Ago & Sep & Oct & Nov & Dic & Ene & Feb & Mar & Abr & May \\
-    \midrule
-    E1 -- Banco de adquisición    & \hc[R1] & & & & & & & & & \\
-    E2 -- Cadena heredada         & \hc & \hc[R2] & & & & & & & & \\
-    E3 -- Mediciones y simulación & & \hc & \hc[R3] & & & & & & & \\
-    E4 -- Generador del barrido   & & \hc & \hc & \pc[R4] & & & & & & \\
-    E5 -- Integración             & & & & \pc & \pc[R5] & & & & & \\
-    E6 -- Ensayos en suelo        & & & & & \pc & \pc & \pc[R6] & & & \\
-    E7 -- Aplicación elegida      & & & & & & & \pc & \pc & \pc[R7] & \\
-    E8 -- Documentación final     & & & & & & & & & \pc & \pc[R8] \\
-    \midrule
-    Redacción del informe         & \hc & \hc & \hc & \pc & \pc & \pc & \pc & \pc & \pc & \pc \\
-    \bottomrule
-  \end{tabular}
-
-  \vspace{0.6em}
-  {\footnotesize
-   \tikz\fill[fiuba] (0,0) rectangle (0.35,0.22); \ cumplido
-   \qquad
-   \tikz\fill[fiuba!25] (0,0) rectangle (0.35,0.22); \ previsto
-   \qquad
-   R$n$: revisión de cierre de la etapa}
-  \caption{Cronograma mensual de las etapas.}
-  \label{tab:gantt}
-\end{table}
-
-\cartel{Descripción de las etapas}{Lista numerada de E1 a E8, con dos o
-tres líneas por etapa: qué se hace y con qué revisión cierra.}
+El trabajo se organizará en etapas, cada una de las cuales cerrará con
+una revisión con la dirección. La redacción del informe final se
+llevará a cabo de forma continua a lo largo de todo el trabajo. La
+Tabla~\ref{tab:etapas} resume las etapas y el esfuerzo estimado del
+equipo, que totaliza unas 1250 horas.
 
 \begin{table}[htbp]
   \centering
   \small
   \renewcommand{\arraystretch}{1.35}
-  \begin{tabularx}{\textwidth}{@{} l c X c r @{}}
+  \begin{tabularx}{\textwidth}{@{} l X r @{}}
     \toprule
-    \textbf{Etapa} & \textbf{Semanas} & \textbf{Revisión de cierre}
-      & \textbf{Estado} & \textbf{Esfuerzo} \\
+    \textbf{Etapa} & \textbf{Contenido principal} & \textbf{Esfuerzo} \\
     \midrule
-    E1 -- Banco de adquisición        & 1--4   & R1: banco validado                   & Cumplida & 120 h \\
-    E2 -- Cadena heredada             & 3--7   & R2: cadena caracterizada             & Cumplida & 150 h \\
-    E3 -- Mediciones y simulación     & 5--10  & R3: distancia contra simulación      & Cumplida & 160 h \\
-    E4 -- Generador del barrido       & 8--17  & R4: generador verificado             & En curso & 110 h \\
-    E5 -- Integración                 & 14--22 & R5: prototipo integrado              & Prevista & 160 h \\
-    E6 -- Ensayos en suelo            & 21--28 & R6: definición de la aplicación      & Prevista & 170 h \\
-    E7 -- Aplicación elegida          & 29--37 & R7: resultados experimentales        & Prevista & 180 h \\
-    E8 -- Documentación final         & 36--43 & R8: entrega del informe              & Prevista & 150 h \\
+    E1 -- Caracterización         & Curva del VCO, potencias, cables y antenas                 & 150 h \\
+    E2 -- Simulación              & Modelos de los escenarios y contraste de hipótesis         & 200 h \\
+    E3 -- Generación del barrido  & Diseño, implementación y verificación del generador        &  80 h \\
+    E4 -- Filtrado                & Análisis y, si corresponde, diseño de los filtros          & 100 h \\
+    E5 -- Adquisición             & Conversor, firmware y comunicación con la computadora      & 150 h \\
+    E6 -- Procesamiento           & Estimación de distancia, correcciones y visualización      & 160 h \\
+    E7 -- Autonomía               & Alimentación e integración en gabinete                     & 120 h \\
+    E8 -- Ensayos                 & Evaluación en laboratorio y en la aplicación elegida       & 200 h \\
+    E9 -- Documentación           & Informe final                                              &  90 h \\
     \midrule
-    \textbf{Total} & \textbf{43} & & & \textbf{1200 h} \\
+    \textbf{Total} & & \textbf{1250 h} \\
     \bottomrule
   \end{tabularx}
-  \caption{Etapas, revisiones y esfuerzo estimado del equipo. La
-  semana 1 comienza el 3 de agosto de 2026.}
+  \caption{Etapas del trabajo y esfuerzo estimado del equipo.}
   \label{tab:etapas}
 \end{table}
 
 %============================================================
 \section{Referencias}
 %============================================================
-
-\cartel{Referencias}{Se listan solas las entradas de
-\texttt{referencias\_plan.bib} citadas en el texto con
-\texttt{\textbackslash cite}. El archivo ya trae algunas sugeridas;
-borrar las que no se usen.}
 
 \printbibliography[heading=none]
 
@@ -682,7 +687,7 @@ borrar las que no se usen.}
 \vspace*{\fill}
 
 \begin{flushright}
-  Buenos Aires, \pendiente{fecha de presentación}
+  Buenos Aires, 17 de noviembre de 2026
 \end{flushright}
 
 \vspace{3.5cm}
@@ -696,10 +701,10 @@ borrar las que no se usen.}
 
   \vspace{3.5cm}
 
-  \begin{tabular}{@{} c @{}}
-    \rule{6cm}{0.4pt} \\[0.2cm]
-    Fano, Walter Gustavo \\
-    \small Director \\
+  \begin{tabular}{@{} c @{\hspace{2.5cm}} c @{}}
+    \rule{6cm}{0.4pt} & \rule{6cm}{0.4pt} \\[0.2cm]
+    Fano, Walter Gustavo & Alonso, Ramiro \\
+    \small Director & \small Codirector \\
   \end{tabular}
 \end{center}
 
