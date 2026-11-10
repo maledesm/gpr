@@ -1,0 +1,2 @@
+cola MEEP iniciada 2026-11-10 04:16
+04:16 -> A_n5_res8, 6 procesos (log en resultados/A_n5_res8/log.txt)

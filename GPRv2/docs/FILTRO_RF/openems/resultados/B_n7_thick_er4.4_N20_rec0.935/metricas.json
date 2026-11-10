@@ -1,0 +1,24 @@
+{
+  "borde_0p1dB_GHz": 1.0031428571428571,
+  "borde_1dB_GHz": 1.7279285714285715,
+  "perdida_max_hasta_2GHz_dB": 2.8066707749701783,
+  "S11_max_hasta_2GHz_dB": -14.00327932309228,
+  "ceros_GHz": [
+    2.4080357142857145,
+    3.0335357142857147,
+    5.341928571428571,
+    6.210678571428572
+  ],
+  "atenuacion_min_2p36_4GHz_dB": 31.080428397212803,
+  "espurio_max_4_7GHz_dB": -8.404753256176912,
+  "f_espurio_GHz": 7.0,
+  "diseno": "B_n7",
+  "metal": "thick",
+  "er": 4.4,
+  "N": 20,
+  "recorte": 0.935,
+  "celdas_M": 0.912492,
+  "minutos": 13.526176416873932,
+  "energia_final_dB": -36.88,
+  "estancada": true
+}
