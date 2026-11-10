@@ -68,7 +68,7 @@ huella de la biblioteca, que ya estaba).
 
 **Resultados del 2026-11-06:** triangular de 0,12 a 3,06 V con no linealidad de 0,1–0,3 %
 (el ~1 % y el escalón de 0,95 V que mostraba el Siglent eran del osciloscopio), subida y
-bajada con ~3 % de diferencia de pendiente. El VCO barre **985 a 1999 MHz** (1014 MHz),
+bajada con ~3 % de diferencia de pendiente. El VCO barre **983 a 1999 MHz** (1016 MHz),
 la subida dura 50,5 ms y la bajada 49,4 ms, df/dt va de ~14 a ~27 MHz/ms y f(t) se aparta
 hasta ~78 MHz de una recta.
 
@@ -90,3 +90,76 @@ hasta ~78 MHz de una recta.
 - La triangular de la tanda 2 está ~0,15 V más alta que la de la tanda 1. Se usa así y se
   corrige en el código.
 - **Armónicos del VCO**: ver la sección "Pendiente: armónicos del VCO" en `GPRv2/CLAUDE.md`.
+
+## Conclusiones y decisiones (2026-11-07 al 2026-11-09)
+
+Notas para el escrito de la tesis.
+
+**El 2.º armónico se sacó de las figuras del zero span** (2026-11-07). `analizar_zerospan.py`
+descarta los pulsos de arriba de 1950 MHz que caen cerca del vértice de abajo
+(`es_armonico()`), y en las trazas los tapa con la mediana. Quedan 91 puntos, todos de la
+fundamental. Como esos puntos marcaban el borde de abajo, `f_min` sale del ajuste y pasa
+de 985 a **983 MHz**. El resto no cambió. El Max Hold (`vco_maxhold.png`) queda con el
+armónico, porque ahí es lo que se mide.
+
+**Lo que muestran las mediciones del 2026-11-06.**
+
+- La triangular es muy lineal (0,1–0,3 % con el Tek) y sus armónicos impares caen donde
+  los pone una triangular ideal. El ~1 % y el escalón de 0,95 V eran del Siglent, aunque
+  también pesó haber medido a 1 V/div y en modo scan.
+- La no linealidad del chirp es casi toda del VCO. f(V) en barrido coincide con la curva
+  estática con 10–20 MHz de diferencia entre 1,5 y 2,6 V. Los ~80 MHz de desvío de una
+  recta y el df/dt de 14 a 27 MHz/ms son de la curva del VCO, que es lo que corrige el
+  remuestreo.
+- No hay recorte en los extremos y el período es estable (46 trazas que cierran en una
+  curva continua con ~4 MHz rms de residuo).
+- Subida y bajada difieren ~3 % en pendiente (50,5 y 49,4 ms). Cada rampa necesita su
+  propio mapa θ.
+- La resolución del zero span es acotada (cada 25 MHz, ~2,7 MHz por punto de traza), así
+  que los picos puntuales de df/dt tienen bastante incertidumbre. f(t) está bien
+  determinada.
+
+**Repetibilidad.** Se da por demostrada para la **curva del VCO**, con tres mediciones en
+días distintos que dan casi lo mismo (la primera, una en un día de mucho calor y la del
+2026-11-06 en barrido). Lo que no está demostrado es el **nivel de continua de la
+triangular**, que se corrió ~0,15 V entre la tanda 1 y la 2 con el mismo osciloscopio
+(en la zona media del VCO son ~50 MHz). Se compensa en el código. Para cerrarlo alcanza
+con medir los vértices con el Tek en dos o tres encendidos.
+
+**Las capturas del ADC no saturan** (2026-11-09). Revisadas las 10 capturas del PCM1808 en
+`GPRv2/datos/` (18/9 y 28/9), fondo de escala ±8 388 608 cuentas (±1,5 V).
+
+| captura | pico | margen hasta saturar | rms | piso 2,5–2,9 kHz |
+|---|---|---|---|---|
+| 18/9 (6 capturas) | 37–46 % FS | 6,7–8,7 dB | −16 a −20 dBFS | −61 a −74 dBFS |
+| 28/9 17:37 y 17:42 | 30 % FS | 10,5 dB | −20 dBFS | −69,5 dBFS |
+| 28/9 17:53:54 | 43 % FS | 7,4 dB | −17 dBFS | −62,5 dBFS |
+| 28/9 17:53:18 (casi sin señal) | 0,2 % FS | 56 dB | −64 dBFS | −105 dBFS |
+
+- Ninguna muestra pasa del 95 % del fondo de escala. Quedan 7 a 10 dB de margen, así que
+  una ganancia de ×2 ya las dejaría al borde. Lo que domina la amplitud es el
+  acoplamiento directo entre antenas (pico de 380–620 Hz, a −19/−25 dBFS).
+- **La ganancia no mejoraría la relación señal/ruido.** El piso propio del ADC y la IF es
+  ~−105 dBFS por bin (captura casi sin señal, probablemente con la RF apagada). Con el
+  radar andando el piso está 30 a 40 dB más arriba, o sea que viene de antes del ADC
+  (mezclador, ruido de fase, clutter, desparramo del chirp no lineal). Un amplificador
+  sube señal y piso por igual. El espectro se calculó en bloques de 300 muestras sin
+  alinear con las rampas, así que parte del piso puede ser desparramo de los vértices.
+- Si hiciera falta más ganancia (blancos lejanos y débiles), el lugar es la RF, no la IF.
+
+**Pasabajos de audio con potenciómetro (500 Hz a 2 kHz), descartado por ahora**
+(2026-11-09). La idea era cortar todo lo que está "fuera de rango" para sacar el fantasma
+en 2·fd que deja el 2.º armónico. No conviene en analógico.
+
+- Entre fd y 2·fd hay una sola octava. Una octava arriba de fc un RC atenúa ~7 dB, un
+  Butterworth de orden 2 ~12 dB y uno de orden 4 ~24 dB. Como fc tiene que quedar algo
+  arriba de fd, en 2·fd es todavía menos. Solo un elíptico de orden 8 (por ejemplo el
+  MAX7400 de capacitor conmutado, con fc fijada por un clock del ESP32) separa bien una
+  octava.
+- Como el ADC no satura, el fantasma entra digitalizado sin comerse rango dinámico.
+  **Sacarlo en software alcanza y es mejor** (corte de distancia ajustable en `vivo.py`,
+  o restarlo, porque su posición y su fase se conocen).
+- En los dos casos, si hay un blanco real más lejos, el corte también lo borra.
+
+Por eso se pasó a filtrar el armónico en RF, en la rama de TX. Ver
+[`../FILTRO_RF/README.md`](../FILTRO_RF/README.md).

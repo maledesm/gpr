@@ -8,8 +8,8 @@ de cada traza son los instantes en que el chirp pasa por esa frecuencia (uno en 
 otro en la bajada). Con todas las frecuencias se arma f(t), df/dt, f(V) contra la curva
 estatica del VCO y el desvio respecto de una recta (lo que corrige el remuestreo).
 
-Arriba de 1950 MHz los pulsos cerca del vertice de abajo son el 2o armonico de f/2: dan
-puntos extra en el borde de abajo de la banda.
+Arriba de 1950 MHz los pulsos cerca del vertice de abajo son el 2o armonico de f/2: se
+descartan (no entran ni en los ajustes ni en las figuras).
 
 Genera zerospan_resumen.png, zerospan_trazas.png y zerospan_puntos.csv en la carpeta.
 
@@ -34,6 +34,9 @@ def leer(f):
     zero = fc == float(h["Stop Frequency"].split(",")[0])
     return fc, zero, np.arange(len(p)) * swt / (len(p) - 1), p
 
+def es_armonico(fc, tc):   # a ~2 GHz, cerca del vertice de abajo: 2o armonico de f/2
+    return fc >= 1.95e9 and abs(tc % T - T / 2) > 0.25 * T
+
 pts = []          # (f, t, nivel, archivo, es_armonico)
 crudo = {}
 for f in sorted(glob.glob(CARP + "/SSA_*.csv")):
@@ -46,8 +49,8 @@ for f in sorted(glob.glob(CARP + "/SSA_*.csv")):
         nivel = p[a:b].max()
         if nivel < p.max() - 8: continue                       # espurios de un punto, 15 dB abajo
         w = 10 ** (p[a:b] / 10); tc = np.sum(t[a:b] * w) / np.sum(w) % T
-        arm = fc >= 1.95e9 and abs(tc - T / 2) > 0.25 * T       # a ~2 GHz, cerca del vertice de abajo: 2o armonico de f/2
-        pts.append((fc / 2 if arm else fc, tc, nivel, os.path.basename(f), arm))
+        if es_armonico(fc, tc): continue                         # el 2o armonico no se usa
+        pts.append((fc, tc, nivel, os.path.basename(f), False))
 
 # la medicion repetida de 1025 MHz reemplaza a la que disparo tarde
 malos = {"SSA_261106174535.csv"}
@@ -102,7 +105,6 @@ xs = np.linspace(t_bot, t_top, 400); xb = np.linspace(t_top, t_bot + T, 400)
 a.plot(xs * 1e3, ps(xs) / 1e6, color=AZ, lw=1.2, alpha=.6); a.plot(xb * 1e3, pb(xb) / 1e6, color=AZ, lw=1.2, alpha=.6)
 tp = np.where(baja & (t < t_top), t + T, t)
 a.plot(tp[~arm] * 1e3, f[~arm] / 1e6, "o", color=AZ, ms=5, label="fundamental (zero span)")
-a.plot(tp[arm] * 1e3, f[arm] / 1e6, "s", color=NAR, ms=5, label="desde el 2º armónico (f/2)")
 a.axvline(t_top * 1e3, color=GR, ls=":"); a.axhline(f_max / 1e6, color=GR, ls=":"); a.axhline(f_min / 1e6, color=GR, ls=":")
 a.text(t_top * 1e3 + 1, f_max / 1e6 - 25, f"f_max {f_max/1e6:.0f} MHz", fontsize=9); a.text(1, f_min / 1e6 + 10, f"f_min {f_min/1e6:.0f} MHz", fontsize=9)
 a.set_title(f"Frecuencia del VCO en un período: subida {d_sube*1e3:.1f} ms, bajada {d_baja*1e3:.1f} ms", loc="left")
@@ -125,7 +127,6 @@ a = ax[1, 0]
 a.plot(vv, fv / 1e6, color=GR, lw=2, label="curva estática (2026-10-19)")
 a.plot(V(t[sube & ~arm]), f[sube & ~arm] / 1e6, "o", color=AZ, ms=5, label="subida")
 a.plot(V(t[baja & ~arm]), f[baja & ~arm] / 1e6, "o", mfc="none", mec=AZ, ms=6, label="bajada")
-a.plot(V(t[arm]), f[arm] / 1e6, "s", color=NAR, ms=5, label="desde el 2º armónico")
 a.set_title(f"f contra la tensión de la triangular (tomada lineal, {VMIN}–{VMAX} V del Tek)", loc="left")
 a.set_xlabel("V triangular [V]"); a.set_ylabel("MHz"); a.legend(loc="lower right"); a.set_xlim(-0.05, 3.4)
 # 4. desvio respecto de la recta entre vertices
@@ -148,9 +149,10 @@ for fc in sorted(crudo):
     nom, tr, p = crudo[fc][-1]
     if nom in malos and len(crudo[fc]) == 1: continue
     sel = [c for c in crudo[fc] if c[0] not in malos][-1]
-    a.plot(sel[1] * 1e3, fc / 1e6 + (sel[2] - np.median(sel[2])) * 0.7, color=AZ, lw=0.7)
+    pw = np.where(es_armonico(fc, sel[1]), np.median(sel[2]), sel[2])     # se tapa el 2o armonico
+    a.plot(sel[1] * 1e3, fc / 1e6 + (pw - np.median(sel[2])) * 0.7, color=AZ, lw=0.7)
 a.set_xlabel("tiempo desde el flanco de bajada del sync [ms]"); a.set_ylabel("frecuencia de la traza [MHz] (+ potencia, 0,7 MHz/dB)")
-a.set_title("Trazas en zero span, una por frecuencia (arriba, a los costados, el 2º armónico del vértice de abajo)", loc="left")
+a.set_title("Trazas en zero span, una por frecuencia (sin el 2º armónico del vértice de abajo)", loc="left")
 a.grid(color=GRID); a.set_facecolor(SUP); fig.tight_layout(); fig.savefig(SC + "/zerospan_trazas.png", dpi=110)
 np.savetxt(SC + "/zerospan_puntos.csv", np.c_[f / 1e6, t * 1e3, arm, sube], delimiter=",", header="f_MHz,t_ms,de_armonico,subida", fmt="%.3f")
 print("ok")

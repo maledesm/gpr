@@ -21,8 +21,15 @@ Doble click en **`GPRv2/simular_armonicos.bat`**:
 Con `MEEP=0` en el `.bat` se saltea el paso 1. Sirve si las escenas ya están y solo
 cambió el modelo.
 
-En la máquina de Martín, Miniforge y el env `meep` están en **`D:\WSL\miniforge3`**,
-porque el C: está lleno. `correr_meep.sh` usa ese o, si no existe, `~/miniconda3`.
+**El paso 1 necesita WSL con MEEP.** En noviembre de 2026 Martín sacó WSL de su máquina.
+Los `.npz` de `salidas/` ya están en el repo, así que el paso 2 anda solo, con `MEEP=0` en
+el `.bat`. Para volver a correr MEEP hay dos caminos:
+
+- Correrlo en la máquina de Santiago, donde el env está en `~/miniconda3`.
+- Reinstalar WSL y crear el env con
+  `conda create -n meep -c conda-forge pymeep=*=nompi* python=3.12 numpy scipy`.
+
+`correr_meep.sh` busca primero `D:\WSL\miniforge3` y después `~/miniconda3`.
 
 ## Qué hay en cada archivo
 
