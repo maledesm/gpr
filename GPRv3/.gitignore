@@ -1,0 +1,5 @@
+# Las grabaciones (.gpr3) y las capturas (png + csv) SI van al repo, como en
+# GPRv2. Lo unico que queda afuera es la configuracion de la ventana, que es
+# por maquina.
+!datos/**/*.png
+datos/vivo_config.json
