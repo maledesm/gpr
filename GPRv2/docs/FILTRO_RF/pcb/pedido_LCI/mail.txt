@@ -1,0 +1,40 @@
+Asunto: Pedido de PCB doble faz - filtros de RF (alumno)
+
+Buenas tardes,
+
+Les escribo para solicitar la fabricación de una placa doble faz. Adjunto los archivos:
+
+  - filtros_rf-F_Cu.gbr       cobre de la cara superior (top)
+  - filtros_rf-B_Cu.gbr       cobre de la cara inferior (bottom)
+  - filtros_rf-Edge_Cuts.gbr  contorno de la placa
+  - filtros_rf-NPTH.drl       agujeros
+  - vista_cara_superior.pdf y vista_cara_inferior.pdf, solo como referencia visual
+
+Datos de la placa:
+
+  - Tamaño: 56 x 75 mm.
+  - Doble faz, FR4 de 1,6 mm. Si tienen placa con cobre de 70 um (2 oz) la preferimos;
+    si no, la de cobre estándar está bien, pero les agradecería que me indiquen el espesor.
+  - Agujeros: solo 4 agujeros de fijación de 3,2 mm, sin metalizar. La placa no tiene
+    agujeros metalizados ni vías.
+  - Distancia mínima entre pistas: 0,41 mm.
+
+Aclaraciones:
+
+  - Cara superior: solo deben quedar las pistas del archivo. Hay que retirar todo el resto
+    del cobre (no lleva plano de tierra arriba).
+  - Cara inferior: es un plano de tierra y NO debe retirarse. Solo quedan sin cobre los
+    4 cuadrados de 8 x 8 mm de las esquinas, alrededor de los agujeros, que ya están así
+    en el archivo.
+  - En los bordes izquierdo y derecho el cobre llega hasta el canto de la placa a propósito
+    (van conectores SMA de borde y el plano de tierra tiene que llegar hasta ellos).
+  - Componentes SMD: lleva 6 conectores SMA de montaje en el borde. Los soldamos nosotros.
+
+Soy alumno de Ingeniería Electrónica y la placa es para [código y nombre de la materia],
+dentro de mi trabajo final (radar de penetración terrestre).
+
+Muchas gracias.
+
+Saludos,
+[Nombre y apellido]
+Padrón [número]

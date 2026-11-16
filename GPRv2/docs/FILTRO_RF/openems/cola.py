@@ -22,7 +22,9 @@ TRABAJOS = [
     # B con los stubs recortados x0,935 (su primer cero cayo 7 % abajo): primero las cortas
     # ya hechas tambien: B recortada en PEC y en lamina. Martin eligio la B recortada (2026-11-10).
     # cobre de 72 um en bloque + FR4 con perdidas
-    ("A", "thick", 20), ("B", "thick", 20, 0.935),
+    # ya hechas tambien: bloque de A y B recortada.
+    # control contra MEEP (2026-11-10): PEC de 0,125 mm de espesor, como el metal de MEEP
+    ("A", "pec125", 20),
 ]
 NOMBRE = {"A": "A_n5", "B": "B_n7"}
 SIM_RAIZ = r"D:\sim_filtro"

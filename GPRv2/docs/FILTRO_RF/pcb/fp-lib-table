@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "filtros_rf")(type "KiCad")(uri "${KIPRJMOD}/filtros_rf.pretty")(options "")(descr "footprints propios de la placa de filtros"))
+)

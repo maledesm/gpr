@@ -1,5 +1,5 @@
 {
-  "borde_0p1dB_GHz": 1.0031428571428571,
+  "borde_0p1dB_GHz": NaN,
   "borde_1dB_GHz": 1.5938928571428572,
   "perdida_max_hasta_2GHz_dB": 2.9197262682240948,
   "S11_max_hasta_2GHz_dB": -11.363480471696104,

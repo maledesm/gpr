@@ -21,10 +21,12 @@ El radar es homodino, así que el armónico de TX batiendo con el armónico del 
 - **Lo que se escapa cae en el borde de la rampa**, donde la ventana de Hann pesa ~2 %.
   Estimación rápida (fantasma parejo a lo largo de la rampa) de ~30 dB menos de
   fantasma. Falta confirmarlo con `simulaciones_meep/armonicos/`.
-- **Dónde va.** En la rama de TX, después del PA de +24 dBm, que también genera
-  armónicos propios. Con el TX limpio el armónico del LO ya no tiene contra qué batir.
+- **Dónde va: antes del splitter** (decidido 2026-11-10, como dice la tesis en
+  `sub:armonicos_requisitos`). Así su retardo de grupo es común al LO y al eco y se
+  cancela en el mezclador, y la atenuación cuenta dos veces (LO y eco). Al principio
+  (2026-11-09) se había pensado en la rama de TX después del PA; quedó descartado.
   El límite que queda es el espurio 2×2 del propio mezclador (típicamente −60 dBc o
-  menos en un doblemente balanceado). 250 mW no es problema para microstrip.
+  menos en un doblemente balanceado).
 
 Antes de esto se descartó el filtrado en banda base, porque entre fd y 2·fd hay una
 sola octava y porque el ADC no satura (ver `docs/PWM/README.md`, 2026-11-09). Sacar el
@@ -282,23 +284,114 @@ Valores en dB salvo donde se indica. El recorte llevó el borde de la B a 2,05 G
 sin perder rechazo. Con FR4 con pérdidas la B recortada pierde ~1,2 dB más que la A en el
 tope de la banda (1,9–2 GHz) y 0,2–0,3 dB más de 1 a 1,5 GHz, a cambio de **12 dB más de
 rechazo** en todo el 2.º armónico, mucho más corte en 2,0–2,35 GHz (la parte que se escapa)
-y −30 dB sostenidos hasta 6 GHz (la A reabre desde 4 GHz). **Martín eligió la B recortada
-como diseño principal**, con la A de respaldo. Queda abierto recortar algo más (por ejemplo
+y −30 dB sostenidos hasta 6 GHz (la A reabre desde 4 GHz). En un primer momento se eligió la B
+recortada como diseño principal. **Decisión final (2026-11-10): se fabrica solo el A.** B
+rechaza más pero no aporta tanto, y A, al ser de menor orden, tiene pendiente más suave,
+así que sus polos se pueden mover (por el εr real o recortando stubs) sin afectar las
+frecuencias útiles. Con A el fantasma pesimista que se cuela por el borde de la rampa queda
+en −50/−43 dB (con B, −61/−54 dB). Queda abierto recortar algo más (por ejemplo
 ×0,92, su primer cero está en 2,35 GHz y no en 2,39) para tener margen contra un εr alto.
 
 La B se estanca siempre cerca de −42/−44 dB, también con el sustrato con pérdidas, así que
 lo que queda atrapado no parece estar en el sustrato (quizás en el aire). Con −42 dB los
 resultados ya son buenos.
 
+### Modelo del conductor: PEC, lámina y bloque de 72 µm (2026-11-10)
+
+Todas en λ/20. Lámina = cobre σ 5,8·10⁷ S/m con 72 µm solo para las pérdidas (geometría
+plana). Bloque = cobre 3D de 72 µm (2 celdas de 36 µm), lo más parecido a CST. En las dos,
+FR4 con tanδ 0,025 en 2,05 GHz.
+
+| | A PEC | A lámina | A bloque | B rec. PEC | B rec. lámina | B rec. bloque |
+|---|---|---|---|---|---|---|
+| S21 en 1,0 / 1,5 GHz [dB] | 0 / −0,25 | −0,33 / −0,64 | −0,22 / −0,38 | −0,06 / −0,04 | −0,62 / −0,87 | −0,61 / −0,87 |
+| S21 en 1,9 / 2,0 GHz [dB] | −0,02 / −0,36 | −0,97 / −1,75 | −0,80 / −1,48 | −0,61 / −0,59 | −2,1 / −3,0 | −1,2 / −2,9 |
+| borde −1 dB [GHz] | 2,051 | 1,912 | 1,946 | 2,046 | 1,594 | 1,728 |
+| ceros [GHz] | 2,48 · 3,68 | 2,47 · 3,68 | 2,46 · 3,60 | 2,35 · 3,07 | (2,35) · 3,06 | 2,41 · 3,03 |
+| atenuación mín. 2,36–4 GHz | 19,0 dB | 20,3 dB | 21,5 dB | 31,3 dB | 32,0 dB | 31,1 dB |
+| energía final | −50,9 dB | −52,1 dB | −50,5 dB | −44,0* | −44,5* | −36,9* |
+
+(*) estancada y cortada por la cola. En la lámina de la B el primer cero quedó poco
+profundo y la detección no lo marca. Las pérdidas no mueven los ceros, los vuelven menos
+profundos, y suman de 0,2 a 3 dB de pérdida en la banda del VCO (casi toda del FR4). El
+bloque pierde 0,1–0,3 dB menos que la lámina y corre los ceros ~1–2 % hacia abajo. Las
+diferencias entre lámina y bloque son del orden de la incertidumbre de malla, así que la
+lámina alcanza para este filtro.
+
+### openEMS contra MEEP (2026-11-10)
+
+MEEP a 8 px/mm (grilla uniforme de 0,125 mm), 6 procesos MPI, metal perfecto de 1 píxel de
+espesor, FR4 sin pérdidas, fuente de campo bajo la línea y parámetros S por flujo de
+potencia (solo módulo). Cada diseño son dos pasadas, la línea recta de referencia y el
+filtro. La A tardó 39 min (referencia 7062 pasos, filtro 15 087 pasos).
+
+| A, sin pérdidas | openEMS (PEC, λ/20) | MEEP (8 px/mm) | diferencia |
+|---|---|---|---|
+| ceros | 2,48 · 3,68 GHz | 2,24 · 3,36 GHz | −10 % / −9 % |
+| borde −1 dB | 2,05 GHz | 1,84 GHz | −10 % |
+| S21 en 1,5 / 1,9 / 2,0 GHz | −0,25 / −0,02 / −0,36 dB | −0,44 / −2,7 / −6,6 dB | |
+| atenuación mín. 2,36–4 GHz | 19,0 dB | 21,8 dB | |
+| S21 en 5 / 6 GHz | −14 / −5,9 dB | −12 / −4,4 dB | |
+
+Los dos programas ven la misma forma (dos ceros, ~20 dB de rechazo en la zona del
+armónico, la misma reapertura arriba de 4,5 GHz), lo que confirma la topología con un
+programa independiente. Pero MEEP corre toda la respuesta ~9 % hacia abajo. Debajo de
+~1 GHz MEEP da artefactos (S21 por encima de 0 dB) porque la caja y las PML son chicas
+comparadas con la longitud de onda, no es el filtro.
+
+Causas probables, en orden: la grilla uniforme de 0,125 mm (la línea de 0,54 mm queda con
+~4 píxeles y todo se redondea a múltiplos de 0,125 mm, contra celdas de 0,045 mm en los
+bordes en openEMS), el metal de 1 píxel = 0,125 mm de espesor (más capacidad de borde, baja
+las resonancias) y la falta de un puerto microstrip. Para separar el efecto del espesor se
+corrió en openEMS la A con PEC de 0,125 mm (`--metal pec125`).
+
+| A, openEMS λ/20 | PEC espesor 0 | PEC 0,125 mm (control) | cobre 72 µm + pérdidas | MEEP |
+|---|---|---|---|---|
+| ceros [GHz] | 2,482 · 3,679 | 2,497 · 3,649 | 2,458 · 3,599 | 2,24 · 3,36 |
+| borde −1 dB [GHz] | 2,051 | 2,070 | 1,946 | 1,84 |
+| atenuación mín. 2,36–4 GHz | 19,0 dB | 16,8 dB | 21,5 dB | 21,8 dB |
+
+**El espesor no explica la diferencia.** Con 0,125 mm de metal los ceros se mueven +0,6 % y
+−0,8 % (y el borde sube 1 %), contra −9/−10 % de MEEP. La diferencia viene entonces del
+modelo de MEEP (grilla uniforme de 0,125 mm sin promediado de subpíxel, anchos y largos
+redondeados a la grilla, excitación por fuente de campo y S por flujo). openEMS tiene la
+malla refinada en los bordes, su estudio de convergencia (~1 % de λ/20 a λ/40) y tres modelos
+de conductor que coinciden entre sí, así que **para las frecuencias absolutas manda
+openEMS**. MEEP queda como confirmación cualitativa de la respuesta (forma, rechazo y
+reapertura). Cerrar la diferencia pediría MEEP a 12–16 px/mm (de ~3 a ~10 h por diseño).
+
+**B recortado en MEEP** (76 min, más lento porque compartió el procesador con el control):
+
+| sin pérdidas | A openEMS | A MEEP | B rec. openEMS | B rec. MEEP |
+|---|---|---|---|---|
+| ceros [GHz] | 2,48 · 3,68 | 2,24 · 3,36 | 2,35 · 3,07 | 2,08 · 2,26 · 2,68 |
+| borde −1 dB [GHz] | 2,051 | 1,84 | 2,046 | 1,82 |
+| S21 en 2,2 / 2,3 GHz [dB] | −6,1 / −12,8 | −24,7 / −26,4 | −14,3 / −30,0 | −31,4 / −33,7 |
+| atenuación mín. 2,36–4 GHz | 19,0 dB | 21,8 dB | 31,3 dB | 31,5 dB |
+| S21 en 5 / 6 GHz [dB] | −14,0 / −5,9 | −12,2 / −4,4 | −30,8 / −29,6 | −24,6 / −18,7 |
+
+En la B pasa lo mismo que en la A, toda la respuesta ~10 % más abajo en MEEP (borde, ceros
+y también la reapertura, que pasa de ~6,2 a ~5,5 GHz). **La comparación entre diseños da
+igual en los dos programas**: la B recortada rechaza ~10 dB más que la A en todo el 2.º
+armónico (31,5 contra 21,8 dB en MEEP, 31,3 contra 19,0 en openEMS) y sostiene el rechazo
+hasta más arriba. O sea, la elección de la B no depende del simulador.
+
+**Métricas unificadas (2026-11-10).** El script de MEEP calculaba sus métricas con otro
+criterio y con la ondulación de ±1 dB de su banda de paso daba "borde en 1,02 GHz" y doce
+"ceros". Ahora todas las corridas (openEMS y MEEP) se miden con la misma función
+(`metricas()` de `openems/simular_filtro.py`). Ceros: mínimos arriba de 2 GHz que se despegan
+≥ 6 dB. Borde de −1 dB: última frecuencia antes del primer cero en que S21 sigue arriba de
+−1 dB. Pérdida y S11 máximos: dentro de la banda del VCO (0,983–1,999 GHz). En openEMS los
+valores no cambiaron.
+
 ## 6. Pendientes
 
-- **MEEP (A y B recortada)**, cortado a pedido el 2026-11-10 a las 04:30 (la A iba por la
-  segunda pasada). Para retomar, desde `meep/`:
-  `C:/Users/tinch/venvs/gpr-win/Scripts/python.exe cola_meep.py` (sin `--esperar`). Cada pasada
-  tarda ~12–30 min con 6 procesos (la referencia de la A terminó en 7062 pasos, 12 min). El
-  `mpirun` es MPICH, no lleva `--allow-run-as-root`.
-- Agregar a esta bitácora la comparación PEC / lámina / bloque de A y B recortada (las cifras
-  están en el dashboard, sección "Todas las corridas").
+- MEEP terminado (A y B recortada, 2026-11-10). `meep/progreso_meep.py` abre una ventana
+  con la barra de progreso de la cola. El `mpirun` es MPICH, no lleva `--allow-run-as-root`.
+- Opcional: MEEP a 12–16 px/mm para cerrar la diferencia de ~10 % con openEMS.
+- Capítulo preliminar de la tesis escrito (2026-11-10): `redaccion/filtro_rf.tex`
+  (`ch:filtro_rf`, después del capítulo del VCO). Figuras con `figuras_tesis.py` →
+  `redaccion/figuras/filtro_rf/`.
 - Esquinas de εr (4,2 y 4,8).
 - Margen de recorte de los stubs del A: cuántos MHz sube cada cero por milímetro
   recortado, sacado de la simulación.

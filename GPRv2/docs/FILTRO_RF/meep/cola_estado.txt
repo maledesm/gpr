@@ -1,2 +1,4 @@
-cola MEEP iniciada 2026-11-10 04:16
-04:16 -> A_n5_res8, 6 procesos (log en resultados/A_n5_res8/log.txt)
+cola MEEP iniciada 2026-11-10 14:43
+14:43 -> A_n5_res8, 6 procesos (log en resultados/A_n5_res8/log.txt)  ok, 39.3 min
+15:22 -> B_n7_res8_rec0.935, 6 procesos (log en resultados/B_n7_res8_rec0.935/log.txt)  ok, 76.3 min
+cola MEEP terminada 2026-11-10 16:39

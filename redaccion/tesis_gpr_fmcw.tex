@@ -1567,7 +1567,8 @@ separado, debajo del objetivo. Redondeando hacia el lado seguro:
 \end{center}
 Es una transición de un $8$\,\% ($2{,}15/1{,}99 \approx 1{,}08$): pide un
 filtro empinado, pero realizable, y \textbf{gracias a la ventana de Hann no
-hace falta resignar ancho de banda}. El diseño se trata aparte.
+hace falta resignar ancho de banda}. El diseño está en el
+Capítulo~\ref{ch:filtro_rf}.
 
 Para el diseño quedan además estos requisitos:
 \begin{itemize}
@@ -1599,6 +1600,8 @@ el segundo y el tercer armónico hasta $\sim\!6\,\text{GHz}$, a la salida del
 VCO, del amplificador de RF y en la entrada LO del mezclador, con un
 atenuador externo para bajar el piso de $-32\,\text{dBc}$. Eso reemplaza el
 $\Delta G_2$ estimado y el tercer armónico supuesto por valores medidos.
+
+\input{filtro_rf.tex}
 
 %============================================================
 \chapter{Generador de Triangular Analógico}

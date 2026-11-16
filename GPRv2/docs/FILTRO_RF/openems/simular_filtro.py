@@ -47,6 +47,7 @@ FMAX = 7e9
 F0_EXC, FC_EXC = 4.25e9, 3.25e9
 H = 1.6                 # mm
 T_CU = 0.072            # mm
+T_PEC_MEEP = 0.125      # mm, espesor del metal en MEEP (1 pixel a 8 px/mm); solo para --metal pec125
 SIGMA_CU = 5.8e7        # S/m (Copper annealed de CST)
 TAND, F_TAND = 0.025, 2.05e9
 L_FEED = 10.0           # mm de linea de 50 ohm a cada lado (es el puerto)
@@ -162,9 +163,10 @@ def simular(nombre, metal, er, N, malla_metal=None, solo_modelo=False, recorte=1
     lx = suavizar(xs, res, fino / 4)
     ly = suavizar(ys, res, fino / 4)
     zs = list(np.linspace(0, H, 5)) + [H + AIRE_Z]
-    if metal == "thick":
-        dz = malla_metal or T_CU / 2
-        zs += list(np.arange(H, H + T_CU + 1e-9, dz)) + [H + T_CU]
+    t_metal = {"thick": T_CU, "pec125": T_PEC_MEEP}.get(metal, 0.0)
+    if t_metal:
+        dz = malla_metal or t_metal / 2
+        zs += list(np.arange(H, H + t_metal + 1e-9, dz)) + [H + t_metal]
     lz = suavizar(zs, res, 0.005)
     saltos = {e: salto_max(l) for e, l in zip("xyz", (lx, ly, lz))}
     print(f"[{tag}] salto maximo entre celdas: " + ", ".join(f"{e} {s:.2f}" for e, s in saltos.items())
@@ -176,12 +178,16 @@ def simular(nombre, metal, er, N, malla_metal=None, solo_modelo=False, recorte=1
     mesh.AddLine("z", lz)
 
     # materiales
-    kappa = 0.0 if metal == "pec" else 2 * np.pi * F_TAND * EPS0 * er * TAND
+    kappa = 0.0 if metal in ("pec", "pec125") else 2 * np.pi * F_TAND * EPS0 * er * TAND
     fr4 = CSX.AddMaterial("FR4", epsilon=er, kappa=kappa)
     fr4.AddBox([x0, ymin, 0], [x1, ymax, H])
     if metal == "pec":
         cond = CSX.AddMetal("cobre")
         z0, z1 = H, H
+    elif metal == "pec125":
+        # control contra MEEP: PEC del mismo espesor que el metal de MEEP (1 pixel a 8 px/mm)
+        cond = CSX.AddMetal("cobre")
+        z0, z1 = H, H + T_PEC_MEEP
     elif metal == "sheet":
         cond = CSX.AddConductingSheet("cobre", conductivity=SIGMA_CU, thickness=T_CU * 1e-3)
         z0, z1 = H, H
@@ -251,17 +257,28 @@ def prototipo(f, r):
 
 
 def metricas(f, s11, s21):
+    """Las mismas metricas para openEMS y MEEP (el dashboard las recalcula con esta funcion).
+    - ceros: minimos arriba de 2 GHz que se despegan >= 6 dB de lo que los rodea
+    - borde a -1 / -0,1 dB: ultima frecuencia antes del primer cero en que S21 todavia esta
+      por encima del nivel (asi la ondulacion de la banda de paso, por ejemplo la de +-1 dB
+      de MEEP, no se toma como borde)
+    - perdida y S11 maximos: dentro de la banda del VCO (0,983 a 1,999 GHz)"""
     d = 20 * np.log10(np.abs(s21) + 1e-12)
     r11 = 20 * np.log10(np.abs(s11) + 1e-12)
-    cruce = lambda nivel: float(f[np.argmax((f > 1e9) & (d < nivel))] / 1e9)
-    # un cero es un minimo que se despega >= 6 dB de lo que lo rodea (no cada ondita del rechazo)
     from scipy.signal import find_peaks
     ip, _ = find_peaks(-d, height=25, prominence=6)
     ceros = [float(f[i] / 1e9) for i in ip if f[i] > 2e9]
+    fz = ceros[0] * 1e9 if ceros else 2.6e9
+
+    def cruce(nivel):
+        ok = np.where((f > 0.9e9) & (f < fz) & (d >= nivel))[0]
+        return float(f[min(ok[-1] + 1, len(f) - 1)] / 1e9) if len(ok) else float("nan")
+
+    vco = (f >= 0.983e9) & (f <= 1.999e9)
     return dict(
         borde_0p1dB_GHz=cruce(-0.1), borde_1dB_GHz=cruce(-1.0),
-        perdida_max_hasta_2GHz_dB=float(-d[f <= 2e9].min()),
-        S11_max_hasta_2GHz_dB=float(r11[f <= 2e9].max()),
+        perdida_max_hasta_2GHz_dB=float(-d[vco].min()),
+        S11_max_hasta_2GHz_dB=float(r11[vco].max()),
         ceros_GHz=ceros,
         atenuacion_min_2p36_4GHz_dB=float(-d[(f >= 2.36e9) & (f <= 4e9)].max()),
         espurio_max_4_7GHz_dB=float(d[(f >= 4e9) & (f <= 7e9)].max()),
@@ -286,7 +303,7 @@ def graficar(f, s11, s21, r, tag, ruta):
 if __name__ == "__main__":
     a = argparse.ArgumentParser()
     a.add_argument("diseno", choices=["A", "B"])
-    a.add_argument("--metal", default="pec", choices=["pec", "sheet", "thick"])
+    a.add_argument("--metal", default="pec", choices=["pec", "sheet", "thick", "pec125"])
     a.add_argument("--er", type=float, default=4.4)
     a.add_argument("--malla", type=int, default=20)
     a.add_argument("--dz-metal", type=float, default=None, help="celda vertical en el cobre (thick), mm")

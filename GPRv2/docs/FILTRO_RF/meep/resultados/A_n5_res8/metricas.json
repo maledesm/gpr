@@ -1,0 +1,19 @@
+{
+  "diseno": "A_n5",
+  "res_px_mm": 8,
+  "recorte": 1.0,
+  "celdas_M": 6.71691116290855,
+  "minutos": 38.982054523626964,
+  "procesos": 6,
+  "borde_1dB_GHz": 1.84,
+  "atenuacion_min_2p36_4GHz_dB": 21.848316667947746,
+  "espurio_max_4_7GHz_dB": -3.786637883329123,
+  "ceros_GHz": [
+    2.24,
+    3.3600000000000003
+  ],
+  "borde_0p1dB_GHz": 1.78,
+  "perdida_max_hasta_2GHz_dB": 5.642241473627967,
+  "S11_max_hasta_2GHz_dB": -2.316456957484782,
+  "f_espurio_GHz": 6.32
+}

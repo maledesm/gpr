@@ -13,7 +13,7 @@ Todo lo que se dibuja sale de los archivos que escribio la propia corrida:
 
 Uso:  C:/Users/tinch/venvs/openems/Scripts/python.exe dashboard.py
 """
-import os, io, glob, json, base64, html
+import os, io, re, glob, json, base64, html
 import xml.etree.ElementTree as ET
 import numpy as np
 import matplotlib
@@ -339,8 +339,8 @@ def info_modelo(M, met):
 def info_metricas(met):
     return tabla([
         ("Borde −0,1 dB / −1 dB", f"{met['borde_0p1dB_GHz']:.3f} / {met['borde_1dB_GHz']:.3f} GHz"),
-        ("Pérdida máxima hasta 2 GHz", f"{met['perdida_max_hasta_2GHz_dB']:.2f} dB"),
-        ("S11 máximo hasta 2 GHz", f"{met['S11_max_hasta_2GHz_dB']:.1f} dB"),
+        ("Pérdida máxima en la banda del VCO (0,98–2 GHz)", f"{met['perdida_max_hasta_2GHz_dB']:.2f} dB"),
+        ("S11 máximo en la banda del VCO", f"{met['S11_max_hasta_2GHz_dB']:.1f} dB"),
         ("Ceros", ", ".join(f"{c:.3f}" for c in met["ceros_GHz"]) + " GHz"),
         ("Atenuación mínima 2,36–4 GHz", f"{met['atenuacion_min_2p36_4GHz_dB']:.1f} dB"),
         ("Máximo de S21 entre 4 y 7 GHz", f"{met['espurio_max_4_7GHz_dB']:.1f} dB en {met['f_espurio_GHz']:.2f} GHz"),
@@ -416,7 +416,7 @@ def seccion(carpeta):
         kpi("Ceros", f"{ceros}", "GHz"),
         kpi("Atenuación 2,36–4 GHz", f"{met['atenuacion_min_2p36_4GHz_dB']:.1f} dB", "mínima (2.º armónico)"),
         kpi("Máximo 4–7 GHz", f"{met['espurio_max_4_7GHz_dB']:.1f} dB", f"en {met['f_espurio_GHz']:.2f} GHz"),
-        kpi("Banda de paso", f"{met['perdida_max_hasta_2GHz_dB']:.2f} dB", f"pérdida máx.; S11 ≤ {met['S11_max_hasta_2GHz_dB']:.1f} dB"),
+        kpi("Banda del VCO", f"{met['perdida_max_hasta_2GHz_dB']:.2f} dB", f"pérdida máx. 0,98–2 GHz; S11 ≤ {met['S11_max_hasta_2GHz_dB']:.1f} dB"),
     ])
     partes = [
         f'<details class="corrida" id="{tag}"><summary><span class="t">{nombre} · {html.escape(conductor)} · λ/{met["N"]}</span>'
@@ -440,8 +440,9 @@ def seccion(carpeta):
 MEEP = os.path.join(AQUI, "..", "meep", "resultados")
 DISENO = os.path.join(AQUI, "..", "diseno_hong.json")
 ETIQ_METAL = {"pec": "PEC sin pérdidas", "sheet": "cobre en lámina + FR4 con pérdidas",
-              "thick": "cobre 72 µm en bloque + FR4 con pérdidas"}
-CORTO_METAL = {"pec": "PEC", "sheet": "lámina", "thick": "bloque 72 µm"}
+              "thick": "cobre 72 µm en bloque + FR4 con pérdidas",
+              "pec125": "PEC de 0,125 mm de espesor (control contra MEEP)"}
+CORTO_METAL = {"pec": "PEC", "sheet": "lámina", "thick": "bloque 72 µm", "pec125": "PEC 0,125 mm"}
 
 
 def variante(m):
@@ -463,7 +464,7 @@ def nombre_diseno(m):
 
 # colores por corrida: familia de color por diseno, tono por modelo
 COLORES = {("A", "pec", 20): "#2a78d6", ("A", "pec", 30): "#7fb3ea", ("A", "pec", 40): "#a9cdf2",
-           ("A", "sheet", 20): "#1f5fae", ("A", "thick", 20): "#0f3d78",
+           ("A", "sheet", 20): "#1f5fae", ("A", "pec125", 20): "#14a3a3", ("A", "thick", 20): "#0f3d78",
            ("Brec", "pec", 20): "#e34948", ("Brec", "sheet", 20): "#f08a52", ("Brec", "thick", 20): "#a8261f",
            ("B", "pec", 20): "#c49a9a", ("B", "sheet", 20): "#d9b7a2",
            ("A", "meep"): "#6250d6", ("Brec", "meep"): "#eda100", ("B", "meep"): "#b8a14a"}
@@ -490,7 +491,7 @@ def cargar_todo():
                              s11=d["s11"], etiq=f"{VAR[v]['corto']} · MEEP {m['res_px_mm']} px/mm",
                              color=COLORES.get((v, "meep"), "#898781"), carpeta=c))
     orden = lambda r: (ORDEN_VAR.index(r["var"]), r["prog"] != "openEMS",
-                       ["pec", "sheet", "thick"].index(r["m"].get("metal", "pec")), r["m"].get("N", 0))
+                       ["pec", "pec125", "sheet", "thick"].index(r["m"].get("metal", "pec")), r["m"].get("N", 0))
     return sorted(runs, key=orden)
 
 
@@ -592,8 +593,8 @@ function dibujar() {
   el('rect', {x: ml, y: mt, width: W - ml - mr, height: H - mt - mb, fill: 'none'}, svg);
   const bandas = [[0.983, 1.999, 'rgba(42,120,214,.08)'], [1.966, 4.0, 'rgba(227,73,72,.07)']];
   for (const [a, b, c] of bandas) { const x0 = X(Math.max(a, rango[0])), x1 = X(Math.min(b, rango[1])); if (x1 > x0) el('rect', {x: x0, y: mt, width: x1 - x0, height: H - mt - mb, fill: c}, svg); }
-  for (const t of ticks(rango[0], rango[1], 10)) { el('line', {x1: X(t), x2: X(t), y1: mt, y2: H - mb, stroke: '#e1e0d9'}, svg); const tx = el('text', {x: X(t), y: H - mb + 16, 'text-anchor': 'middle', class: 'tk'}, svg); tx.textContent = t; }
-  for (const t of ticks(rango[2], rango[3], 8)) { el('line', {x1: ml, x2: W - mr, y1: Y(t), y2: Y(t), stroke: t === -20 ? '#b4b2a9' : '#e1e0d9', 'stroke-dasharray': t === -20 ? '4 3' : ''}, svg); const tx = el('text', {x: ml - 6, y: Y(t) + 4, 'text-anchor': 'end', class: 'tk'}, svg); tx.textContent = t; }
+  for (const t of ticks(rango[0], rango[1], 10)) { el('line', {x1: X(t), x2: X(t), y1: mt, y2: H - mb, stroke: '#e1e0d9'}, svg); const tx = el('text', {x: X(t), y: H - mb + 16, 'text-anchor': 'middle', class: 'tk'}, svg); tx.textContent = String(t).replace('.', ',').replace('-', '−'); }
+  for (const t of ticks(rango[2], rango[3], 8)) { el('line', {x1: ml, x2: W - mr, y1: Y(t), y2: Y(t), stroke: t === -20 ? '#b4b2a9' : '#e1e0d9', 'stroke-dasharray': t === -20 ? '4 3' : ''}, svg); const tx = el('text', {x: ml - 6, y: Y(t) + 4, 'text-anchor': 'end', class: 'tk'}, svg); tx.textContent = String(t).replace('.', ',').replace('-', '−'); }
   const lx = el('text', {x: (W + ml) / 2, y: H - 4, 'text-anchor': 'middle', class: 'lb'}, svg); lx.textContent = 'frecuencia [GHz]';
   const ly = el('text', {x: 14, y: (H - mb) / 2, transform: `rotate(-90 14 ${(H - mb) / 2})`, 'text-anchor': 'middle', class: 'lb'}, svg); ly.textContent = (param === 's21' ? 'S21' : 'S11') + ' [dB]';
   const clip = el('clipPath', {id: 'cl'}, el('defs', {}, svg)); el('rect', {x: ml, y: mt, width: W - ml - mr, height: H - mt - mb}, clip);
@@ -605,9 +606,9 @@ function dibujar() {
   const caja = document.getElementById('lectura');
   svg.onmousemove = ev => { const r = svg.getBoundingClientRect(); const px = (ev.clientX - r.left) / r.width * W; if (px < ml || px > W - mr) return;
     const f = rango[0] + (px - ml) / (W - ml - mr) * (rango[1] - rango[0]); cur.setAttribute('x1', px); cur.setAttribute('x2', px); cur.setAttribute('visibility', 'visible');
-    let h = `<b>${f.toFixed(3)} GHz</b>`; for (const s of S) { if (!visibles.has(s.id) || !s[param]) continue; let i = s.f.findIndex(v => v >= f); if (i < 1) continue;
+    let h = `<b>${f.toFixed(3).replace('.', ',')} GHz</b>`; for (const s of S) { if (!visibles.has(s.id) || !s[param]) continue; let i = s.f.findIndex(v => v >= f); if (i < 1) continue;
       const t = (f - s.f[i - 1]) / (s.f[i] - s.f[i - 1]), v = s[param][i - 1] + t * (s[param][i] - s[param][i - 1]);
-      h += `<div><i style="background:${s.color}"></i>${s.etiq}<span>${v.toFixed(2)} dB</span></div>`; } caja.innerHTML = h; };
+      h += `<div><i style="background:${s.color}"></i>${s.etiq}<span>${v.toFixed(2).replace('.', ',').replace('-', '−')} dB</span></div>`; } caja.innerHTML = h; };
   svg.onmouseleave = () => { cur.setAttribute('visibility', 'hidden'); };
 }
 function marcar() { document.querySelectorAll('#series input').forEach(c => { c.checked = visibles.has(c.value); }); dibujar(); }
@@ -637,7 +638,7 @@ def comparador(runs):
         ("Modelos del conductor · A", uno("A", "pec") + uno("A", "sheet") + uno("A", "thick")),
         ("Modelos del conductor · B rec.", uno("Brec", "pec") + uno("Brec", "sheet") + uno("Brec", "thick")),
         ("Convergencia de malla · A", ids(lambda r: r["var"] == "A" and r["prog"] == "openEMS" and r["m"]["metal"] == "pec")),
-        ("openEMS contra MEEP", uno("A", "pec") + uno("Brec", "pec") + ids(lambda r: r["prog"] == "MEEP")),
+        ("openEMS contra MEEP", uno("A", "pec") + uno("A", "pec125") + uno("Brec", "pec") + ids(lambda r: r["prog"] == "MEEP")),
     ]
     hay_meep = any(r["prog"] == "MEEP" for r in runs)
     presets = [(n, l) for n, l in presets if len([i for i in l if i in por_id]) >= 2
@@ -662,7 +663,8 @@ def comparador(runs):
         '<section id="comparador"><h2>Comparador</h2>'
         '<p class="cap">Elegí una comparación armada o marcá las corridas que quieras. Pasando el mouse por el gráfico '
         'se leen los valores. Celeste: banda del VCO. Rosa: 2.º armónico. Línea punteada horizontal: −20 dB. '
-        'MEEP va en trazo cortado y los prototipos en punteado.</p>'
+        'MEEP va en trazo cortado y los prototipos en punteado. MEEP tiene una ondulación de ±1 dB en la banda de paso '
+        '(llega a dar S21 por encima de 0 dB) y artefactos debajo de ~1 GHz, propios de medir con flujos en una caja chica.</p>'
         f'<div class="barra"><span class="bt">Comparar</span>{botones_p}</div>'
         f'<div class="barra"><span class="bt">Zoom</span>{botones_r}<span class="sep"></span>'
         '<button data-param="s21" class="on">S21</button><button data-param="s11">S11</button></div>'
@@ -681,7 +683,7 @@ def tabla_resumen(runs):
         if r["var"] != previo:
             filas.append(f"<tr class='gr'><td colspan='14'>{VAR[r['var']]['nombre']}</td></tr>")
             previo = r["var"]
-        modelo = (CORTO_METAL[m["metal"]] + (" + pérdidas" if m["metal"] != "pec" else "")) if r["prog"] == "openEMS" \
+        modelo = (CORTO_METAL[m["metal"]] + (" + pérdidas" if m["metal"] in ("sheet", "thick") else "")) if r["prog"] == "openEMS" \
             else "metal perfecto 1 px"
         malla = f"λ/{m['N']}" if r["prog"] == "openEMS" else f"{m['res_px_mm']} px/mm"
         fin = m.get("energia_final_dB")
@@ -690,7 +692,8 @@ def tabla_resumen(runs):
             f"{m.get('borde_1dB_GHz', nan):.3f}", f"{s21_en(r, 2.2):.1f}", f"{s21_en(r, 2.3):.1f}",
             f"<b>{m.get('atenuacion_min_2p36_4GHz_dB', nan):.1f}</b>",
             f"{s21_en(r, 5.0):.1f} / {s21_en(r, 6.0):.1f}", finx, f"{m.get('minutos', 0):.1f}"]
-        ancla = f"<a href='#{r['tag']}'>" if r["prog"] == "openEMS" else ""
+        celdas[3:] = [re.sub(r"(?<=\d)\.(?=\d)", ",", c).replace("-", "−") for c in celdas[3:]]
+        ancla = f"<a href='#{r['tag']}'>"
         celdas[0] = f"{ancla}<i class='pt' style='background:{r['color']}'></i>{celdas[0]}{'</a>' if ancla else ''}"
         filas.append("<tr>" + "".join(f"<td>{c}</td>" for c in celdas) + "</tr>")
     cab = ("<tr><th rowspan=2>programa</th><th rowspan=2>conductor</th><th rowspan=2>malla</th>"
@@ -700,7 +703,9 @@ def tabla_resumen(runs):
            "<tr><th>1,0 GHz</th><th>1,5</th><th>1,9</th><th>2,0</th><th>2,2 GHz</th><th>2,3</th></tr>")
     return ('<section id="tabla"><h2>Todas las corridas</h2>'
             '<p class="cap">Agrupadas por diseño. «*» en la energía final quiere decir que la corrida se estancó y la '
-            'cola la cortó con lo que había (fin normal a −50 dB). El nombre lleva al detalle de esa corrida, más abajo.</p>'
+            'cola la cortó con lo que había (fin normal a −50 dB). El nombre lleva al detalle de esa corrida, más abajo. '
+            'Todas las métricas se calculan con la misma función. El borde de −1 dB es la última frecuencia antes del primer '
+            'cero en que S21 sigue por encima de −1 dB.</p>'
             f"<div class='scroll'><table class='res'>{cab}{''.join(filas)}</table></div></section>")
 
 

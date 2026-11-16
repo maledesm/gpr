@@ -1,4 +1,3 @@
-cola iniciada 2026-11-10 03:55
-03:55 -> A_n5_thick_er4.4_N20 (log en resultados/A_n5_thick_er4.4_N20/log.txt)  ok, energia final -50.5 dB, 5.7 min
-04:01 -> B_n7_thick_er4.4_N20_rec0.935 (log en resultados/B_n7_thick_er4.4_N20_rec0.935/log.txt)  ok, energia final -36.9 dB (estancada, cortada), 13.7 min
-cola terminada 2026-11-10 04:15
+cola iniciada 2026-11-10 15:39
+15:39 -> A_n5_pec125_er4.4_N20 (log en resultados/A_n5_pec125_er4.4_N20/log.txt)  ok, energia final -50.4 dB, 13.8 min
+cola terminada 2026-11-10 15:54
