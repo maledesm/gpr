@@ -19,7 +19,7 @@ import math
 import numpy as np
 import scipy.fft as sfft
 from scipy.interpolate import CubicSpline
-from scipy.signal import windows
+from scipy.signal import savgol_filter, windows
 
 import config as cfg
 
@@ -72,12 +72,12 @@ class Mapa:
     [u_lo, u_hi] es la parte de la rampa que se usa (los dos deslizadores).
     """
 
-    def __init__(self, curva, v_min, v_max, u_lo=0.0, u_hi=1.0, n=4097):
-        self.u = np.linspace(0.0, 1.0, n)
-        self.f = curva(v_min + (v_max - v_min) * self.u)
+    def __init__(self, u, f, v_min, v_max, u_lo=0.0, u_hi=1.0):
+        self.u = np.asarray(u, dtype=float)
+        self.f = np.asarray(f, dtype=float)
         if np.any(np.diff(self.f) <= 0):
-            raise ValueError("la curva del VCO no es monotona entre "
-                             f"{v_min} y {v_max} V")
+            raise ValueError("la frecuencia del barrido no crece siempre "
+                             "del valle a la cima")
         self.v_min, self.v_max = v_min, v_max
         self.u_lo, self.u_hi = float(u_lo), float(u_hi)
         self.bw_total = float(self.f[-1] - self.f[0])
@@ -86,6 +86,13 @@ class Mapa:
         self.bw = self.f_hi - self.f_lo
         dfdu = np.gradient(self.f, self.u)
         self.dfdu_min = float(dfdu[(self.u >= u_lo) & (self.u <= u_hi)].min())
+
+    @classmethod
+    def de_curva(cls, curva, v_min, v_max, u_lo=0.0, u_hi=1.0, n=4097):
+        """Con la curva estatica del VCO y la triangular recta."""
+        u = np.linspace(0.0, 1.0, n)
+        return cls(u, curva(v_min + (v_max - v_min) * u), v_min, v_max,
+                   u_lo, u_hi)
 
     def u_de_f(self, f):
         return np.interp(f, self.f, self.u)
@@ -110,40 +117,56 @@ class Procesador:
         # que el bin sigue midiendo lo mismo.
         self.df0 = cfg.C / (2.0 * cfg.DR_M * cfg.NFFT_BASE)
         self.ventana_fft = "hann"
+        self.barrido = None       # f(u) medida: {"u", True: subida, False: bajada}
         self.fijar_ventana(0.0, 1.0)
+
+    def fijar_barrido(self, barrido):
+        """Usa una f(u) medida (o None para volver a la curva estatica)."""
+        self.barrido = barrido
+        self.fijar_ventana(self.u_lo, self.u_hi)
 
     def fijar_fft(self, nombre):
         self.ventana_fft = nombre
         self._grillas = {}
 
     def fijar_ventana(self, u_lo, u_hi):
-        self.mapa = Mapa(self.curva, self.v_min, self.v_max, u_lo, u_hi)
+        self.u_lo, self.u_hi = u_lo, u_hi
+        b = self.barrido
+        if b is None:
+            m = Mapa.de_curva(self.curva, self.v_min, self.v_max, u_lo, u_hi)
+            self.mapas = {True: m, False: m}
+        else:
+            # Medida, la subida y la bajada tienen cada una su curva.
+            self.mapas = {s: Mapa(b["u"], b[s], self.v_min, self.v_max,
+                                  u_lo, u_hi) for s in (True, False)}
+        self.mapa = self.mapas[True]      # la que se informa
         self._grillas = {}
 
     def afinado(self, largo):
         """Cuantas veces hay que partir el paso base para una rampa de
         `largo` muestras: el paso uniforme no puede ser mas grueso que el
         mas fino que traen las muestras (donde el VCO barre mas lento)."""
-        df_min = self.mapa.dfdu_min / largo
+        df_min = min(m.dfdu_min for m in self.mapas.values()) / largo
         p = math.ceil(math.log2(self.df0 / df_min))
         return int(min(max(p, 0), P_MAX))
 
-    def grilla(self, p):
+    def grilla(self, p, sube=True):
         """(u de cada punto, ventana ya normalizada, largo de FFT)."""
-        if p not in self._grillas:
+        if (p, sube) not in self._grillas:
+            mapa = self.mapas[sube]
             df = self.df0 / 2 ** p
-            m = int(self.mapa.bw // df)
+            m = int(mapa.bw // df)
             if m < 16:
                 raise ValueError("la parte usada de la rampa es demasiado "
                                  "angosta")
-            f0 = self.mapa.f_lo + (self.mapa.bw - m * df) / 2.0
-            u = self.mapa.u_de_f(f0 + (np.arange(m) + 0.5) * df)
+            f0 = mapa.f_lo + (mapa.bw - m * df) / 2.0
+            u = mapa.u_de_f(f0 + (np.arange(m) + 0.5) * df)
             w = VENTANAS[self.ventana_fft](m)
             # 2/sum(w): un tono de amplitud A da un pico de altura A, sea
             # cual sea la cantidad de puntos. Los perfiles quedan en cuentas
             # del ADC y son comparables entre si.
-            self._grillas[p] = (u, w * (2.0 / w.sum()), cfg.NFFT_BASE << p)
-        return self._grillas[p]
+            self._grillas[p, sube] = (u, w * (2.0 / w.sum()), cfg.NFFT_BASE << p)
+        return self._grillas[p, sube]
 
     def procesar(self, muestras, rampas):
         """Perfiles |FFT|^2 (float32, len(rampas) x k) de un lote de rampas.
@@ -163,13 +186,13 @@ class Procesador:
         # puntos de todas las rampas.
         spline = CubicSpline(np.arange(i1 - i0), muestras.tramo(i0, i1))
         ps = np.array([self.afinado(x) for x in largo])
-        for p in np.unique(ps):
-            sel = np.flatnonzero(ps == p)
-            u, w, nfft = self.grilla(int(p))
+        for p, s in {(int(p), bool(s)) for p, s in zip(ps, sube)}:
+            sel = np.flatnonzero((ps == p) & (sube == s))
+            u, w, nfft = self.grilla(p, s)
             # La bajada recorre las mismas frecuencias al reves: se lee de
             # atras para adelante y queda igual que una subida.
-            frac = np.where(sube[sel, None], u[None, :], 1.0 - u[None, :])
-            Y = spline(a[sel, None] - i0 + frac * largo[sel, None])
+            frac = u if s else 1.0 - u
+            Y = spline(a[sel, None] - i0 + frac[None, :] * largo[sel, None])
             Y -= Y.mean(axis=1, keepdims=True)
             Y *= w
             S = sfft.rfft(Y.astype(np.float32), n=nfft, axis=1, workers=-1)
@@ -183,6 +206,45 @@ class Procesador:
         u = (i - rampa.a) / (rampa.b - rampa.a)
         v = muestras.tramo(int(i[0]), int(i[-1]) + 1)
         return (u, v.copy()) if rampa.sube else (1.0 - u[::-1], v[::-1].copy())
+
+
+def medir_barrido(u, batido, tau):
+    """
+    f(u) del barrido [Hz, salvo una constante que no importa] a partir del
+    batido de UN solo retardo conocido `tau` [s]: su fase vale 2*pi*tau*f, asi
+    que cada vuelta de fase son 1/tau Hz de barrido.
+
+    `u` es la posicion en la rampa (0 valle, 1 cima), pareja, y `batido` el
+    promedio de varias rampas. Devuelve (f, vueltas). ValueError si la medicion
+    no sirve.
+    """
+    n = len(u)
+    x = (batido - batido.mean()) * windows.tukey(n, 0.1)
+    X = np.fft.fft(x)
+    kp = 1 + int(np.argmax(np.abs(X[1:n // 2])))
+    # Senal analitica, quedandose con la banda del tono de referencia: el VCO
+    # no barre parejo, asi que el tono se mueve entre ~0,5 y ~1,4 veces su
+    # frecuencia media. Afuera quedan la continua y otros ecos.
+    k = np.arange(n)
+    X[(k < 0.35 * kp) | (k > 1.9 * kp)] = 0.0
+    fase = np.unwrap(np.angle(np.fft.ifft(2.0 * X)))
+    if fase[-1] < fase[0]:
+        fase = -fase
+    ok = (u >= cfg.CAL_BARRIDO_BORDE) & (u <= 1.0 - cfg.CAL_BARRIDO_BORDE)
+    ia, ib = np.flatnonzero(ok)[[0, -1]]
+    vueltas = float(fase[ib] - fase[ia]) / (2.0 * np.pi)
+    if vueltas < cfg.CAL_BARRIDO_VUELTAS:
+        raise ValueError(f"solo {vueltas:.1f} vueltas de fase: hace falta un "
+                         "retardo mas largo (mas cable)")
+    f = savgol_filter(fase / (2.0 * np.pi * tau), 2 * (n // 60) + 1, 3)
+    # En las puntas la fase no es confiable: se sigue en linea recta.
+    pend = np.gradient(f, u)
+    f[:ia] = f[ia] + (u[:ia] - u[ia]) * pend[ia]
+    f[ib:] = f[ib] + (u[ib:] - u[ib]) * pend[ib]
+    if np.any(np.diff(f) <= 0):
+        raise ValueError("la fase no crece siempre: hay mas de un eco o poca "
+                         "senal")
+    return f, vueltas
 
 
 def pico_parabolico(y, i):

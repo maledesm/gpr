@@ -23,7 +23,7 @@ copia).
 | `simular.bat` | lo mismo sin banco, con blancos simulados |
 | `grabar.bat [segundos]` | graba el crudo a `datos/captura_<fecha>.gpr3`, sin ventana |
 | `analizar.bat [archivo]` | figura de una grabación (sin archivo, la más nueva) |
-| `verificar.bat` | las 53 comprobaciones sin hardware (~30 s) |
+| `verificar.bat` | las 58 comprobaciones sin hardware (~40 s) |
 | `compilar.bat [COMx]` | compila el firmware con arduino-cli; con puerto, lo carga |
 
 `vivo.bat --archivo datos\captura_X.gpr3` reproduce una grabación en la misma
@@ -232,7 +232,7 @@ valor inicial para `grabar.py`, `analizar.py` y `verificar.py`.
 
 ## Qué se verificó sin banco
 
-`verificar.bat`, 53 comprobaciones (las de abajo más ventanas de FFT, filas que no se recalculan y retardo automático):
+`verificar.bat`, 58 comprobaciones (las de abajo más ventanas de FFT, filas que no se recalculan, retardo automático y curva medida):
 
 1. Protocolo: ida y vuelta, reenganche con texto y basura en trozos de 1 a
    4096 bytes, un byte corrupto cuesta un solo paquete.
@@ -290,6 +290,88 @@ Nada de esto se pudo probar y es lo primero a mirar.
 - Se recuerdan 6000 rampas (`PERFILES_MAX`): 5 min a Tprf 100 ms, 1 min a 20.
 - El índice de muestra es de 32 bits. Da la vuelta a las 49 h a 24000 sps y
   la PC lo toma como un reinicio de la placa.
+
+## Pendientes (anotados el 2026-11-17)
+
+Para la tanda de mediciones finales, además de lo de "Primera vez en el banco":
+
+- [ ] **Aislar las antenas entre sí** (chapa o absorbente entre las dos
+  bocinas) y medir el acoplamiento directo antes y después. Es el pico más
+  fuerte de la señal y lo que fija cuánto rango dinámico queda. Ya estaba
+  planeado; queda acá para no olvidarlo.
+- [ ] **Medir la curva del barrido con un retardo conocido.** Ya está
+  programado (ver "Curva medida" abajo); falta hacer la medición.
+- [ ] Comparaciones para el escrito: con y sin filtro de RF, con y sin
+  remuestreo, curva vieja contra nueva del VCO, triangular de laboratorio
+  contra analógica, curva estática contra curva medida con el retardo.
+- [ ] B-scan: solo si antes se comprueba que el radar ve a través del suelo.
+  El objetivo de la tesis queda abierto: si no funciona como GPR, se presenta
+  como radar de distancia.
+
+Descartado por presupuesto: canal de referencia en vivo en el canal derecho
+del PCM1808 (pide un segundo mezclador). Va como trabajo futuro.
+
+### Pendientes que están anotados en otros lados del repo
+
+Relevados el 2026-11-17, para tenerlos juntos. El detalle está en cada archivo.
+
+- `GPRv2/docs/FILTRO_RF/README.md` §6: fabricar la placa (A, B, línea de paso
+  y resonador λ/4), medirla con el tracking generator o el VNA, esquinas de εr
+  (4,2 y 4,8), margen de recorte de los stubs del A, y confirmar en
+  `simulaciones_meep/armonicos/` cuánto atenúa la ventana de Hann el armónico
+  que se escapa por debajo de 2,35 GHz. Opcional: MEEP más fino.
+- `GPRv2/simulaciones_meep/armonicos/LEEME.md`, "Lo que falta medir": 2.º y
+  3.er armónico hasta ~6 GHz a la salida del VCO, del PA y en el LO; la
+  medición con barrel y atenuador (es la misma de la curva medida, y de paso
+  muestra los fantasmas en 2f y 3f); la salida del amplificador ×4,95 para
+  ver si recorta; y un blanco único y quieto procesado con las dos curvas del
+  VCO.
+- `GPRv2/mediciones/README.md`, "Falta medir o confirmar": espesor de la
+  chapa de las bocinas, cuál conector es el de TX, si están paralelas y
+  cuánto entra la sonda.
+- `GPRv2/docs/PWM/README.md`: repetibilidad del nivel de continua de la
+  triangular (medir los vértices con el Tek en dos o tres encendidos).
+- `GPRv2/CLAUDE.md`: el experimento del ADC de GPIO3 quedó en pausa y el
+  firmware viejo sigue con las líneas `#v3`. Con GPRv3 deja de importar,
+  porque ya no se lee la triangular.
+- `README.md` de la raíz: la lista de pendientes es de la etapa del DAC
+  (acelerar el sweep, sincronismo, segundo canal I/Q) y está desactualizada.
+
+## Curva medida con un retardo conocido
+
+En vez de suponer f(t) con la curva estática del VCO y una triangular recta,
+se la mide con el propio radar. Se sacan las antenas y se une el cable de TX
+con el de RX por un barrel **con atenuador**, sumando un coaxil como línea de
+retardo. El radar ve un solo eco, de retardo τ conocido, y la fase de su
+batido vale `2π·τ·f(t)`: cada vuelta de fase son `1/τ` Hz de barrido.
+
+Uso, en la ventana (grupo "Procesamiento"):
+
+1. Escribir el retardo de referencia en **metros aparentes** (`c·τ/2`, lo que
+   el radar mostraría para ese cable; sale de las mediciones del VNA).
+2. `medir curva`. Mide 5 s, promedia las rampas, saca la fase y guarda
+   `datos/calibracion_barrido.json`. Pone el retardo en 0 (la curva medida ya
+   lo trae adentro) y pasa a usarla, con su marca roja.
+3. El selector `curva VCO` cambia entre `estática` y `medida`, para comparar.
+
+Detalles:
+
+- Se mide una curva para la subida y otra para la bajada.
+- Hacen falta al menos 8 vueltas de fase en la rampa, o sea más de ~1,2 m
+  aparentes. Con menos avisa y no cambia nada. Más cable, mejor.
+- La curva vale para el Tprf y el encendido en que se midió (el panel dice a
+  qué Tprf). Si se mueve el pote hay que repetirla.
+- El 3 % de cada punta de la rampa no se mide (se extrapola en línea recta).
+- τ fija la escala: un error de 1 % en el retardo de referencia es 1 % en
+  todas las distancias. La calibración de distancia de siempre lo absorbe.
+- Los MHz que informa el panel con la curva medida están anclados a la curva
+  estática en el medio de la rampa. La constante no cambia las distancias.
+
+Simulado (`verificar.py`, punto 10) con la triangular 0,15 V más arriba y el
+batido atrasado 0,36 ms respecto de lo que supone `config.py`: el piso entre 9
+y 12 m baja de −53 a −74 dB y un blanco de −32 dB que quedaba tapado aparece
+en su lugar. Cuánto mejora en el banco depende de cuánto se aparte el barrido
+real del supuesto, y eso recién se sabe midiendo.
 
 ## Bitácora
 

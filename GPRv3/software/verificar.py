@@ -22,7 +22,8 @@ Comprueba todo lo que se puede comprobar sin la placa:
 
   8. que RETARDO_S corrige un atraso del batido respecto del sync;
   9. las ventanas de FFT, que las filas ya dibujadas no se recalculan y el
-     ajuste automatico del retardo.
+     ajuste automatico del retardo;
+ 10. la curva del barrido medida con un retardo conocido.
 
 Al final informa cuanto cuesta ese atraso si no se compensa.
 """
@@ -504,6 +505,70 @@ def lo_nuevo(curva):
        f"{msj}, en {r.ahora():.0f} s")
 
 
+def curva_medida(curva):
+    print("10. Curva del barrido medida con un retardo conocido")
+    # Un banco que NO es el que supone config.py: triangular 0,15 V mas arriba
+    # y el batido atrasado 0,36 ms.
+    real = dict(tprf=0.040, v_min=cfg.V_MIN + 0.15, v_max=cfg.V_MAX + 0.15,
+                retardo=0.36e-3)
+    g = s.Generador(s.Banco(blancos=[(4.20, 6e5)], **real), curva, 1)
+    r = Radar(curva)
+    r.alimentar(eventos_de(paquetes_de(g.bloques(188))[0]))
+    r.calibrar_barrido(4.20)
+    for _ in range(40):
+        r.alimentar(eventos_de(paquetes_de(g.bloques(47))[0]))
+        if r.cal_mensaje:
+            break
+    b = r.barrido_medido
+    bw_real = float(curva(real["v_max"]) - curva(real["v_min"])) / 1e6
+    ok("mide el barrido de las dos rampas", b is not None and r.barrido is b
+       and abs(b["bw_mhz"] / bw_real - 1) < 0.02, r.cal_mensaje or "")
+    if b is None:
+        return
+    tmp = tempfile.mkdtemp(prefix="gprv3_")
+    r.guardar_barrido(os.path.join(tmp, "b.json"))
+    r2 = Radar(curva)
+    ok("la curva se guarda y se vuelve a leer",
+       r2.cargar_barrido(os.path.join(tmp, "b.json")) == b)
+    shutil.rmtree(tmp, ignore_errors=True)
+
+    escena = [(1.61, 8e5), (3.70, 8e4), (7.25, 2e4)]
+    paq, _ = paquetes_de(generar(curva, 6.0, blancos=escena, ruido=2e3, **real))
+    res = {}
+    for nombre, usar in (("estatica", None), ("medida", b)):
+        x = Radar(curva)
+        x.usar_barrido(usar)
+        x.fijar_ventana(0.04, 0.96)
+        x.alimentar(eventos_de(paq))
+        p = perfil_medio(x)
+        p = 20 * np.log10(p / p.max())
+        d = x.eje_m_crudo
+        res[nombre] = (float(np.median(p[(d > 9) & (d < 12)])),
+                       [pico(perfil_medio(x), d0) for d0, _ in escena])
+    piso_e, _ = res["estatica"]
+    piso_m, picos = res["medida"]
+    ok("con la curva medida, los tres blancos en su lugar y con su altura",
+       all(abs(dm - d0) < 0.01 and abs(20 * np.log10(am / a0)) < 1.0
+           for (dm, am), (d0, a0) in zip(picos, escena)),
+       ", ".join(f"{dm:.3f} m" for dm, _ in picos))
+    ok("...y las colas del blanco fuerte bajan (usando subidas Y bajadas)",
+       piso_m < piso_e - 10,
+       f"piso entre 9 y 12 m: {piso_e:.0f} dB con la estatica, "
+       f"{piso_m:.0f} dB con la medida")
+
+    g = s.Generador(s.Banco(blancos=[(0.60, 6e5)], **real), curva, 1)
+    r = Radar(curva)
+    r.alimentar(eventos_de(paquetes_de(g.bloques(188))[0]))
+    r.calibrar_barrido(0.60)
+    for _ in range(40):
+        r.alimentar(eventos_de(paquetes_de(g.bloques(47))[0]))
+        if r.cal_mensaje:
+            break
+    ok("con un retardo demasiado corto avisa y no cambia nada",
+       r.barrido is None and r.cal_mensaje is not None
+       and "vueltas" in r.cal_mensaje, r.cal_mensaje or "")
+
+
 def costo_del_retardo(curva):
     print("Informe: cuanto cuesta un retardo sin compensar (RETARDO_S = 0)")
     print("  (0,36 ms es el del filtro digital del PCM1808 a 48 kHz)")
@@ -532,6 +597,7 @@ def main():
     contra_gprv2()
     retardo_extra(curva)
     lo_nuevo(curva)
+    curva_medida(curva)
     costo_del_retardo(curva)
     mal = RES.count(False)
     print(f"\n{len(RES)} comprobaciones, {mal} fallaron." if mal else

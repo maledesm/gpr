@@ -15,7 +15,7 @@ import time
 import numpy as np
 
 import config as cfg
-from proceso import Procesador, pico_parabolico
+from proceso import Procesador, medir_barrido, pico_parabolico
 from rampas import Muestras, Rampa, Segmentador
 
 SENTIDOS = ("ambas", "subida", "bajada")
@@ -94,6 +94,12 @@ class Radar:
         self.en_metros = False
         self.ventana_fft = cfg.VENTANA_FFT_DEF
         self.mapa_color = cfg.MAPA_COLOR_DEF
+        # Curva del barrido medida con un retardo conocido: la que hay
+        # guardada y la que se esta usando (None = curva estatica del VCO).
+        self.barrido_medido = None
+        self.barrido = None
+        self._cal = None          # medicion en curso
+        self.cal_mensaje = None   # como termino la ultima
 
         self.P = None
         self.ref_pantalla = 1.0
@@ -122,6 +128,7 @@ class Radar:
             self.proc = Procesador(self.curva, sps)
             self.proc.fijar_ventana(self.u_lo, self.u_hi)
             self.proc.fijar_fft(self.ventana_fft)
+            self.proc.fijar_barrido(self._barrido_hz())
             if self.P is None:
                 cap = cfg.PERFILES_MAX + cfg.PERFILES_MAX // 4
                 # Un perfil de potencia por rampa: de aca salen el pico, el
@@ -150,6 +157,96 @@ class Radar:
         self.ventana_fft = nombre
         if self.proc is not None:
             self.proc.fijar_fft(nombre)
+
+    # --- curva del barrido medida ---
+
+    def _barrido_hz(self):
+        """La curva en uso, como la quiere el Procesador: en Hz y anclada a
+        la curva estatica en el medio de la rampa (la constante no cambia las
+        distancias, solo los MHz que se informan)."""
+        b = self.barrido
+        if b is None:
+            return None
+        u = np.asarray(b["u"], dtype=float)
+        ancla = float(self.curva(0.5 * (cfg.V_MIN + cfg.V_MAX)))
+        sale = {"u": u}
+        for sube, clave in ((True, "subida_mhz"), (False, "bajada_mhz")):
+            f = np.asarray(b[clave], dtype=float) * 1e6
+            sale[sube] = ancla + f - np.interp(0.5, u, f)
+        return sale
+
+    def usar_barrido(self, b):
+        """Pasa a corregir con la curva medida `b` (None: la estatica)."""
+        self.barrido = b
+        if self.proc is not None:
+            self.proc.fijar_barrido(self._barrido_hz())
+
+    def calibrar_barrido(self, d_ref):
+        """Empieza a medir f(u): tiene que haber UN solo eco, de retardo
+        conocido (`d_ref` en metros aparentes = c*tau/2)."""
+        u = np.linspace(0.0, 1.0, 1001)
+        self.retardo = 0.0         # la curva medida ya lo trae adentro
+        self.cal_mensaje = None
+        self._cal = {"u": u, "tau": 2.0 * d_ref / cfg.C, "d_ref": d_ref,
+                     "fin": self.ahora() + cfg.CAL_BARRIDO_S,
+                     "suma": {True: np.zeros(len(u)), False: np.zeros(len(u))},
+                     "n": {True: 0, False: 0}}
+
+    def cancelar_calibracion(self):
+        self._cal = None
+
+    def _juntar_calibracion(self, rampas):
+        c = self._cal
+        for r in rampas:
+            u, v = self.proc.cruda(self.muestras, r)
+            c["suma"][r.sube] += np.interp(c["u"], u, v - v.mean())
+            c["n"][r.sube] += 1
+        if self.ahora() < c["fin"]:
+            return
+        self._cal = None
+        try:
+            if min(c["n"].values()) < 5:
+                raise ValueError("no llegaron rampas suficientes")
+            f, vueltas = {}, {}
+            for sube in (True, False):
+                f[sube], vueltas[sube] = medir_barrido(
+                    c["u"], c["suma"][sube] / c["n"][sube], c["tau"])
+        except ValueError as e:
+            self.cal_mensaje = f"barrido: {e}; no se cambio nada"
+            return
+        paso = 5                   # se guardan 201 puntos
+        r = self.resumen()
+        self.barrido_medido = {
+            "fecha": time.strftime("%d-%m-%Y %H:%M:%S"),
+            "d_ref_m": c["d_ref"], "sps": self.sps,
+            "tprf_ms": round(r["tprf"] * 1e3, 3) if r["tprf"] else None,
+            "rampas": c["n"][True] + c["n"][False],
+            "vueltas": round(vueltas[True], 1),
+            "bw_mhz": round((f[True][-1] - f[True][0]) / 1e6, 2),
+            "u": [round(float(x), 4) for x in c["u"][::paso]],
+            "subida_mhz": [round(float(x), 4) for x in
+                           (f[True][::paso] - f[True][0]) / 1e6],
+            "bajada_mhz": [round(float(x), 4) for x in
+                           (f[False][::paso] - f[False][0]) / 1e6],
+        }
+        self.usar_barrido(self.barrido_medido)
+        self.marcar()
+        self.cal_mensaje = (f"barrido medido: {self.barrido_medido['bw_mhz']:.0f} "
+                            f"MHz en {vueltas[True]:.0f} vueltas; ya se usa")
+
+    def guardar_barrido(self, ruta=cfg.BARRIDO_JSON):
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump(self.barrido_medido, f)
+
+    def cargar_barrido(self, ruta=cfg.BARRIDO_JSON):
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                b = json.load(f)
+            if len(b["u"]) == len(b["subida_mhz"]) == len(b["bajada_mhz"]) > 10:
+                self.barrido_medido = b
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        return self.barrido_medido
 
     def ahora(self):
         """El reloj de la placa [s] en la ultima rampa procesada."""
@@ -211,6 +308,8 @@ class Radar:
             if self.mti:
                 self._actualizar_mti(E, sum(r.b - r.a for r in lote) / self.sps)
             self._armar_filas(E, lote)
+        if self._cal is not None and listas:
+            self._juntar_calibracion(listas)
         for r in listas[-2:]:
             self.ultima[r.sube] = self.proc.cruda(self.muestras, r)
 
@@ -562,6 +661,8 @@ class Radar:
             "sin_muestras": self.sin_muestras,
             "huecos": len(self.muestras.huecos),
             "ventana_fft": self.ventana_fft, "retardo": self.retardo,
+            "curva": "estatica" if self.barrido is None else "medida",
+            "curva_tprf_ms": (self.barrido or {}).get("tprf_ms"),
         }
         if largo:
             p = self.proc.afinado(largo)

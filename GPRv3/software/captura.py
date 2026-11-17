@@ -57,6 +57,10 @@ def texto_info(radar):
         f"no ambiguo{r['no_ambiguo']:9.1f} m\n"
         f"FFT {r['nfft']} sobre {r['puntos']} puntos\n"
         f"ventana   {r['ventana_fft']:>9}\n"
+        f"curva     {r['curva']:>9}\n"
+        + (f"  medida a Tprf {r['curva_tprf_ms']} ms\n" if r["curva"] == "medida"
+           else "") +
+        ""
         f"retardo   {r['retardo'] * 1e3:+9.2f} ms\n"
         "\n-- rampas --\n"
         f"validas   {r['validas']:9d}\n"
@@ -145,7 +149,11 @@ def escribir_csv(ruta, radar, png, corrida):
         "retardo_ms": f"{r['retardo'] * 1e3:+.2f}",
         "correccion_no_linealidad": "remuestreo cubico a paso uniforme de "
                                     "frecuencia (curva del VCO)",
-        "curva_vco": os.path.basename(cfg.VCO_CSV),
+        "curva_vco": (os.path.basename(cfg.VCO_CSV) if radar.barrido is None
+                      else "medida con un retardo de "
+                           f"{radar.barrido['d_ref_m']} m el "
+                           f"{radar.barrido['fecha']}, a Tprf "
+                           f"{radar.barrido['tprf_ms']} ms"),
         "sincronismo": "flancos de la cuadrada del generador",
         "rampas_usadas": radar.sentido,
         "rampa_desde_pct": f"{r['u_lo'] * 100:.0f}",

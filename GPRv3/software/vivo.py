@@ -44,7 +44,9 @@ FONDO, PANEL, TEXTO, ACENTO = "#16181d", "#22252c", "#d6d8dc", "#3d7eff"
 pg.setConfigOptions(imageAxisOrder="row-major", background=FONDO,
                     foreground=TEXTO)
 # Los ajustes que solo cambian como se mira: no dejan marca.
-SOLO_VISTA = ("ventana", "alcance", "piso", "techo", "dist_real", "espera")
+SOLO_VISTA = ("ventana", "alcance", "piso", "techo", "dist_real", "espera",
+              "d_ref")
+CURVAS = ("estática", "medida")
 RETARDO_MAX_US = int(cfg.RETARDO_MAX_S * 1e6)
 AZUL, NARANJA, ROJO, CELESTE = (90, 170, 255), (255, 127, 14), "#ff3030", "#40e0ff"
 
@@ -59,6 +61,7 @@ CAJAS = {
     "margen": ("margen [dB]", -80.0, 80.0, 1.0, 1),
     "dist_real": ("dist. real [m]", 0.0, 100.0, 0.1, 3),
     "espera": ("esperar [s]", 0.0, cfg.ESPERA_MAX, 1.0, 0),
+    "d_ref": ("retardo de referencia", 0.3, 30.0, 0.1, 2),
 }
 GRIS = pg.mkBrush(150, 150, 150, 70)
 NEGRITA = {"font-weight": "600"}
@@ -70,7 +73,7 @@ QGroupBox {{ border: 1px solid #2f333c; border-radius: 10px; margin-top: 8px;
 QGroupBox::title {{ subcontrol-origin: margin; left: 12px; padding: 0 4px;
                     color: #8fb4ff; }}
 QPushButton {{ background: #2b2f38; border: none; border-radius: 9px;
-               padding: 3px 10px; }}
+               padding: 2px 10px; }}
 QPushButton:hover {{ background: #363b47; }}
 QPushButton:pressed {{ background: {ACENTO}; color: white; }}
 QDoubleSpinBox, QLineEdit, QComboBox {{ background: {PANEL}; border: 1px solid
@@ -131,6 +134,7 @@ class Ventana(QtWidgets.QMainWindow):
         self.radar = radar
         self.dist_real = 1.0
         self.espera = 0.0
+        self.d_ref = cfg.D_REF_DEF
         self.aviso = ""
         self.t_disparo = None
         self.t_inicio = time.monotonic()
@@ -167,7 +171,7 @@ class Ventana(QtWidgets.QMainWindow):
             g = QtWidgets.QGroupBox(titulo)
             forma = QtWidgets.QFormLayout(g)
             forma.setContentsMargins(6, 4, 6, 4)
-            forma.setVerticalSpacing(3)
+            forma.setVerticalSpacing(2)
             for nombre in nombres:
                 rotulo, lo, hi, paso, dec = CAJAS[nombre]
                 c = QtWidgets.QDoubleSpinBox()
@@ -216,6 +220,37 @@ class Ventana(QtWidgets.QMainWindow):
         self.combo_fft.currentTextChanged.connect(self._cambiar_fft)
         f.addRow("ventana FFT", self.combo_fft)
 
+        self.combo_sps = QtWidgets.QComboBox()
+        self.combo_sps.addItems([str(x) for x in cfg.SPS_OPCIONES])
+        self.combo_sps.setCurrentText(str(cfg.SPS_DEF))
+        self.combo_sps.setEnabled(not isinstance(self.fuente, FuenteArchivo))
+        self.combo_sps.textActivated.connect(self._cambiar_sps)
+        f.addRow("muestras/s", self.combo_sps)
+        # Curva del barrido: la estatica del VCO o la medida con un retardo
+        # conocido (cables unidos por un barrel, sin antenas). Al lado del
+        # boton, el retardo de referencia en metros aparentes.
+        self.combo_curva = QtWidgets.QComboBox()
+        self.combo_curva.addItems(CURVAS)
+        self.combo_curva.currentTextChanged.connect(self._cambiar_curva)
+        f.addRow("curva VCO", self.combo_curva)
+        rotulo, lo, hi, paso, dec = CAJAS["d_ref"]
+        c = self.cajas["d_ref"] = QtWidgets.QDoubleSpinBox()
+        c.setRange(lo, hi)
+        c.setSingleStep(paso)
+        c.setDecimals(dec)
+        c.setKeyboardTracking(False)
+        c.setSuffix(" m")
+        c.setToolTip("retardo de referencia, en metros aparentes (c·τ/2)")
+        c.valueChanged.connect(lambda v: self._escribir("d_ref", v))
+        self.boton_barrido = QtWidgets.QPushButton("medir curva")
+        self.boton_barrido.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        self.boton_barrido.clicked.connect(self.calibrar_barrido)
+        fila = QtWidgets.QHBoxLayout()
+        fila.setSpacing(4)
+        fila.addWidget(c)
+        fila.addWidget(self.boton_barrido, 1)
+        f.addRow(fila)
+
         f = grupo("Fondo y detección", ("ignorar", "margen"))
         _, self.boton_mti, _ = botones(f, ("medir", self.medir_fondo),
                                        ("auto (f)", self.alternar_mti),
@@ -232,17 +267,6 @@ class Ventana(QtWidgets.QMainWindow):
         self.casilla_crudo = QtWidgets.QCheckBox("grabar crudo (.gpr3)")
         self.casilla_crudo.toggled.connect(self._grabar_crudo)
         f.addRow(self.casilla_crudo)
-
-        g = QtWidgets.QGroupBox("Placa")
-        f = QtWidgets.QFormLayout(g)
-        f.setContentsMargins(6, 4, 6, 4)
-        self.combo_sps = QtWidgets.QComboBox()
-        self.combo_sps.addItems([str(x) for x in cfg.SPS_OPCIONES])
-        self.combo_sps.setCurrentText(str(cfg.SPS_DEF))
-        self.combo_sps.setEnabled(not isinstance(self.fuente, FuenteArchivo))
-        self.combo_sps.textActivated.connect(self._cambiar_sps)
-        f.addRow("muestras/s", self.combo_sps)
-        col.addWidget(g)
 
         self.estado = QtWidgets.QLabel()
         self.estado.setWordWrap(True)
@@ -327,7 +351,7 @@ class Ventana(QtWidgets.QMainWindow):
         # La triangular, DIBUJADA con lo que se sabe de ella: cuanto duran la
         # subida y la bajada (del sync) y los vertices de config.py.
         self.ptri = pg.PlotWidget()
-        self.ptri.setFixedHeight(140)
+        self.ptri.setFixedHeight(125)
         self.ptri.setTitle("Triangular (dibujada): en color, lo que se usa",
                            size="8pt")
         self.ptri.setLabel("bottom", "tiempo [ms]", **NEGRITA)
@@ -341,7 +365,7 @@ class Ventana(QtWidgets.QMainWindow):
         col.addWidget(self.ptri)
 
         self.prampa = pg.PlotWidget()
-        self.prampa.setFixedHeight(150)
+        self.prampa.setFixedHeight(135)
         self.prampa.setTitle("Última rampa (en gris, lo que no se usa)", size="8pt")
         self.prampa.setLabel("bottom", "posición en la rampa [%]  (0 valle, "
                                        "100 cima)", **NEGRITA)
@@ -412,6 +436,7 @@ class Ventana(QtWidgets.QMainWindow):
             self._poner(n, getattr(r, n))
         self._poner("dist_real", self.dist_real)
         self._poner("espera", self.espera)
+        self._poner("d_ref", self.d_ref)
         self.barra.blockSignals(True)
         self.barra.setLevels((r.piso, r.techo))
         self.barra.blockSignals(False)
@@ -425,7 +450,7 @@ class Ventana(QtWidgets.QMainWindow):
             r.piso = min(v, r.techo - 1.0)
         elif nombre == "techo":
             r.techo = max(v, r.piso + 1.0)
-        elif nombre in ("dist_real", "espera"):
+        elif nombre in ("dist_real", "espera", "d_ref"):
             setattr(self, nombre, float(v))
         else:
             setattr(r, nombre, float(v))
@@ -451,6 +476,52 @@ class Ventana(QtWidgets.QMainWindow):
         self.radar.fijar_fft(texto)
         self.radar.marcar()
         self.guardar_config()
+
+    def _poner_curva(self, medida):
+        self.combo_curva.blockSignals(True)
+        self.combo_curva.setCurrentText(CURVAS[1 if medida else 0])
+        self.combo_curva.blockSignals(False)
+
+    def _cambiar_curva(self, texto):
+        r = self.radar
+        if texto == CURVAS[1] and r.barrido_medido is None:
+            self.aviso = "todavia no hay una curva medida: usar 'medir curva'"
+            self._poner_curva(False)
+            return
+        r.usar_barrido(r.barrido_medido if texto == CURVAS[1] else None)
+        r.marcar()
+        self.guardar_config()
+
+    def calibrar_barrido(self):
+        """Mide f(t) con un retardo conocido, o cancela si ya esta midiendo."""
+        r = self.radar
+        if r._cal is not None:
+            r.cancelar_calibracion()
+            self.aviso = "medicion del barrido cancelada"
+        elif r.proc is None or not r.hay_sync():
+            self.aviso = "barrido: no hay rampas para medir"
+        else:
+            if self.ajuste is not None:
+                self._terminar_auto("ajuste del retardo cancelado")
+            r.calibrar_barrido(self.d_ref)
+            self._seguir_retardo()
+            self.aviso = (f"midiendo el barrido {cfg.CAL_BARRIDO_S:.0f} s: tiene "
+                          "que estar el barrel puesto, sin antenas")
+
+    def _atender_barrido(self):
+        r = self.radar
+        self.boton_barrido.setText("cancelar" if r._cal is not None
+                                   else "medir curva")
+        if r.cal_mensaje is None:
+            return
+        self.aviso, r.cal_mensaje = r.cal_mensaje, None
+        if r.barrido is not None and r.barrido is r.barrido_medido:
+            try:
+                r.guardar_barrido()
+            except OSError as e:
+                self.aviso += f" (no se pudo guardar: {e})"
+            self._poner_curva(True)
+            self.guardar_config()
 
     def _cambiar_color(self, texto):
         self.radar.mapa_color = texto
@@ -664,6 +735,10 @@ class Ventana(QtWidgets.QMainWindow):
         self.des_valle.setValue(int(d.get("valle", 0)))
         self.des_cima.setValue(int(d.get("cima", 100)))
         self.des_retardo.setValue(int(d.get("retardo_us", 0)) // 10)
+        self.d_ref = float(d.get("d_ref", self.d_ref))
+        if d.get("curva_medida") and r.barrido_medido is not None:
+            r.usar_barrido(r.barrido_medido)
+            self._poner_curva(True)
         self.casilla_crudo.setChecked(False)
         self._refrescar_cajas()
 
@@ -674,6 +749,7 @@ class Ventana(QtWidgets.QMainWindow):
              "espera": self.espera, "en_metros": r.en_metros,
              "sentido": r.sentido, "sps": int(self.combo_sps.currentText()),
              "ventana_fft": r.ventana_fft, "colores": r.mapa_color,
+             "d_ref": self.d_ref, "curva_medida": r.barrido is not None,
              "nombre_captura": self.caja_nombre.text(),
              "valle": self.des_valle.value(), "cima": self.des_cima.value(),
              "retardo_us": self.des_retardo.value() * 10}
@@ -721,6 +797,7 @@ class Ventana(QtWidgets.QMainWindow):
         if not cartel and f.en_vivo and not f.error and not r.hay_sync():
             cartel = "SIN SYNC: no llegan flancos"
         self._poner_cartel(cartel)
+        self._atender_barrido()
         if self.ajuste is not None:
             fin = self.ajuste.paso()
             self._seguir_retardo()
@@ -854,7 +931,12 @@ def main():
 
     app = QtWidgets.QApplication(sys.argv[:1])
     tema_oscuro(app)
-    ventana = Ventana(fuente, Radar(curva, cal), config)
+    radar = Radar(curva, cal)
+    b = radar.cargar_barrido()
+    if b:
+        print(f"Hay una curva del barrido medida el {b['fecha']} "
+              f"(Tprf {b['tprf_ms']} ms).")
+    ventana = Ventana(fuente, radar, config)
     fuente.start()
     ventana.showMaximized()
     app.exec()

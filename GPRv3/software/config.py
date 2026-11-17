@@ -14,6 +14,7 @@ DATOS = os.path.join(RAIZ, "datos")
 CAPTURAS = os.path.join(DATOS, "capturas")
 CAL_JSON = os.path.join(DATOS, "calibracion_distancia.json")
 CONFIG_JSON = os.path.join(DATOS, "vivo_config.json")
+BARRIDO_JSON = os.path.join(DATOS, "calibracion_barrido.json")
 
 C = 299792458.0
 
@@ -83,6 +84,11 @@ AUTO_TOL_M = 0.002
 AUTO_PASOS = 8
 AUTO_PRIMER_PASO_S = 100e-6
 RETARDO_MAX_S = 2e-3
+# Calibracion del barrido con un retardo conocido (README, "Curva medida").
+CAL_BARRIDO_S = 5.0          # cuanto se mide
+CAL_BARRIDO_BORDE = 0.03     # fraccion de cada punta de la rampa que no se usa
+CAL_BARRIDO_VUELTAS = 8      # minimo de vueltas de fase para aceptarla
+D_REF_DEF = 3.6              # m aparentes del retardo de referencia
 SIN_SYNC_S = 0.6         # sin flancos durante esto: se avisa
 VALLE_MAX, CIMA_MIN = 45, 55   # % de la rampa, topes de los dos deslizadores
 
